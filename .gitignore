@@ -1,0 +1,21 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Firebase private credentials
+serviceAccountKey.json
+firebase-adminsdk*.json
+
+# Dependencies
+vendor/
+node_modules/
+
+# Temporary / logs
+*.log
+temp/
+tmp/
+
+# Operating system
+.DS_Store
+Thumbs.db
