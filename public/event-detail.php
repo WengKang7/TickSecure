@@ -3,6 +3,32 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
+<?php
+
+$eventVenueId = 'merdeka-hall';
+
+
+$eventCategoryMap = [
+
+    'A' => [
+        'name' => 'VIP1',
+        'price' => 'RM688'
+    ],
+
+    'B' => [
+        'name' => 'VIP2',
+        'price' => 'RM488'
+    ],
+
+    'C' => [
+        'name' => 'CAT1',
+        'price' => 'RM288'
+    ]
+
+];
+
+?>
+
 <main>
   <section class="ts-section-tight">
     <div class="ts-container ts-event-hero-detail">

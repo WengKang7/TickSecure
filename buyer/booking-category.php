@@ -3,9 +3,56 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
+<?php
+
+$eventVenueId = 'merdeka-hall';
+
+$eventCategoryMap = [
+
+    'A' => [
+        'name' => 'VIP1',
+        'price' => 'RM688'
+    ],
+
+    'B' => [
+        'name' => 'VIP2',
+        'price' => 'RM488'
+    ],
+
+    'C' => [
+        'name' => 'CAT1',
+        'price' => 'RM288'
+    ]
+
+];
+
+?>
+
 <main class="ts-section-tight">
   <div class="ts-container">
+          <div class="ts-card ts-card-pad mb-24">
+
+    <div class="ts-card-title">
+        Choose Your Ticket Category
+    </div>
+
+    <div class="ts-card-sub">
+        Use the venue layout to understand where each
+        ticket category is located.
+    </div>
+
+
+    <div class="mt-20">
+
+        <?= ts_render_venue_layout(
+            $eventVenueId,
+            'buyer',
+            $eventCategoryMap
+        ) ?>
+
+    </div>
     <div class="ts-steps">
+      
       <div class="ts-step active"><span class="ts-step-num">1</span>Category</div><span class="ts-step-line"></span>
       <div class="ts-step"><span class="ts-step-num">2</span>Seat Assignment</div><span class="ts-step-line"></span>
       <div class="ts-step"><span class="ts-step-num">3</span>Wallet</div><span class="ts-step-line"></span>

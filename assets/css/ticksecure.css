@@ -3045,4 +3045,446 @@ img {
     }
 }
 
+/* =========================================================
+   STEP 4 - SEAT GENERATION
+   ========================================================= */
+
+/* Main left + right layout */
+.ts-seat-generation-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(300px, 0.85fr);
+    gap: 20px;
+    align-items: stretch;
+    width: 100%;
+}
+
+
+/* =========================================================
+   GENERATION SUMMARY
+   ========================================================= */
+
+.ts-generation-summary {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+
+    margin-top: 20px;
+}
+
+.ts-generation-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ts-generation-number {
+    font-size: 26px;
+    line-height: 1;
+    font-weight: 750;
+    color: #111827;
+}
+
+.ts-generation-divider {
+    width: 1px;
+    height: 42px;
+    background: #e2e8f0;
+}
+
+
+/* =========================================================
+   PROGRESS BAR
+   ========================================================= */
+
+.ts-generation-progress {
+    margin-top: 20px;
+}
+
+.ts-progress-track {
+    width: 100%;
+    height: 8px;
+
+    overflow: hidden;
+
+    border-radius: 999px;
+    background: #e9edf2;
+}
+
+.ts-progress-fill {
+    height: 100%;
+
+    border-radius: inherit;
+
+    background: #159447;
+}
+
+
+/* =========================================================
+   VENUE VISUAL
+   ========================================================= */
+
+.ts-generated-board {
+    position: relative;
+
+    width: 100%;
+    height: 470px;
+    min-height: 470px;
+
+    box-sizing: border-box;
+
+    padding: 28px;
+
+    border: 1px solid #d7dde5;
+    border-radius: 16px;
+
+    background: #ffffff;
+
+    overflow: hidden;
+}
+
+
+/* Stage */
+.ts-generated-stage {
+    position: absolute;
+
+    top: 26px;
+    left: 24%;
+    right: 24%;
+
+    height: 58px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #232a33;
+    color: #ffffff;
+
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+}
+
+
+/* Physical venue section */
+.ts-generated-section {
+    position: absolute;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    box-sizing: border-box;
+
+    border: 1.5px solid #c59b68;
+    border-radius: 4px;
+
+    background: #fbf6ef;
+
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+
+/* Content inside section */
+.ts-generated-section-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    gap: 6px;
+
+    text-align: center;
+}
+
+.ts-generated-section-content strong {
+    display: block;
+
+    font-size: 15px;
+    font-weight: 700;
+
+    color: #684821;
+}
+
+.ts-generated-section-content span {
+    display: block;
+
+    font-size: 12px;
+
+    color: #64748b;
+}
+
+.ts-generated-success {
+    margin-top: 3px;
+
+    color: #159447 !important;
+    font-weight: 650;
+}
+
+
+/* =========================================================
+   GENERATION STATUS PANEL
+   ========================================================= */
+
+.ts-generation-section-list {
+    display: flex;
+    flex-direction: column;
+
+    gap: 12px;
+
+    margin-top: 20px;
+}
+
+.ts-generation-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 16px;
+
+    padding: 15px 16px;
+
+    border: 1px solid #e2e7ed;
+    border-radius: 12px;
+
+    background: #ffffff;
+}
+
+.ts-generation-row strong {
+    font-size: 13px;
+}
+
+.ts-generation-row .small {
+    margin-top: 4px;
+}
+
+.text-right {
+    text-align: right;
+}
+
+.success-text {
+    color: #159447;
+}
+
+.ts-generation-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    margin-top: 18px;
+    padding: 14px 16px;
+
+    border-radius: 11px;
+
+    background: #f7f8fa;
+}
+
+.ts-generation-total span {
+    font-size: 13px;
+    color: #536174;
+}
+
+.ts-generation-total strong {
+    font-size: 16px;
+}
+
+
+/* =========================================================
+   GENERATED SEAT PREVIEW
+   ========================================================= */
+
+.ts-seat-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.ts-seat-pill {
+    min-width: 34px;
+
+    padding: 6px 8px;
+
+    box-sizing: border-box;
+
+    border: 1px solid #d8dee6;
+    border-radius: 7px;
+
+    background: #ffffff;
+
+    font-size: 11px;
+    font-weight: 600;
+
+    text-align: center;
+
+    color: #283548;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+/*
+   Do NOT collapse at 1000px.
+   Your dashboard already has a sidebar,
+   so 1000px was causing the panel to move underneath too early.
+*/
+@media (max-width: 760px) {
+
+    .ts-seat-generation-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .ts-generated-board {
+        height: 430px;
+        min-height: 430px;
+    }
+
+    .ts-generation-summary {
+        flex-wrap: wrap;
+    }
+
+}
+
+/* =========================================================
+   REUSABLE VENUE LAYOUT
+   Admin-approved venue layout shown to Organizer / Buyer
+   ========================================================= */
+
+.ts-reusable-venue {
+    width: 100%;
+}
+
+
+.ts-reusable-venue-plan {
+    position: relative;
+
+    width: 100%;
+    height: 500px;
+
+    border: 1px solid #aeb8c5;
+
+    background: #ffffff;
+
+    box-sizing: border-box;
+
+    overflow: hidden;
+}
+
+
+/* Stage */
+
+.ts-reusable-stage {
+    position: absolute;
+
+    top: 4%;
+    left: 24%;
+
+    width: 52%;
+    height: 11%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #232a33;
+    color: #ffffff;
+
+    font-size: 12px;
+    font-weight: 600;
+
+    letter-spacing: 0.14em;
+}
+
+
+/* Venue section */
+
+.ts-reusable-section {
+    position: absolute;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    box-sizing: border-box;
+
+    border: 1.5px solid #c79a64;
+
+    background: #fbf7f1;
+
+    color: #67471f;
+}
+
+
+.ts-reusable-section-content {
+    display: flex;
+    flex-direction: column;
+
+    align-items: center;
+    justify-content: center;
+
+    gap: 6px;
+
+    text-align: center;
+}
+
+
+.ts-reusable-section strong {
+    font-size: 14px;
+    font-weight: 700;
+
+    color: #684821;
+}
+
+
+.ts-reusable-section span {
+    font-size: 12px;
+
+    color: #536174;
+}
+
+
+.ts-reusable-section .ts-layout-price {
+    margin-top: 2px;
+
+    font-size: 13px;
+    font-weight: 700;
+
+    color: #684821;
+}
+
+
+/* Venue preview card */
+
+.ts-venue-preview-container {
+    margin-top: 22px;
+
+    padding: 22px;
+
+    border: 1px solid #e0e5eb;
+    border-radius: 16px;
+
+    background: #ffffff;
+}
+
+
+/* Hide inactive venue preview */
+
+.ts-venue-preview-item {
+    display: none;
+}
+
+
+.ts-venue-preview-item.active {
+    display: block;
+}
+
+
+@media (max-width: 760px) {
+
+    .ts-reusable-venue-plan {
+        height: 400px;
+    }
+
+}
+
 }

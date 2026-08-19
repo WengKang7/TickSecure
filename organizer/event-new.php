@@ -30,15 +30,100 @@ ob_start();
                 value="Nova Stage Entertainment" disabled></div>
     </div>
     <div class="ts-divider"></div>
-    <div class="ts-card-title">Step 2 · Venue</div>
-    <div class="ts-grid-2 mt-20">
-        <div class="ts-field"><label class="ts-label">Select Administrator-managed Venue</label><select
-                class="ts-select">
-                <option>Merdeka Hall · Kuala Lumpur</option>
-                <option>Axiata Arena · Bukit Jalil</option>
-            </select>
-            <div class="ts-help">Only venues with an active processed layout are available.</div>
+   <div class="ts-card-title">
+    Step 2 · Venue
+</div>
+
+
+<div class="ts-field mt-20">
+
+    <label class="ts-label">
+        Select Administrator-managed Venue
+    </label>
+
+
+    <select
+        class="ts-select"
+        id="venue-select"
+        name="venueId"
+    >
+
+        <?php foreach (ts_venue_catalog() as $venueId => $venue): ?>
+
+            <?php if ($venue['layoutStatus'] === 'ACTIVE'): ?>
+
+                <option
+                    value="<?= htmlspecialchars($venueId) ?>"
+                >
+                    <?= htmlspecialchars($venue['name']) ?>
+                    ·
+                    <?= htmlspecialchars($venue['location']) ?>
+                </option>
+
+            <?php endif; ?>
+
+        <?php endforeach; ?>
+
+    </select>
+
+
+    <div class="ts-help">
+        Only Administrator-approved venues with an active
+        seating layout can be selected.
+    </div>
+
+</div>
+
+
+
+<!-- ======================================================
+     VENUE PREVIEW
+     ====================================================== -->
+
+<div class="ts-venue-preview-container">
+
+
+    <?php
+
+    $venueIndex = 0;
+
+    foreach (ts_venue_catalog() as $venueId => $venue):
+
+        if ($venue['layoutStatus'] !== 'ACTIVE') {
+            continue;
+        }
+
+        $isFirst = $venueIndex === 0;
+
+    ?>
+
+
+        <div
+            class="
+                ts-venue-preview-item
+                <?= $isFirst ? 'active' : '' ?>
+            "
+            data-venue-preview="<?= htmlspecialchars($venueId) ?>"
+        >
+
+            <?= ts_render_venue_layout(
+                $venueId,
+                'organizer'
+            ) ?>
+
         </div>
+
+
+    <?php
+
+        $venueIndex++;
+
+    endforeach;
+
+    ?>
+
+
+</div>
 <div class="ts-venue-layout-shell mt-20">
 
     <div class="ts-venue-layout-board">
@@ -124,6 +209,64 @@ ob_start();
     <div class="flex justify-end mt-24"><a class="ts-btn ts-btn-primary" href="configuration.php">Continue to Ticket
             Configuration</a></div>
 </div>
+
+<script>
+document.addEventListener(
+    'DOMContentLoaded',
+    function () {
+
+        const venueSelect =
+            document.getElementById('venue-select');
+
+        const venuePreviews =
+            document.querySelectorAll(
+                '[data-venue-preview]'
+            );
+
+
+        function updateVenuePreview() {
+
+            const selectedVenue =
+                venueSelect.value;
+
+
+            venuePreviews.forEach(
+                function (preview) {
+
+                    if (
+                        preview.dataset.venuePreview
+                        === selectedVenue
+                    ) {
+
+                        preview.classList.add(
+                            'active'
+                        );
+
+                    } else {
+
+                        preview.classList.remove(
+                            'active'
+                        );
+
+                    }
+
+                }
+            );
+
+        }
+
+
+        venueSelect.addEventListener(
+            'change',
+            updateVenuePreview
+        );
+
+
+        updateVenuePreview();
+
+    }
+);
+</script>
 
 <?php
 $content = ob_get_clean();
