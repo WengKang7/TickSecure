@@ -21,20 +21,20 @@ ob_start();
                         <div class="ts-card-title">MetaMask</div>
                         <div class="small muted">Supported Ethereum-compatible wallet</div>
                     </div>
-                </div><button class="ts-btn ts-btn-primary" data-toast="Wallet connected in UI preview">Connect
+                </div><button class="ts-btn ts-btn-primary" id="btn-connect">Connect
                     Wallet</button>
             </div>
             <div class="ts-divider"></div>
             <div class="ts-detail-grid">
                 <div class="ts-detail-item">
                     <div class="ts-detail-label">Connection status</div>
-                    <div class="ts-detail-value">
-                        <?=ts_status('Connected', 'success')?>
+                    <div class="ts-detail-value" id="val-status">
+                        <span class="ts-chip ts-chip-warning">Not Connected</span>
                     </div>
                 </div>
                 <div class="ts-detail-item">
                     <div class="ts-detail-label">Wallet address</div>
-                    <div class="ts-detail-value ts-wallet-id">0x12A4…8F92</div>
+                    <div class="ts-detail-value ts-wallet-id" id="val-address">...</div>
                 </div>
                 <div class="ts-detail-item">
                     <div class="ts-detail-label">Network</div>
@@ -42,8 +42,8 @@ ob_start();
                 </div>
                 <div class="ts-detail-item">
                     <div class="ts-detail-label">Ownership sync</div>
-                    <div class="ts-detail-value">
-                        <?=ts_status('Ready', 'success')?>
+                    <div class="ts-detail-value" id="val-sync">
+                        <span class="ts-chip ts-chip-warning">Pending</span>
                     </div>
                 </div>
             </div>
@@ -55,11 +55,57 @@ ob_start();
                 </div>
             </div>
             <div class="flex justify-between mt-24"><a class="ts-btn ts-btn-secondary"
-                    href="seat-assignment.php">Back</a><a class="ts-btn ts-btn-primary" href="checkout.php">Continue to
-                    Payment</a></div>
+                    href="dashboard.php" id="btn-back">Back</a><a class="ts-btn ts-btn-primary" href="#" id="btn-continue" style="display:none">Continue</a></div>
         </div>
     </div>
 </main>
+
+<script type="module">
+window.addEventListener('ts-auth-ready', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const redirect = urlParams.get('redirect');
+    
+    if (redirect) {
+        document.getElementById('btn-back').href = redirect;
+    }
+    
+    const curUser = window.tsCurrentUser || {};
+    const walletAddress = curUser.walletAddress;
+    
+    const render = (addr) => {
+        if (addr) {
+            document.getElementById('val-status').innerHTML = '<span class="ts-chip ts-chip-success">Connected</span>';
+            document.getElementById('val-address').textContent = addr;
+            document.getElementById('val-sync').innerHTML = '<span class="ts-chip ts-chip-success">Ready</span>';
+            
+            document.getElementById('btn-connect').textContent = 'Reconnect';
+            
+            if (redirect) {
+                const btn = document.getElementById('btn-continue');
+                btn.href = redirect;
+                btn.style.display = 'block';
+            }
+        } else {
+            document.getElementById('val-status').innerHTML = '<span class="ts-chip ts-chip-warning">Not Connected</span>';
+            document.getElementById('val-address').textContent = '—';
+            document.getElementById('val-sync').innerHTML = '<span class="ts-chip ts-chip-warning">Pending</span>';
+        }
+    };
+    
+    render(walletAddress);
+    
+    document.getElementById('btn-connect').addEventListener('click', async () => {
+        // Mock connection
+        const newAddr = '0x12A478198F92';
+        try {
+            await window.tsUsers.updateProfile(curUser.uid, { walletAddress: newAddr });
+            render(newAddr);
+        } catch (e) {
+            console.error('Wallet error', e);
+        }
+    });
+});
+</script>
 
 <?php
 $content = ob_get_clean();

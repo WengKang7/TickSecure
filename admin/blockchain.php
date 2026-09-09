@@ -37,42 +37,53 @@ ob_start();
                     <th></th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td><span class="ts-copy-code">0x98bd…31f7</span></td>
-                    <td class="ts-wallet-id">0x12A4…8F92</td>
-                    <td>NFT Mint</td>
-                    <td>TS-TK-100184</td>
-                    <td><?=ts_status('Confirmed', 'success')?>
-                    </td>
-                    <td>18 Aug · 14:10</td>
-                    <td><button class="ts-btn ts-btn-secondary ts-btn-sm"
-                            data-toast="Transaction detail drawer opened">Details</button></td>
-                </tr>
-                <tr>
-                    <td><span class="ts-copy-code">0x1aa2…990b</span></td>
-                    <td class="ts-wallet-id">0x44BC…21D0</td>
-                    <td>Transfer</td>
-                    <td>TS-TK-100185</td>
-                    <td><?=ts_status('Pending', 'purple')?>
-                    </td>
-                    <td>18 Aug · 14:06</td>
-                    <td><button class="ts-btn ts-btn-secondary ts-btn-sm">Details</button></td>
-                </tr>
-                <tr>
-                    <td><span class="ts-copy-code">0x777e…a14c</span></td>
-                    <td class="ts-wallet-id">0xA8F1…731D</td>
-                    <td>NFT Mint</td>
-                    <td>TS-TK-100186</td>
-                    <td><?=ts_status('Failed', 'error')?>
-                    </td>
-                    <td>18 Aug · 13:41</td>
-                    <td><button class="ts-btn ts-btn-secondary ts-btn-sm">Details</button></td>
-                </tr>
+            <tbody id="tx-table-body">
+                <tr><td colspan="7" class="text-center secondary" style="padding:40px">Loading...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
+
+<script type="module">
+window.addEventListener('ts-auth-ready', async () => {
+    try {
+        const txs = await window.tsBlockchain.getTransactions();
+        const tbody = document.getElementById('tx-table-body');
+        if (!tbody) return;
+        
+        if (txs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center secondary" style="padding:40px">No transactions found.</td></tr>';
+            return;
+        }
+        
+        const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        
+        tbody.innerHTML = txs.map(tx => {
+            let tone = 'neutral';
+            if (tx.status === 'confirmed' || tx.status === 'success') tone = 'success';
+            else if (tx.status === 'pending') tone = 'purple';
+            else if (tx.status === 'failed') tone = 'error';
+            
+            const hashShort = tx.hash ? tx.hash.substring(0,6) + '…' + tx.hash.substring(tx.hash.length-4) : 'N/A';
+            const walletShort = tx.walletAddress ? tx.walletAddress.substring(0,6) + '…' + tx.walletAddress.substring(tx.walletAddress.length-4) : 'N/A';
+
+            return `
+                <tr>
+                    <td><span class="ts-copy-code">${esc(hashShort)}</span></td>
+                    <td class="ts-wallet-id">${esc(walletShort)}</td>
+                    <td>${esc(tx.type)}</td>
+                    <td>${esc(tx.ticketId || tx.targetId)}</td>
+                    <td><span class="ts-chip ts-chip-${tone}">${esc(tx.status)}</span></td>
+                    <td>${new Date(tx.createdAt).toLocaleString()}</td>
+                    <td><button class="ts-btn ts-btn-secondary ts-btn-sm" onclick="alert('Transaction ID: ${tx.id}')">Details</button></td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error('Load error:', err);
+    }
+});
+</script>
 
 <?php
 $content = ob_get_clean();

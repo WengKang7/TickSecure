@@ -29,31 +29,50 @@ ob_start();
                     <th></th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td class="cell-title">Nocturne City</td>
-                    <td>Nova Stage Entertainment</td>
-                    <td>Merdeka Hall</td>
-                    <td>12 Dec 2026</td>
-                    <td>18 Aug · 11:20</td>
-                    <td><?=ts_status('Pending Review', 'warning')?>
-                    </td>
-                    <td><a class="ts-btn ts-btn-primary ts-btn-sm" href="event-review.php">Review</a></td>
-                </tr>
-                <tr>
-                    <td class="cell-title">Arc & Echo</td>
-                    <td>Northline Live</td>
-                    <td>Axiata Arena</td>
-                    <td>20 Dec 2026</td>
-                    <td>17 Aug · 17:08</td>
-                    <td><?=ts_status('Pending Review', 'warning')?>
-                    </td>
-                    <td><a class="ts-btn ts-btn-primary ts-btn-sm" href="event-review.php">Review</a></td>
-                </tr>
+            <tbody id="events-table-body">
+                <tr><td colspan="7" class="text-center secondary" style="padding:40px">Loading...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
+
+<script type="module">
+window.addEventListener('ts-auth-ready', async () => {
+    try {
+        const events = await window.tsEvents.getEvents();
+        const tbody = document.getElementById('events-table-body');
+        if (!tbody) return;
+        
+        if (events.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center secondary" style="padding:40px">No events found.</td></tr>';
+            return;
+        }
+        
+        const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        
+        tbody.innerHTML = events.map(e => {
+            let tone = 'neutral';
+            if (e.status === 'pending') tone = 'warning';
+            else if (e.status === 'published') tone = 'success';
+            else if (e.status === 'suspended') tone = 'error';
+
+            return `
+                <tr>
+                    <td class="cell-title">${esc(e.title)}</td>
+                    <td>${esc(e.organizerName || e.organizerId)}</td>
+                    <td>${esc(e.venueName || e.venueId)}</td>
+                    <td>${e.date ? new Date(e.date).toLocaleDateString() : 'N/A'}</td>
+                    <td>${e.createdAt ? new Date(e.createdAt).toLocaleDateString() : 'N/A'}</td>
+                    <td><span class="ts-chip ts-chip-${tone}">${esc(e.status)}</span></td>
+                    <td><a class="ts-btn ts-btn-primary ts-btn-sm" href="event-review.php?id=${e.id}">Review</a></td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error('Load error:', err);
+    }
+});
+</script>
 
 <?php
 $content = ob_get_clean();

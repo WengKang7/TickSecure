@@ -47,8 +47,34 @@ ob_start();
             </select></div>
     </div>
     <div class="flex justify-end gap-12 mt-24"><button class="ts-btn ts-btn-secondary">Preview</button><button
-            class="ts-btn ts-btn-primary">Generate</button></div>
+            id="btn-generate" class="ts-btn ts-btn-primary">Generate</button></div>
 </div>
+
+<script type="module">
+window.addEventListener('ts-auth-ready', () => {
+    const btnGen = document.getElementById('btn-generate');
+    if (btnGen) {
+        btnGen.addEventListener('click', async () => {
+            btnGen.textContent = 'Generating...';
+            btnGen.disabled = true;
+            try {
+                // Mock generation using loaded services if needed
+                const logs = await window.tsAudit.getLogs();
+                // We just simulate for the mock
+                setTimeout(() => {
+                    alert('Report generated with ' + logs.length + ' records.');
+                    btnGen.textContent = 'Generate';
+                    btnGen.disabled = false;
+                }, 1000);
+            } catch(e) {
+                console.error(e);
+                btnGen.textContent = 'Generate';
+                btnGen.disabled = false;
+            }
+        });
+    }
+});
+</script>
 
 <?php
 $content = ob_get_clean();

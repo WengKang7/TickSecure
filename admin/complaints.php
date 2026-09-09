@@ -31,35 +31,56 @@ ob_start();
                     <th></th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td class="cell-title">CMP-2026-0042</td>
-                    <td>Ong Weng Kang</td>
-                    <td>Buyer</td>
-                    <td>Resale dispute</td>
-                    <td><?=ts_status('Normal', 'neutral')?>
-                    </td>
-                    <td><?=ts_status('Under Investigation', 'warning')?>
-                    </td>
-                    <td>14 Aug</td>
-                    <td><a class="ts-btn ts-btn-primary ts-btn-sm" href="complaint-detail.php">Investigate</a></td>
-                </tr>
-                <tr>
-                    <td class="cell-title">CMP-ORG-0014</td>
-                    <td>Nova Stage</td>
-                    <td>Organizer</td>
-                    <td>Suspicious resale</td>
-                    <td><?=ts_status('High', 'error')?>
-                    </td>
-                    <td><?=ts_status('Open', 'info')?>
-                    </td>
-                    <td>16 Aug</td>
-                    <td><a class="ts-btn ts-btn-primary ts-btn-sm" href="complaint-detail.php">Investigate</a></td>
-                </tr>
+            <tbody id="complaints-table-body">
+                <tr><td colspan="8" class="text-center secondary" style="padding:40px">Loading...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
+
+<script type="module">
+window.addEventListener('ts-auth-ready', async () => {
+    try {
+        const complaints = await window.tsComplaints.getComplaints();
+        const tbody = document.getElementById('complaints-table-body');
+        if (!tbody) return;
+        
+        if (complaints.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center secondary" style="padding:40px">No complaints found.</td></tr>';
+            return;
+        }
+        
+        const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        
+        tbody.innerHTML = complaints.map(c => {
+            let statusTone = 'neutral';
+            if (c.status === 'open') statusTone = 'info';
+            else if (c.status === 'investigating') statusTone = 'warning';
+            else if (c.status === 'resolved') statusTone = 'success';
+            else if (c.status === 'rejected') statusTone = 'error';
+
+            let priorityTone = 'neutral';
+            if (c.priority === 'high') priorityTone = 'error';
+            else if (c.priority === 'normal') priorityTone = 'neutral';
+            
+            return `
+                <tr>
+                    <td class="cell-title">${esc(c.reference || c.id)}</td>
+                    <td>${esc(c.complainantName || c.userId)}</td>
+                    <td>${esc(c.role || 'Unknown')}</td>
+                    <td>${esc(c.category)}</td>
+                    <td><span class="ts-chip ts-chip-${priorityTone}">${esc(c.priority || 'normal')}</span></td>
+                    <td><span class="ts-chip ts-chip-${statusTone}">${esc(c.status || 'open')}</span></td>
+                    <td>${new Date(c.createdAt).toLocaleDateString()}</td>
+                    <td><a class="ts-btn ts-btn-primary ts-btn-sm" href="complaint-detail.php?id=${c.id}">Investigate</a></td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error('Load error:', err);
+    }
+});
+</script>
 
 <?php
 $content = ob_get_clean();

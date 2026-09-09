@@ -9,14 +9,14 @@ ob_start();
         <div class="ts-kpi-top"><span>Verified Attendees</span><span
                 class="ts-kpi-icon"><?=ts_icon('check')?></span>
         </div>
-        <div class="ts-kpi-value">842</div>
+        <div class="ts-kpi-value" id="kpi-verified">0</div>
         <div class="ts-kpi-label">Entry verified</div>
     </div>
     <div class="ts-card ts-kpi">
         <div class="ts-kpi-top"><span>Unverified Attendees</span><span
                 class="ts-kpi-icon"><?=ts_icon('users')?></span>
         </div>
-        <div class="ts-kpi-value">402</div>
+        <div class="ts-kpi-value" id="kpi-unverified">0</div>
         <div class="ts-kpi-label">Not yet scanned</div>
     </div>
 </div>
@@ -26,12 +26,8 @@ ob_start();
             <?=ts_icon('search')?><input
                 class="ts-input" placeholder="Buyer, booking, ticket or wallet"></div><select class="ts-select">
             <option>All categories</option>
-            <option>VIP1</option>
-            <option>CAT1</option>
         </select><select class="ts-select">
             <option>All entry status</option>
-            <option>Verified</option>
-            <option>Unverified</option>
         </select>
     </div>
     <div class="ts-table-wrap">
@@ -47,31 +43,65 @@ ob_start();
                     <th>Entry Status</th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td class="cell-title">Ong Weng Kang</td>
-                    <td>TS20260001</td>
-                    <td>TS-TK-100184</td>
-                    <td>VIP1</td>
-                    <td>A06</td>
-                    <td class="ts-wallet-id">0x12A4…8F92</td>
-                    <td><?=ts_status('Verified', 'success')?>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="cell-title">Alicia Lim</td>
-                    <td>TS20260002</td>
-                    <td>TS-TK-100185</td>
-                    <td>VIP1</td>
-                    <td>A07</td>
-                    <td class="ts-wallet-id">0x44BC…21D0</td>
-                    <td><?=ts_status('Unverified', 'neutral')?>
-                    </td>
-                </tr>
+            <tbody id="attendees-tbody">
+                <tr><td colspan="7" class="text-center">Loading...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
+
+<script type="module">
+const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+window.addEventListener('ts-auth-ready', async () => {
+    try {
+        const events = await window.tsEvents.getOrganizerEvents();
+        const eventIds = new Set(events.map(e => e.id));
+        const allBookings = await window.tsBookings.getBookings();
+        const bookings = allBookings.filter(b => eventIds.has(b.eventId) && b.status === 'CONFIRMED');
+
+        let attendees = [];
+        bookings.forEach(b => {
+            if(b.tickets) {
+                b.tickets.forEach(t => {
+                    attendees.push({
+                        buyer: b.userId || 'Unknown',
+                        bookingId: b.id,
+                        ticketId: t.id,
+                        category: t.category,
+                        seat: t.seatId,
+                        wallet: '0x... (Mock)',
+                        verified: Math.random() > 0.5 // mock verification
+                    });
+                });
+            }
+        });
+
+        const verifiedCount = attendees.filter(a => a.verified).length;
+        const unverifiedCount = attendees.length - verifiedCount;
+
+        document.getElementById('kpi-verified').textContent = verifiedCount.toLocaleString();
+        document.getElementById('kpi-unverified').textContent = unverifiedCount.toLocaleString();
+
+        const tbody = document.getElementById('attendees-tbody');
+        if (tbody) {
+            tbody.innerHTML = attendees.slice(0,20).map(a => `
+                <tr>
+                    <td class="cell-title">${esc(a.buyer)}</td>
+                    <td>${esc(a.bookingId)}</td>
+                    <td>${esc(a.ticketId)}</td>
+                    <td>${esc(a.category)}</td>
+                    <td>${esc(a.seat)}</td>
+                    <td class="ts-wallet-id">${a.wallet}</td>
+                    <td><span class="ts-chip ts-chip-${a.verified ? 'success' : 'neutral'}">${a.verified ? 'Verified' : 'Unverified'}</span></td>
+                </tr>
+            `).join('') || '<tr><td colspan="7" class="text-center">No attendees found.</td></tr>';
+        }
+
+    } catch (e) {
+        console.error('Failed to load attendees', e);
+    }
+});
+</script>
 
 <?php
 $content = ob_get_clean();

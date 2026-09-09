@@ -37,28 +37,58 @@ ob_start();
                             <th></th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <?php foreach ([['TS20260001','Aurora After Dark','VIP1 · A06','17 Aug 2026','RM708.00','Confirmed'],['TS20250088','Velvet Hour Live','CAT1 · B08','02 Jul 2026','RM418.00','Confirmed'],['TS20250051','Silverline Orchestra','CAT2 · C11','11 May 2026','RM208.00','Completed']] as $b): ?>
-                        <tr>
-                            <td class="cell-title"><?=$b[0]?></td>
-                            <td><?=$b[1]?></td>
-                            <td><?=$b[2]?></td>
-                            <td><?=$b[3]?></td>
-                            <td><?=$b[4]?></td>
-                            <td><?=ts_status($b[5], $b[5] === 'Completed' ? 'neutral' : 'success')?>
-                            </td>
-                            <td class="text-right"><a class="ts-btn ts-btn-secondary ts-btn-sm"
-                                    href="booking-detail.php">View</a></td>
-                        </tr><?php endforeach; ?>
+                    <tbody id="bookings-tbody">
+                        <tr><td colspan="7" class="text-center secondary" style="padding:40px">Loading bookings...</td></tr>
                     </tbody>
                 </table>
             </div>
-            <div class="ts-pagination"><span>3 bookings</span>
+            <div class="ts-pagination"><span id="bookings-count">0 bookings</span>
                 <div class="ts-page-numbers"><span class="ts-page-num active">1</span></div>
             </div>
         </div>
     </div>
 </main>
+
+<script type="module">
+window.addEventListener('ts-auth-ready', async () => {
+    try {
+        const bookings = await window.tsBookings.getUserBookings();
+        const tbody = document.getElementById('bookings-tbody');
+        document.getElementById('bookings-count').textContent = \`\${bookings.length} bookings\`;
+        
+        if (bookings.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center secondary" style="padding:40px">No bookings found.</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = bookings.map(b => {
+            const seats = b.seat || (b.seats || []).join(', ') || 'N/A';
+            const catSeat = \`\${b.category || 'N/A'} · \${seats}\`;
+            let tone = 'success';
+            let status = 'Confirmed';
+            if (b.status === 'completed') { tone = 'neutral'; status = 'Completed'; }
+            else if (b.status === 'cancelled') { tone = 'error'; status = 'Cancelled'; }
+            
+            const dateStr = b.createdAt ? (typeof b.createdAt.toDate === 'function' ? b.createdAt.toDate().toLocaleDateString() : b.createdAt) : 'N/A';
+            const amountStr = \`RM\${parseFloat(b.totalAmount || 0).toFixed(2)}\`;
+            
+            return \`
+            <tr>
+                <td class="cell-title">\${b.id}</td>
+                <td>\${b.eventName}</td>
+                <td>\${catSeat}</td>
+                <td>\${dateStr}</td>
+                <td>\${amountStr}</td>
+                <td><span class="ts-chip ts-chip-\${tone}">\${status}</span></td>
+                <td class="text-right"><a class="ts-btn ts-btn-secondary ts-btn-sm" href="booking-detail.php?id=\${b.id}">View</a></td>
+            </tr>
+            \`;
+        }).join('');
+    } catch (err) {
+        console.error('Load error:', err);
+    }
+});
+</script>
 
 <?php
 $content = ob_get_clean();

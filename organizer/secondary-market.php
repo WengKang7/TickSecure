@@ -27,39 +27,45 @@ ob_start();
                     <th></th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td class="cell-title">TS-TK-0048</td>
-                    <td class="ts-wallet-id">0x12A4…8F92</td>
-                    <td>VIP2</td>
-                    <td>RM518</td>
-                    <td>RM540</td>
-                    <td>17 Aug</td>
-                    <td><?=ts_status('Active', 'success')?>
-                    </td>
-                    <td><?=ts_status('Compliant', 'success')?>
-                    </td>
-                    <td><button class="ts-btn ts-btn-secondary ts-btn-sm">View</button></td>
-                </tr>
-                <tr>
-                    <td class="cell-title">TS-TK-0884</td>
-                    <td class="ts-wallet-id">0x0F91…A77B</td>
-                    <td>VIP1</td>
-                    <td>RM688</td>
-                    <td>RM876</td>
-                    <td>16 Aug</td>
-                    <td><?=ts_status('Active', 'success')?>
-                    </td>
-                    <td><span
-                            class="ts-risk"><?=ts_icon('flag')?>
-                            Above limit</span></td>
-                    <td><button class="ts-btn ts-btn-danger ts-btn-sm" data-modal-open="confirm-modal">Report</button>
-                    </td>
-                </tr>
+            <tbody id="resale-tbody">
+                <tr><td colspan="9" class="text-center">Loading...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
+
+<script type="module">
+const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+window.addEventListener('ts-auth-ready', async () => {
+    try {
+        const events = await window.tsEvents.getOrganizerEvents();
+        const eventIds = new Set(events.map(e => e.id));
+
+        const allListings = await window.tsResale.getListings();
+        const listings = allListings.filter(l => eventIds.has(l.eventId));
+        
+        const tbody = document.getElementById('resale-tbody');
+        if(tbody) {
+            tbody.innerHTML = listings.slice(0, 20).map(l => {
+                const statusTone = l.status === 'ACTIVE' ? 'success' : (l.status === 'SOLD' ? 'info' : 'neutral');
+                return `
+                <tr>
+                    <td class="cell-title">${esc(l.ticketId || l.id)}</td>
+                    <td class="ts-wallet-id">${esc(l.sellerId || '0x...')}</td>
+                    <td>${esc(l.category || 'N/A')}</td>
+                    <td>RM${l.originalPrice || 0}</td>
+                    <td>RM${l.price || 0}</td>
+                    <td>${new Date(l.createdAt).toLocaleDateString()}</td>
+                    <td><span class="ts-chip ts-chip-${statusTone}">${esc(l.status)}</span></td>
+                    <td><span class="ts-chip ts-chip-success">Compliant</span></td>
+                    <td><button class="ts-btn ts-btn-secondary ts-btn-sm">View</button></td>
+                </tr>
+                `;
+            }).join('') || '<tr><td colspan="9" class="text-center">No active listings found.</td></tr>';
+        }
+    } catch(e) { console.error('Failed to load listings', e); }
+});
+</script>
 
 <?php
 $content = ob_get_clean();

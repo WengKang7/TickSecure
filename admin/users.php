@@ -36,46 +36,92 @@ ob_start();
                     <th></th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td class="cell-title">Ong Weng Kang</td>
-                    <td>guan.hong@example.com</td>
-                    <td>Buyer</td>
-                    <td><?=ts_status('Active', 'success')?>
-                    </td>
-                    <td><?=ts_status('Verified', 'success')?>
-                    </td>
-                    <td>10 Jun 2026</td>
-                    <td>Today</td>
-                    <td><a class="ts-btn ts-btn-secondary ts-btn-sm" href="user-detail.php">View</a></td>
-                </tr>
-                <tr>
-                    <td class="cell-title">Nicholas Tan</td>
-                    <td>nicholas@novastage.my</td>
-                    <td>Event Organizer</td>
-                    <td><?=ts_status('Active', 'success')?>
-                    </td>
-                    <td><?=ts_status('Verified', 'success')?>
-                    </td>
-                    <td>02 Jun 2026</td>
-                    <td>12 min ago</td>
-                    <td><a class="ts-btn ts-btn-secondary ts-btn-sm" href="user-detail.php">View</a></td>
-                </tr>
-                <tr>
-                    <td class="cell-title">Marcus Lee</td>
-                    <td>marcus@example.com</td>
-                    <td>Buyer</td>
-                    <td><?=ts_status('Suspended', 'error')?>
-                    </td>
-                    <td><?=ts_status('Verified', 'success')?>
-                    </td>
-                    <td>18 Apr 2026</td>
-                    <td>16 Aug</td>
-                    <td><a class="ts-btn ts-btn-secondary ts-btn-sm" href="user-detail.php">View</a></td>
-                </tr>
+            <tbody id="users-table-body">
+                <tr><td colspan="8" class="text-center secondary" style="padding:40px">Loading...</td></tr>
             </tbody>
         </table>
     </div>
+    <div class="ts-pagination"><span>Showing users</span>
+    </div>
+</div>
+
+<script type="module">
+window.addEventListener('ts-auth-ready', async () => {
+    const loadUsers = async () => {
+        try {
+            const users = await window.tsUsers.getUsers();
+            const tbody = document.getElementById('users-table-body');
+            if (!tbody) return;
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center secondary" style="padding:40px">No users found.</td></tr>';
+                return;
+            }
+            
+            const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            
+            tbody.innerHTML = users.map(u => {
+                let statusTone = u.status === 'active' ? 'success' : (u.status === 'suspended' ? 'error' : 'neutral');
+                let verifiedTone = u.emailVerified ? 'success' : 'neutral';
+                let verifiedText = u.emailVerified ? 'Verified' : 'Unverified';
+                let roleChipTone = u.role === 'admin' ? 'purple' : (u.role === 'organizer' ? 'warning' : 'neutral');
+                
+                let toggleBtn = '';
+                if (u.status === 'suspended') {
+                    toggleBtn = `<button class="ts-btn ts-btn-secondary ts-btn-sm text-success action-reactivate" data-id="${u.id}">Reactivate</button>`;
+                } else if (u.status === 'active' && u.role !== 'admin') {
+                    toggleBtn = `<button class="ts-btn ts-btn-secondary ts-btn-sm text-error action-suspend" data-id="${u.id}">Suspend</button>`;
+                }
+
+                return `
+                    <tr>
+                        <td class="cell-title">${esc(u.fullName || 'No Name')}</td>
+                        <td>${esc(u.email)}</td>
+                        <td><span class="ts-chip ts-chip-${roleChipTone}">${esc(u.role)}</span></td>
+                        <td><span class="ts-chip ts-chip-${statusTone}">${esc(u.status || 'active')}</span></td>
+                        <td><span class="ts-chip ts-chip-${verifiedTone}">${verifiedText}</span></td>
+                        <td>${new Date(u.createdAt).toLocaleDateString()}</td>
+                        <td>${u.lastActivityAt ? new Date(u.lastActivityAt).toLocaleDateString() : 'N/A'}</td>
+                        <td class="flex gap-4">
+                            <a class="ts-btn ts-btn-secondary ts-btn-sm" href="user-detail.php?id=${u.id}">View</a>
+                            ${toggleBtn}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            document.querySelectorAll('.action-suspend').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const reason = prompt('Reason for suspension:');
+                    if (reason) {
+                        try {
+                            btn.disabled = true;
+                            await window.tsUsers.suspendUser(btn.dataset.id, reason);
+                            await loadUsers();
+                        } catch(err) { alert(err.message); }
+                    }
+                });
+            });
+            
+            document.querySelectorAll('.action-reactivate').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    if (confirm('Reactivate this user?')) {
+                        try {
+                            btn.disabled = true;
+                            await window.tsUsers.reactivateUser(btn.dataset.id);
+                            await loadUsers();
+                        } catch(err) { alert(err.message); }
+                    }
+                });
+            });
+            
+        } catch (err) {
+            console.error('Load error:', err);
+        }
+    };
+    
+    await loadUsers();
+});
+</script>
     <div class="ts-pagination"><span>Showing 1–3 of 12,482 users</span>
         <div class="ts-page-numbers"><span class="ts-page-num active">1</span><span class="ts-page-num">2</span><span
                 class="ts-page-num">3</span></div>

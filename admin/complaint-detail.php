@@ -3,54 +3,24 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<?=ts_page_head('CMP-2026-0042', 'Resale dispute · Ong Weng Kang · Submitted 14 Aug 2026', '<button class="ts-btn ts-btn-secondary" data-modal-open="confirm-modal">Request More Information</button> <button class="ts-btn ts-btn-danger" data-modal-open="confirm-modal">Reject</button> <button class="ts-btn ts-btn-success" data-modal-open="confirm-modal">Resolve</button>')?>
-<div class="ts-content-grid">
+<?=ts_page_head('Loading...', ' ', '<div id="action-buttons" style="display:none;"><button id="btn-investigate" class="ts-btn ts-btn-secondary">Investigate</button> <button id="btn-reject" class="ts-btn ts-btn-danger">Reject</button> <button id="btn-resolve" class="ts-btn ts-btn-success">Resolve</button></div>')?>
+<div class="ts-content-grid" id="cmp-detail-container" style="display:none;">
     <div>
         <div class="ts-card ts-card-pad">
             <div class="flex justify-between">
                 <div class="ts-card-title">Complaint Description</div>
-                <?=ts_status('Under Investigation', 'warning')?>
+                <div id="val-status"></div>
             </div>
-            <p class="secondary">The resale transaction was paid successfully but the NFT ownership transfer remained
-                pending longer than expected.</p>
+            <p class="secondary" id="val-desc"></p>
             <div class="ts-divider"></div>
             <div class="ts-card-title">Evidence</div>
-            <div class="ts-list">
-                <div class="ts-list-item">
-                    <div class="flex gap-12">
-                        <?=ts_icon('file')?>
-                        <div>
-                            <div class="ts-list-title">payment-receipt.pdf</div>
-                            <div class="ts-list-sub">PDF · 284 KB</div>
-                        </div>
-                    </div><button class="ts-btn ts-btn-secondary ts-btn-sm">Open</button>
-                </div>
-                <div class="ts-list-item">
-                    <div class="flex gap-12">
-                        <?=ts_icon('file')?>
-                        <div>
-                            <div class="ts-list-title">wallet-status.png</div>
-                            <div class="ts-list-sub">PNG · 720 KB</div>
-                        </div>
-                    </div><button class="ts-btn ts-btn-secondary ts-btn-sm">Open</button>
-                </div>
+            <div class="ts-list" id="evidence-list">
+                <div class="text-center secondary">No evidence provided</div>
             </div>
         </div>
         <div class="ts-card ts-card-pad mt-20">
             <div class="ts-card-title">Status Timeline</div>
-            <div class="ts-timeline mt-20">
-                <div class="ts-timeline-item">
-                    <div class="ts-timeline-title">Submitted</div>
-                    <div class="ts-timeline-meta">14 Aug · 09:14</div>
-                </div>
-                <div class="ts-timeline-item">
-                    <div class="ts-timeline-title">Open</div>
-                    <div class="ts-timeline-meta">14 Aug · 09:14</div>
-                </div>
-                <div class="ts-timeline-item current">
-                    <div class="ts-timeline-title">Under Investigation</div>
-                    <div class="ts-timeline-meta">17 Aug · Admin Account</div>
-                </div>
+            <div class="ts-timeline mt-20" id="val-timeline">
             </div>
         </div>
     </div>
@@ -59,30 +29,16 @@ ob_start();
             <div class="ts-card-title">Related Records</div>
             <div class="ts-detail-item">
                 <div class="ts-detail-label">Booking / Resale</div>
-                <div class="ts-detail-value">RS-2026-0144</div>
+                <div class="ts-detail-value" id="val-related">N/A</div>
             </div>
             <div class="ts-detail-item">
                 <div class="ts-detail-label">Payment</div>
                 <div class="ts-detail-value">
-                    <?=ts_status('Successful', 'success')?>
-                    RM540</div>
+                    <span class="ts-chip ts-chip-success">Successful</span>
+                    N/A</div>
             </div>
             <div class="ts-detail-item">
                 <div class="ts-detail-label">NFT Ticket</div>
-                <div class="ts-detail-value">TS-TK-0048</div>
-            </div>
-            <div class="ts-detail-item">
-                <div class="ts-detail-label">Current Owner</div>
-                <div class="ts-detail-value ts-wallet-id">0x12A4…8F92</div>
-            </div>
-            <div class="ts-detail-item">
-                <div class="ts-detail-label">Blockchain Tx</div>
-                <div class="ts-detail-value">
-                    <?=ts_status('Pending', 'purple')?>
-                </div>
-            </div>
-            <div class="ts-detail-item">
-                <div class="ts-detail-label">Seller Wallet</div>
                 <div class="ts-detail-value ts-wallet-id">0x81A3…30F2</div>
             </div>
         </div>

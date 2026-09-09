@@ -43,51 +43,46 @@ ob_start();
                     <th>Details</th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td>18 Aug · 14:12</td>
-                    <td>Admin Account</td>
-                    <td>Administrator</td>
-                    <td>Organizer Approved</td>
-                    <td>ORG-0086</td>
-                    <td><?=ts_status('Success', 'success')?>
-                    </td>
-                    <td><button class="ts-btn ts-btn-tertiary ts-btn-sm">View</button></td>
-                </tr>
-                <tr>
-                    <td>18 Aug · 13:58</td>
-                    <td>Nova Stage</td>
-                    <td>Organizer</td>
-                    <td>Event Submitted</td>
-                    <td>EVT-0144</td>
-                    <td><?=ts_status('Success', 'success')?>
-                    </td>
-                    <td><button class="ts-btn ts-btn-tertiary ts-btn-sm">View</button></td>
-                </tr>
-                <tr>
-                    <td>18 Aug · 13:41</td>
-                    <td>System</td>
-                    <td>System</td>
-                    <td>NFT Mint</td>
-                    <td>TS-TK-100186</td>
-                    <td><?=ts_status('Failed', 'error')?>
-                    </td>
-                    <td><button class="ts-btn ts-btn-tertiary ts-btn-sm">View</button></td>
-                </tr>
-                <tr>
-                    <td>18 Aug · 13:22</td>
-                    <td>Ong Weng Kang</td>
-                    <td>Buyer</td>
-                    <td>Login</td>
-                    <td>Account</td>
-                    <td><?=ts_status('Success', 'success')?>
-                    </td>
-                    <td><button class="ts-btn ts-btn-tertiary ts-btn-sm">View</button></td>
-                </tr>
+            <tbody id="audit-table-body">
+                <tr><td colspan="7" class="text-center secondary" style="padding:40px">Loading...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
+
+<script type="module">
+window.addEventListener('ts-auth-ready', async () => {
+    try {
+        const logs = await window.tsAudit.getLogs();
+        const tbody = document.getElementById('audit-table-body');
+        if (!tbody) return;
+        
+        if (logs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center secondary" style="padding:40px">No audit logs found.</td></tr>';
+            return;
+        }
+        
+        const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        
+        tbody.innerHTML = logs.map(l => {
+            let tone = l.result === 'success' ? 'success' : 'error';
+            return `
+                <tr>
+                    <td>${new Date(l.createdAt).toLocaleString()}</td>
+                    <td>${esc(l.actorName || l.actorId)}</td>
+                    <td>${esc(l.actorRole)}</td>
+                    <td>${esc(l.action)}</td>
+                    <td>${esc(l.targetId)}</td>
+                    <td><span class="ts-chip ts-chip-${tone}">${esc(l.result)}</span></td>
+                    <td><button class="ts-btn ts-btn-tertiary ts-btn-sm" onclick="alert('Raw Data:\\n' + JSON.stringify(${esc(JSON.stringify(l.details || {}))}, null, 2))">View</button></td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error('Load error:', err);
+    }
+});
+</script>
 
 <?php
 $content = ob_get_clean();

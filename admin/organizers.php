@@ -28,29 +28,50 @@ ob_start();
                     <th></th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td class="cell-title">Amelia Wong</td>
-                    <td>Northlight Events</td>
-                    <td>amelia@northlight.my</td>
-                    <td>18 Aug · 09:20</td>
-                    <td><?=ts_status('Pending', 'warning')?>
-                    </td>
-                    <td><a class="ts-btn ts-btn-primary ts-btn-sm" href="organizer-detail.php">Review</a></td>
-                </tr>
-                <tr>
-                    <td class="cell-title">Daniel Ng</td>
-                    <td>Pulse Culture</td>
-                    <td>daniel@pulseculture.my</td>
-                    <td>17 Aug · 15:44</td>
-                    <td><?=ts_status('Pending', 'warning')?>
-                    </td>
-                    <td><a class="ts-btn ts-btn-primary ts-btn-sm" href="organizer-detail.php">Review</a></td>
-                </tr>
+            <tbody id="orgs-table-body">
+                <tr><td colspan="6" class="text-center secondary" style="padding:40px">Loading...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
+
+<script type="module">
+window.addEventListener('ts-auth-ready', async () => {
+    try {
+        const users = await window.tsUsers.getUsers();
+        const organizers = users.filter(u => u.role === 'organizer');
+        const tbody = document.getElementById('orgs-table-body');
+        if (!tbody) return;
+        
+        if (organizers.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center secondary" style="padding:40px">No organizer applications found.</td></tr>';
+            return;
+        }
+        
+        const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        
+        tbody.innerHTML = organizers.map(o => {
+            let tone = 'neutral';
+            if (o.status === 'pending') tone = 'warning';
+            else if (o.status === 'approved') tone = 'success';
+            else if (o.status === 'rejected') tone = 'error';
+
+            return `
+                <tr>
+                    <td class="cell-title">${esc(o.fullName)}</td>
+                    <td>${esc(o.organizationName || 'N/A')}</td>
+                    <td>${esc(o.email)}</td>
+                    <td>${new Date(o.createdAt).toLocaleDateString()}</td>
+                    <td><span class="ts-chip ts-chip-${tone}">${esc(o.status || 'pending')}</span></td>
+                    <td><a class="ts-btn ts-btn-primary ts-btn-sm" href="organizer-detail.php?id=${o.id}">Review</a></td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error('Load error:', err);
+    }
+});
+</script>
 
 <?php
 $content = ob_get_clean();

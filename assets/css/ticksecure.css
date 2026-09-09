@@ -1756,6 +1756,10 @@ img {
 
 /* upload / blueprint */
 .ts-dropzone {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
   border: 1.5px dashed #C7CDD4;
   border-radius: 15px;
   background: #FCFCFD;
@@ -1862,26 +1866,7 @@ img {
   box-shadow: 0 0 0 4px rgba(154, 116, 69, .10)
 }
 
-.ts-section-box.s1 {
-  left: 8%;
-  top: 28%;
-  width: 35%;
-  height: 25%
-}
-
-.ts-section-box.s2 {
-  right: 8%;
-  top: 28%;
-  width: 35%;
-  height: 25%
-}
-
-.ts-section-box.s3 {
-  left: 18%;
-  right: 18%;
-  bottom: 10%;
-  height: 25%
-}
+/* Section box positions are set dynamically by JS */
 
 .ts-section-editor {
   display: grid;
@@ -2820,8 +2805,9 @@ img {
   .ts-table {
     min-width: 680px
   }
+}
 
-  /* =========================================================
+/* =========================================================
    Venue Layout Preview
    Used by Organizer and Buyer
    ========================================================= */
@@ -3345,6 +3331,110 @@ img {
 
 }
 
+
+/* =========================================================
+   STEP 5 – ACTIVATION
+   ========================================================= */
+
+.ts-activation-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.ts-activation-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-alt);
+}
+
+.ts-activation-item .small {
+    color: var(--text-muted);
+}
+
+.ts-activation-item strong {
+    font-size: 16px;
+    color: var(--text-primary);
+}
+
+.ts-activation-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.ts-activation-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.ts-activation-check:last-child {
+    border-bottom: none;
+}
+
+.ts-check-success {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    border-radius: 50%;
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.ts-activation-success {
+    text-align: center;
+    padding: 48px 24px;
+}
+
+.ts-success-icon-large {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 20px;
+}
+
+.ts-activation-result-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    text-align: center;
+}
+
+.ts-activation-result-grid > div {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+@media (max-width: 760px) {
+    .ts-activation-summary {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .ts-activation-result-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+
 /* =========================================================
    REUSABLE VENUE LAYOUT
    Admin-approved venue layout shown to Organizer / Buyer
@@ -3484,7 +3574,5 @@ img {
     .ts-reusable-venue-plan {
         height: 400px;
     }
-
-}
 
 }

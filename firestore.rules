@@ -1,0 +1,127 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────
+    function isAuth()       { return request.auth != null; }
+    function isOwner(uid)   { return isAuth() && request.auth.uid == uid; }
+    function userRole()     { return get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.role; }
+    function isAdmin()      { return isAuth() && userRole() == 'admin'; }
+    function isOrganizer()  { return isAuth() && userRole() == 'organizer'; }
+    function isBuyer()      { return isAuth() && userRole() == 'buyer'; }
+
+    // ── Users ────────────────────────────────────────────────
+    match /Users/{userId} {
+      allow read:   if isAuth();
+      allow create: if isOwner(userId)
+                    && request.resource.data.keys().hasAll(['email','fullName','role','status','createdAt'])
+                    && request.resource.data.role in ['buyer','organizer']
+                    && request.resource.data.email is string
+                    && request.resource.data.fullName is string;
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── OrganizerProfiles ────────────────────────────────────
+    match /OrganizerProfiles/{uid} {
+      allow read:   if isAuth();
+      allow create: if isOwner(uid)
+                    && request.resource.data.keys().hasAll(['organizationName','organizationDescription','organizationPhone','organizationAddress']);
+      allow update: if isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── Venues ───────────────────────────────────────────────
+    match /Venues/{venueId} {
+      allow read:   if isAuth();
+      allow create: if isAdmin()
+                    && request.resource.data.keys().hasAll(['name','location','capacity','layoutStatus'])
+                    && request.resource.data.name is string
+                    && request.resource.data.capacity is int;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── Seats ────────────────────────────────────────────────
+    match /Seats/{seatId} {
+      allow read:   if isAuth();
+      allow create: if isAdmin();
+      allow update: if isAuth();
+      allow delete: if isAdmin();
+    }
+
+    // ── Events ───────────────────────────────────────────────
+    match /Events/{eventId} {
+      allow read:   if true;  // Published events are public
+      allow create: if isOrganizer()
+                    && request.resource.data.keys().hasAll(['name','date','venueId','organizerUid','status'])
+                    && request.resource.data.organizerUid == request.auth.uid
+                    && request.resource.data.status == 'DRAFT';
+      allow update: if (isOrganizer() && resource.data.organizerUid == request.auth.uid) || isAdmin();
+      allow delete: if (isOrganizer() && resource.data.organizerUid == request.auth.uid && resource.data.status == 'DRAFT') || isAdmin();
+    }
+
+    // ── Bookings ─────────────────────────────────────────────
+    match /Bookings/{bookingId} {
+      allow read:   if isAuth() && (resource.data.buyerUid == request.auth.uid || isAdmin() || isOrganizer());
+      allow create: if isAuth()
+                    && request.resource.data.buyerUid == request.auth.uid
+                    && request.resource.data.keys().hasAll(['bookingNumber','buyerUid','eventId','categoryName','totalAmount','status']);
+      allow update: if isAdmin() || resource.data.buyerUid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // ── NFTTickets ───────────────────────────────────────────
+    match /NFTTickets/{ticketId} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow delete: if false;
+    }
+
+    // ── Complaints ───────────────────────────────────────────
+    match /Complaints/{complaintId} {
+      allow read:   if isAuth() && (resource.data.complainantUid == request.auth.uid || isAdmin());
+      allow create: if isAuth()
+                    && request.resource.data.complainantUid == request.auth.uid
+                    && request.resource.data.keys().hasAll(['referenceNumber','category','description','status']);
+      allow update: if isAuth() && (resource.data.complainantUid == request.auth.uid || isAdmin());
+      allow delete: if false;
+    }
+
+    // ── ResaleListings ───────────────────────────────────────
+    match /ResaleListings/{listingId} {
+      allow read:   if true;  // Public marketplace
+      allow create: if isAuth()
+                    && request.resource.data.sellerUid == request.auth.uid
+                    && request.resource.data.keys().hasAll(['ticketId','eventId','resalePrice','status']);
+      allow update: if isAuth() && (resource.data.sellerUid == request.auth.uid || isAdmin());
+      allow delete: if false;
+    }
+
+    // ── Notifications ────────────────────────────────────────
+    match /Notifications/{notifId} {
+      allow read:   if isAuth() && resource.data.recipientUid == request.auth.uid;
+      allow create: if isAuth();
+      allow update: if isAuth() && resource.data.recipientUid == request.auth.uid;
+      allow delete: if isAuth() && resource.data.recipientUid == request.auth.uid;
+    }
+
+    // ── AuditLogs ────────────────────────────────────────────
+    match /AuditLogs/{logId} {
+      allow read:   if isAdmin();
+      allow create: if isAuth();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── BlockchainTransactions ───────────────────────────────
+    match /BlockchainTransactions/{txId} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if false;
+    }
+  }
+}
+

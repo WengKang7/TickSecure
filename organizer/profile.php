@@ -3,44 +3,131 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<?=ts_page_head('Organization Profile', 'Manage organization-specific information while shared account identity remains inherited from your TickSecure user account.', '<button class="ts-btn ts-btn-primary" data-toast="Organization profile saved">Save Changes</button>')?>
+<?=ts_page_head('Organization Profile', 'Manage organization-specific information while shared account identity remains inherited from your TickSecure user account.', '<button class="ts-btn ts-btn-primary" id="save-profile-btn">Save Changes</button>')?>
 <div class="ts-grid-2">
     <div class="ts-card ts-card-pad">
         <div class="ts-card-title">Shared User Identity</div>
         <div class="ts-auth-fields mt-20">
-            <div class="ts-field"><label class="ts-label">Full Name</label><input class="ts-input" value="Nicholas Tan">
+            <div class="ts-field"><label class="ts-label">Full Name</label><input class="ts-input" id="sharedName" disabled>
             </div>
-            <div class="ts-field"><label class="ts-label">Email</label><input class="ts-input"
-                    value="nicholas@novastage.my"></div>
+            <div class="ts-field"><label class="ts-label">Email</label><input class="ts-input" id="sharedEmail" disabled></div>
         </div>
     </div>
     <div class="ts-card ts-card-pad">
         <div class="flex justify-between items-center">
             <div class="ts-card-title">Approval Status</div>
-            <?=ts_status('Approved', 'success')?>
+            <div id="org-status-chip"></div>
         </div>
         <p class="secondary mt-16">Your organization is approved to create and submit events. Approval status is managed
             by the Administrator.</p>
         <div class="ts-detail-item">
             <div class="ts-detail-label">Approved Date</div>
-            <div class="ts-detail-value">02 Jun 2026</div>
+            <div class="ts-detail-value" id="org-approved-date">-</div>
         </div>
     </div>
 </div>
-<div class="ts-card ts-card-pad mt-24">
+<div class="ts-card ts-card-pad mt-24" id="org-profile-form">
     <div class="ts-card-title">Organization Information</div>
     <div class="ts-form-grid mt-20">
         <div class="ts-field"><label class="ts-label">Organization Name</label><input class="ts-input"
-                value="Nova Stage Entertainment"></div>
+                id="orgName" name="orgName"></div>
         <div class="ts-field"><label class="ts-label">Organization Phone</label><input class="ts-input"
-                value="+60 3-8899 2233"></div>
+                id="orgPhone" name="orgPhone"></div>
         <div class="ts-field span-2"><label class="ts-label">Organization Description</label><textarea
-                class="ts-textarea">Premium event production and live entertainment organizer based in Kuala Lumpur.</textarea>
+                class="ts-textarea" id="orgDesc" name="orgDesc"></textarea>
         </div>
         <div class="ts-field span-2"><label class="ts-label">Organization Address</label><input class="ts-input"
-                value="Bukit Bintang, Kuala Lumpur"></div>
+                id="orgAddress" name="orgAddress"></div>
     </div>
 </div>
+
+<script type="module">
+const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+window.addEventListener('ts-auth-ready', async () => {
+    try {
+        const uid = window.tsCurrentUser?.uid;
+        if(!uid) return;
+
+        document.getElementById('sharedName').value = window.tsCurrentUser.fullName || '';
+        document.getElementById('sharedEmail').value = window.tsCurrentUser.email || '';
+
+        const profile = await window.tsUsers.getOrganizerProfile(uid);
+        if(profile) {
+            document.getElementById('orgName').value = profile.organizationName || '';
+            document.getElementById('orgDesc').value = profile.organizationDescription || '';
+            document.getElementById('orgPhone').value = profile.organizationPhone || '';
+            document.getElementById('orgAddress').value = profile.organizationAddress || '';
+            
+            const tone = profile.status === 'APPROVED' ? 'success' : (profile.status === 'REJECTED' ? 'error' : 'warning');
+            document.getElementById('org-status-chip').innerHTML = `<span class="ts-chip ts-chip-${tone}">${esc(profile.status || 'PENDING')}</span>`;
+            document.getElementById('org-approved-date').textContent = profile.updatedAt ? new Date(profile.updatedAt).toLocaleDateString() : '-';
+        }
+        
+        document.getElementById('save-profile-btn')?.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const V = window.tsValidation;
+            const form = document.getElementById('org-profile-form');
+            V.clearFieldErrors(form);
+            const ok = V.runAll([
+                {
+                    check: () => {
+                        const v = V.val(form, 'orgName');
+                        let r = V.validateRequired(v, 'Name');
+                        if (!r.valid) return r;
+                        r = V.validateMinLength(v, 3, 'Name');
+                        if (!r.valid) return r;
+                        return V.validateMaxLength(v, 200, 'Name');
+                    },
+                    el: V.el(form, 'orgName')
+                },
+                {
+                    check: () => {
+                        const v = V.val(form, 'orgDesc');
+                        let r = V.validateRequired(v, 'Description');
+                        if (!r.valid) return r;
+                        r = V.validateMinLength(v, 10, 'Description');
+                        if (!r.valid) return r;
+                        return V.validateMaxLength(v, 2000, 'Description');
+                    },
+                    el: V.el(form, 'orgDesc')
+                },
+                { check: () => V.validatePhone(V.val(form, 'orgPhone'), 'Phone'), el: V.el(form, 'orgPhone') },
+                {
+                    check: () => {
+                        const v = V.val(form, 'orgAddress');
+                        let r = V.validateRequired(v, 'Address');
+                        if (!r.valid) return r;
+                        r = V.validateMinLength(v, 5, 'Address');
+                        if (!r.valid) return r;
+                        return V.validateMaxLength(v, 500, 'Address');
+                    },
+                    el: V.el(form, 'orgAddress')
+                }
+            ]);
+            if(!ok) return;
+            
+            const btn = document.getElementById('save-profile-btn');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+
+            try {
+                await window.tsUsers.updateOrganizerProfile(uid, {
+                    organizationName: V.val(form, 'orgName'),
+                    organizationDescription: V.val(form, 'orgDesc'),
+                    organizationPhone: V.val(form, 'orgPhone'),
+                    organizationAddress: V.val(form, 'orgAddress')
+                });
+                btn.textContent = 'Saved!';
+                setTimeout(() => { btn.disabled = false; btn.textContent = 'Save Changes'; }, 2000);
+            } catch (err) {
+                console.error(err);
+                btn.disabled = false;
+                btn.textContent = 'Save Changes';
+            }
+        });
+    } catch(e) { console.error('Failed to load profile', e); }
+});
+</script>
 
 <?php
 $content = ob_get_clean();

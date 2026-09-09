@@ -53,41 +53,71 @@ ob_start();
                     <th></th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td class="cell-title">TS-TK-0884</td>
-                    <td>Velvet Hour</td>
-                    <td class="ts-wallet-id">0x0F91…A77B</td>
-                    <td>—</td>
-                    <td>RM688</td>
-                    <td>RM876</td>
-                    <td>RM756</td>
-                    <td><?=ts_status('Active', 'success')?>
-                    </td>
-                    <td><span
-                            class="ts-risk"><?=ts_icon('flag')?>
-                            Above limit</span></td>
-                    <td><button class="ts-btn ts-btn-danger ts-btn-sm" data-modal-open="confirm-modal">Enforce</button>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="cell-title">TS-TK-0048</td>
-                    <td>Midnight Resonance</td>
-                    <td class="ts-wallet-id">0x12A4…8F92</td>
-                    <td>—</td>
-                    <td>RM518</td>
-                    <td>RM540</td>
-                    <td>RM570</td>
-                    <td><?=ts_status('Active', 'success')?>
-                    </td>
-                    <td><?=ts_status('Compliant', 'success')?>
-                    </td>
-                    <td><button class="ts-btn ts-btn-secondary ts-btn-sm">View</button></td>
-                </tr>
+            <tbody id="resale-table-body">
+                <tr><td colspan="10" class="text-center secondary" style="padding:40px">Loading...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
+
+<script type="module">
+window.addEventListener('ts-auth-ready', async () => {
+    const loadListings = async () => {
+        try {
+            const listings = await window.tsResale.getListings();
+            const tbody = document.getElementById('resale-table-body');
+            if (!tbody) return;
+            
+            if (listings.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center secondary" style="padding:40px">No resale listings found.</td></tr>';
+                return;
+            }
+            
+            const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            
+            tbody.innerHTML = listings.map(l => {
+                let statusTone = l.status === 'active' ? 'success' : (l.status === 'suspended' ? 'error' : 'neutral');
+                let riskTone = l.price > l.originalPrice * 1.1 ? 'warning' : 'success'; // simplistic mock risk
+                let riskLabel = riskTone === 'warning' ? 'Above limit' : 'Compliant';
+
+                return `
+                    <tr>
+                        <td class="cell-title">${esc(l.ticketId)}</td>
+                        <td>${esc(l.eventId)}</td>
+                        <td class="ts-wallet-id">${esc(l.sellerId)}</td>
+                        <td>${esc(l.buyerId || '—')}</td>
+                        <td>RM${esc(l.originalPrice)}</td>
+                        <td>RM${esc(l.price)}</td>
+                        <td>RM${esc(l.originalPrice * 1.1)}</td>
+                        <td><span class="ts-chip ts-chip-${statusTone}">${esc(l.status)}</span></td>
+                        <td><span class="ts-chip ts-chip-${riskTone}">${riskLabel}</span></td>
+                        <td>
+                            ${l.status === 'active' ? `<button class="ts-btn ts-btn-danger ts-btn-sm action-suspend" data-id="${l.id}">Enforce</button>` : `<button class="ts-btn ts-btn-secondary ts-btn-sm">View</button>`}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            document.querySelectorAll('.action-suspend').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    if (confirm('Suspend this listing?')) {
+                        try {
+                            btn.disabled = true;
+                            await window.tsResale.suspendListing(btn.dataset.id);
+                            await loadListings();
+                        } catch(err) { alert(err.message); }
+                    }
+                });
+            });
+            
+        } catch (err) {
+            console.error('Load error:', err);
+        }
+    };
+    
+    await loadListings();
+});
+</script>
 
 <?php
 $content = ob_get_clean();

@@ -28,41 +28,76 @@ ob_start();
                     <th></th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td class="cell-title">Merdeka Hall</td>
-                    <td>Kuala Lumpur</td>
-                    <td>2,400</td>
-                    <td><?=ts_status('Active', 'success')?>
-                    </td>
-                    <td>3</td>
-                    <td>12 Aug 2026</td>
-                    <td><a class="ts-btn ts-btn-secondary ts-btn-sm" href="venue-detail.php">Manage</a></td>
-                </tr>
-                <tr>
-                    <td class="cell-title">Axiata Arena</td>
-                    <td>Bukit Jalil</td>
-                    <td>16,000</td>
-                    <td><?=ts_status('Active', 'success')?>
-                    </td>
-                    <td>6</td>
-                    <td>09 Aug 2026</td>
-                    <td><a class="ts-btn ts-btn-secondary ts-btn-sm" href="venue-detail.php">Manage</a></td>
-                </tr>
-                <tr>
-                    <td class="cell-title">Studio K</td>
-                    <td>Petaling Jaya</td>
-                    <td>850</td>
-                    <td><?=ts_status('Processing', 'purple')?>
-                    </td>
-                    <td>—</td>
-                    <td>Today</td>
-                    <td><a class="ts-btn ts-btn-primary ts-btn-sm" href="venue-layout.php">Continue</a></td>
-                </tr>
+            <tbody id="venue-table-body">
+                <tr><td colspan="7" class="text-center secondary" style="padding:40px">Loading...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
+
+<script type="module">
+window.addEventListener('ts-auth-ready', async () => {
+    const loadVenues = async () => {
+        try {
+            const venues = await window.tsVenues.getVenues();
+            const tbody = document.getElementById('venue-table-body');
+            if (!tbody) return;
+            if (venues.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center secondary" style="padding:40px">No items found.</td></tr>';
+                return;
+            }
+            
+            const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            
+            tbody.innerHTML = venues.map(v => {
+                let tone = 'neutral';
+                if (v.status === 'active') tone = 'success';
+                else if (v.status === 'processing') tone = 'purple';
+                else if (v.status === 'draft') tone = 'neutral';
+
+                return `
+                    <tr>
+                        <td class="cell-title">${esc(v.name)}</td>
+                        <td>${esc(v.address)}</td>
+                        <td>${esc(v.capacity)}</td>
+                        <td><span class="ts-chip ts-chip-${tone}">${esc(v.status)}</span></td>
+                        <td>${v.sections ? Object.keys(v.sections).length : '—'}</td>
+                        <td>${new Date(v.updatedAt || v.createdAt).toLocaleDateString()}</td>
+                        <td>
+                            <a class="ts-btn ts-btn-secondary ts-btn-sm" href="venue-detail.php?id=${v.id}">Manage</a>
+                            <button class="ts-btn ts-btn-secondary ts-btn-sm text-error delete-btn" data-id="${v.id}">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            // Wire up delete buttons
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    if (confirm('Are you sure you want to delete this venue?')) {
+                        try {
+                            btn.disabled = true;
+                            btn.textContent = '...';
+                            await window.tsVenues.deleteVenue(btn.dataset.id);
+                            await loadVenues();
+                        } catch (err) {
+                            console.error('Delete error', err);
+                            alert(err.message);
+                            btn.disabled = false;
+                            btn.textContent = 'Delete';
+                        }
+                    }
+                });
+            });
+            
+        } catch (err) {
+            console.error('Load error:', err);
+        }
+    };
+    
+    await loadVenues();
+});
+</script>
 
 <?php
 $content = ob_get_clean();

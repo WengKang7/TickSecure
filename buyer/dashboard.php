@@ -17,29 +17,29 @@ ob_start();
         <div class="ts-kpi-top"><span>Active tickets</span><span
             class="ts-kpi-icon"><?=ts_icon('ticket')?></span>
         </div>
-        <div class="ts-kpi-value">3</div>
-        <div class="ts-kpi-label">2 upcoming events</div>
+        <div class="ts-kpi-value" id="kpi-tickets">...</div>
+        <div class="ts-kpi-label" id="kpi-tickets-label">Loading...</div>
       </div>
       <div class="ts-card ts-kpi">
         <div class="ts-kpi-top"><span>Bookings</span><span
             class="ts-kpi-icon"><?=ts_icon('calendar')?></span>
         </div>
-        <div class="ts-kpi-value">5</div>
-        <div class="ts-kpi-label">All-time bookings</div>
+        <div class="ts-kpi-value" id="kpi-bookings">...</div>
+        <div class="ts-kpi-label" id="kpi-bookings-label">Loading...</div>
       </div>
       <div class="ts-card ts-kpi">
         <div class="ts-kpi-top"><span>Resale listings</span><span
             class="ts-kpi-icon"><?=ts_icon('activity')?></span>
         </div>
-        <div class="ts-kpi-value">1</div>
-        <div class="ts-kpi-label">1 active listing</div>
+        <div class="ts-kpi-value" id="kpi-resale">...</div>
+        <div class="ts-kpi-label" id="kpi-resale-label">Loading...</div>
       </div>
       <div class="ts-card ts-kpi">
         <div class="ts-kpi-top"><span>Wallet</span><span
             class="ts-kpi-icon"><?=ts_icon('wallet')?></span>
         </div>
-        <div class="ts-kpi-value" style="font-size:18px">Connected</div>
-        <div class="ts-kpi-label">0x12A4…8F92</div>
+        <div class="ts-kpi-value" style="font-size:18px" id="kpi-wallet">Loading...</div>
+        <div class="ts-kpi-label" id="kpi-wallet-label">...</div>
       </div>
     </div>
     <div class="ts-grid-2">
@@ -48,19 +48,10 @@ ob_start();
           <div>
             <div class="ts-card-title">Next event</div>
             <div class="ts-card-sub">Your nearest upcoming ticket</div>
-          </div><a href="ticket-detail.php" class="ts-btn ts-btn-secondary ts-btn-sm">View Ticket</a>
+          </div><a href="ticket-detail.php" id="next-event-link" class="ts-btn ts-btn-secondary ts-btn-sm" style="display:none">View Ticket</a>
         </div>
-        <div class="ts-card-pad">
-          <div class="ts-ticket-card">
-            <div class="ts-ticket-thumb">Aurora<br>After Dark</div>
-            <div class="ts-ticket-card-body">
-              <div class="ts-card-title">Aurora After Dark</div>
-              <div class="small secondary mt-8">18 Oct 2026 · Merdeka Hall</div>
-              <div class="flex items-center gap-8 mt-16">
-                <?=ts_status('Valid', 'success')?>
-                <span class="small secondary">VIP1 · Seat A06</span></div>
-            </div>
-          </div>
+        <div class="ts-card-pad" id="next-event-container">
+          <p class="secondary text-center" style="padding:20px">Loading...</p>
         </div>
       </div>
       <div class="ts-card">
@@ -71,34 +62,83 @@ ob_start();
           </div><a href="notifications.php" class="small">View all</a>
         </div>
         <div class="ts-card-pad">
-          <div class="ts-list">
-            <div class="ts-list-item">
-              <div>
-                <div class="ts-list-title">NFT ticket issued</div>
-                <div class="ts-list-sub">Aurora After Dark · 14 minutes ago</div>
-              </div>
-              <?=ts_status('New', 'info')?>
-            </div>
-            <div class="ts-list-item">
-              <div>
-                <div class="ts-list-title">Booking confirmed</div>
-                <div class="ts-list-sub">TS20260001 · Today</div>
-              </div>
-              <?=ts_status('Confirmed', 'success')?>
-            </div>
-            <div class="ts-list-item">
-              <div>
-                <div class="ts-list-title">Resale listing active</div>
-                <div class="ts-list-sub">Velvet Hour Live · Yesterday</div>
-              </div>
-              <?=ts_status('Active', 'gold')?>
-            </div>
+          <div class="ts-list" id="notifications-list">
+             <p class="secondary text-center" style="padding:20px">Loading...</p>
           </div>
         </div>
       </div>
     </div>
   </div>
 </main>
+
+<script type="module">
+window.addEventListener('ts-auth-ready', async () => {
+    try {
+        const tickets = await window.tsTickets.getUserTickets();
+        const bookings = await window.tsBookings.getUserBookings();
+        const resale = window.tsResale ? await window.tsResale.getUserListings() : [];
+        const notifs = window.tsNotifications ? await window.tsNotifications.getForUser() : [];
+        
+        const activeTickets = tickets.filter(t => t.status === 'valid');
+        document.getElementById('kpi-tickets').textContent = activeTickets.length;
+        document.getElementById('kpi-tickets-label').textContent = activeTickets.length + ' active tickets';
+        
+        document.getElementById('kpi-bookings').textContent = bookings.length;
+        document.getElementById('kpi-bookings-label').textContent = 'All-time bookings';
+        
+        const activeResale = resale.filter(r => r.status === 'active');
+        document.getElementById('kpi-resale').textContent = activeResale.length;
+        document.getElementById('kpi-resale-label').textContent = activeResale.length + ' active listings';
+        
+        const profile = window.tsCurrentUser;
+        if (profile.walletAddress) {
+            document.getElementById('kpi-wallet').textContent = 'Connected';
+            document.getElementById('kpi-wallet-label').textContent = profile.walletAddress.substring(0, 6) + '...' + profile.walletAddress.substring(profile.walletAddress.length - 4);
+        } else {
+            document.getElementById('kpi-wallet').textContent = 'Not Connected';
+            document.getElementById('kpi-wallet-label').textContent = 'Link in Profile';
+        }
+        
+        const nextContainer = document.getElementById('next-event-container');
+        if (activeTickets.length > 0) {
+            const nextTicket = activeTickets[0]; // simplistic assumption
+            document.getElementById('next-event-link').href = 'ticket-detail.php?id=' + nextTicket.id;
+            document.getElementById('next-event-link').style.display = 'inline-flex';
+            nextContainer.innerHTML = `
+              <div class="ts-ticket-card">
+                <div class="ts-ticket-thumb">${nextTicket.eventName}</div>
+                <div class="ts-ticket-card-body">
+                  <div class="ts-card-title">${nextTicket.eventName}</div>
+                  <div class="small secondary mt-8">${nextTicket.eventDate || 'Upcoming'}</div>
+                  <div class="flex items-center gap-8 mt-16">
+                    <span class="ts-chip ts-chip-success">Valid</span>
+                    <span class="small secondary">${nextTicket.category} · Seat ${nextTicket.seat}</span></div>
+                </div>
+              </div>
+            `;
+        } else {
+            nextContainer.innerHTML = '<p class="secondary text-center" style="padding:20px">No upcoming events.</p>';
+        }
+        
+        const notifList = document.getElementById('notifications-list');
+        if (notifs.length > 0) {
+            notifList.innerHTML = notifs.slice(0,3).map(n => `
+                <div class="ts-list-item">
+                  <div>
+                    <div class="ts-list-title">${n.title}</div>
+                    <div class="ts-list-sub">${n.message}</div>
+                  </div>
+                </div>
+            `).join('');
+        } else {
+            notifList.innerHTML = '<p class="secondary text-center" style="padding:20px">No notifications.</p>';
+        }
+        
+    } catch (err) {
+        console.error('Load error:', err);
+    }
+});
+</script>
 
 <?php
 $content = ob_get_clean();
