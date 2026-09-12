@@ -247,7 +247,7 @@ function render_public_page(
 >
     '.ts_icon('logout').'
     <span>Logout</span>
-</button>FG
+</button>
 
                     </div>
 

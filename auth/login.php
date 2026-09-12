@@ -53,14 +53,39 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if(!profile) throw new Error("Profile not found in database. Please contact support.");
 
-            if (cred.user.emailVerified) {
-                await window.tsAuth.syncEmailVerification().catch(error => {
-                    console.warn('Email verification status could not be synced:', error);
-                });
-            } else {
-                window.location.href = `verify-email.php?email=${encodeURIComponent(cred.user.email || email)}`;
-                return;
-            }
+            // ============================================================
+// EMAIL VERIFICATION
+// Admin does NOT require email verification.
+// Buyer and Organizer MUST verify their email.
+// ============================================================
+
+if (profile.role !== 'admin') {
+
+    if (!cred.user.emailVerified) {
+
+        window.location.href =
+            `verify-email.php?email=${encodeURIComponent(
+                cred.user.email || email
+            )}`;
+
+        return;
+    }
+
+
+    // Firebase says the email is verified.
+    // Synchronise the status into Firestore.
+    await window.tsAuth
+        .syncEmailVerification()
+        .catch(error => {
+
+            console.warn(
+                'Email verification status could not be synced:',
+                error
+            );
+
+        });
+
+}
             
             if (profile.status !== 'active') {
                 await window.tsAuth.logout();

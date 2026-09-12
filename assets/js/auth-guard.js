@@ -18,12 +18,12 @@ function getBase() {
 }
 
 function getSection() {
-    if (path.includes('/admin/'))        return 'admin';
-    if (path.includes('/organizer/'))    return 'organizer';
-    if (path.includes('/buyer/'))        return 'buyer';
-    if (path.includes('/auth/'))         return 'auth';
+    if (path.includes('/admin/')) return 'admin';
+    if (path.includes('/organizer/')) return 'organizer';
+    if (path.includes('/buyer/')) return 'buyer';
+    if (path.includes('/auth/')) return 'auth';
     if (path.includes('/verification/')) return 'verification';
-    if (path.includes('/public/'))       return 'public';
+    if (path.includes('/public/')) return 'public';
     return 'public'; // index.php, preview.php
 }
 
@@ -367,11 +367,19 @@ onAuthStateChanged(auth, async (user) => {
                 const profile = snap.data();
                 const role = profile.role;
                 const status = profile.status;
-                if (!user.emailVerified) {
-                    window.location.href = base + '/auth/verify-email.php';
+                // Admin accounts do not require email verification.
+                // Buyer and Organizer accounts do.
+                if (
+                    role !== 'admin'
+                    && !user.emailVerified
+                ) {
+
+                    window.location.href =
+                        base + '/auth/verify-email.php';
+
                     return;
                 }
-                
+
                 if (role === 'admin') {
                     window.location.href = base + '/admin/dashboard.php';
                 } else if (role === 'organizer') {
@@ -413,8 +421,16 @@ onAuthStateChanged(auth, async (user) => {
             const status = profile.status;
 
             // Admin section — only admins
-            if (!user.emailVerified) {
-                window.location.href = base + '/auth/verify-email.php';
+            // Admin bypasses email verification.
+            // Organizer and Buyer must be verified.
+            if (
+                role !== 'admin'
+                && !user.emailVerified
+            ) {
+
+                window.location.href =
+                    base + '/auth/verify-email.php';
+
                 return;
             }
 
@@ -462,17 +478,23 @@ onAuthStateChanged(auth, async (user) => {
                 ...profile,
                 emailVerified: user.emailVerified === true
             };
+            // Update the public-style header used by Buyer pages
+            updatePublicHeader(user, profile);
 
             // Update UI Sidebar/Header if elements exist
             const displayName = profile.organizationName || profile.fullName || user.email.split('@')[0];
             const initials = displayName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-            
+
             const sidebarAvatar = document.getElementById('sidebar-avatar');
             if (sidebarAvatar) sidebarAvatar.textContent = initials;
-            
-            const headerAvatar = document.getElementById('header-avatar');
-            if (headerAvatar) headerAvatar.textContent = initials;
-            
+
+            const headerAvatarInitials =
+                document.getElementById('header-avatar-initials');
+
+            if (headerAvatarInitials) {
+                headerAvatarInitials.textContent = initials;
+            }
+
             const sidebarName = document.getElementById('sidebar-name');
             if (sidebarName) sidebarName.textContent = displayName;
 
@@ -486,55 +508,70 @@ onAuthStateChanged(auth, async (user) => {
         }
     }
 
-// -------------------------------------------------------
-// 4. Public pages
-// -------------------------------------------------------
+    // -------------------------------------------------------
+    // 4. Public pages
+    // -------------------------------------------------------
 
-if (!protectedSections.includes(section) && user) {
+    if (!protectedSections.includes(section) && user) {
 
-    try {
+        try {
 
-        const snap = await getDoc(
-            doc(db, 'Users', user.uid)
-        );
-
-
-        if (snap.exists()) {
-
-            const profile = snap.data();
-
-
-            window.tsCurrentUser = {
-
-                uid: user.uid,
-
-                email: user.email,
-
-                ...profile,
-
-                emailVerified:
-                    user.emailVerified === true
-
-            };
-
-
-            updatePublicHeader(
-                user,
-                profile
+            const snap = await getDoc(
+                doc(db, 'Users', user.uid)
             );
 
 
-            window.dispatchEvent(
-                new CustomEvent(
-                    'ts-auth-ready',
-                    {
-                        detail:
-                            window.tsCurrentUser
-                    }
-                )
-            );
+            if (snap.exists()) {
 
-        } else {
+                const profile = snap.data();
+
+
+                window.tsCurrentUser = {
+
+                    uid: user.uid,
+
+                    email: user.email,
+
+                    ...profile,
+
+                    emailVerified:
+                        user.emailVerified === true
+
+                };
+
+
+                updatePublicHeader(
+                    user,
+                    profile
+                );
+
+
+                window.dispatchEvent(
+                    new CustomEvent(
+                        'ts-auth-ready',
+                        {
+                            detail:
+                                window.tsCurrentUser
+                        }
+                    )
+                );
+
+            } else {
+
+                updatePublicHeader(
+                    user,
+                    {}
+                );
+
+            }
+
+
+        } catch (e) {
+
+            console.error(
+                'Public header profile error:',
+                e
+            );
 
             updatePublicHeader(
                 user,
@@ -543,51 +580,36 @@ if (!protectedSections.includes(section) && user) {
 
         }
 
+    }
 
-    } catch (e) {
 
-        console.error(
-            'Public header profile error:',
-            e
-        );
+    // -------------------------------------------------------
+    // No logged-in user
+    // -------------------------------------------------------
+
+    if (
+        !protectedSections.includes(section)
+        && !user
+    ) {
+
+        window.tsCurrentUser = null;
 
         updatePublicHeader(
-            user,
-            {}
+            null,
+            null
+        );
+
+
+        window.dispatchEvent(
+            new CustomEvent(
+                'ts-auth-ready',
+                {
+                    detail: null
+                }
+            )
         );
 
     }
-
-}
-
-
-// -------------------------------------------------------
-// No logged-in user
-// -------------------------------------------------------
-
-if (
-    !protectedSections.includes(section)
-    && !user
-) {
-
-    window.tsCurrentUser = null;
-
-    updatePublicHeader(
-        null,
-        null
-    );
-
-
-    window.dispatchEvent(
-        new CustomEvent(
-            'ts-auth-ready',
-            {
-                detail: null
-            }
-        )
-    );
-
-}   
 
     // No user on public pages — that's fine
     if (!protectedSections.includes(section) && !user) {
