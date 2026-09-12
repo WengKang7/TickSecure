@@ -8,10 +8,10 @@ ob_start();
 <p class="ts-auth-sub">Enter your registered email. If the account can be verified, reset instructions will be sent.</p>
 <div class="ts-auth-fields" id="forgot-form">
     <div class="ts-field">
-        <label class="ts-label">Email</label>
-        <input class="ts-input" type="email" name="resetEmail" placeholder="you@example.com">
+        <label class="ts-label" for="reset-email">Email</label>
+        <input class="ts-input" id="reset-email" type="email" name="resetEmail" inputmode="email" autocomplete="email" maxlength="254" placeholder="you@example.com" required>
     </div>
-    <button class="ts-btn ts-btn-primary w-full" id="reset-btn">Send Reset Instructions</button>
+    <button class="ts-btn ts-btn-primary w-full" id="reset-btn" type="button">Send Reset Instructions</button>
 </div>
 
 <script type="module">

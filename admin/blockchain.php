@@ -5,7 +5,7 @@ ob_start();
 
 <?=ts_page_head('Blockchain Transaction Monitoring', 'Search, filter and inspect platform blockchain activity across minting, transfers and resale.', '<button class="ts-btn ts-btn-secondary">'.ts_icon('download').' Export</button>')?>
 <div class="ts-kpi-grid mb-24">
-    <?=ts_kpi('Confirmed Today', '1,482', 'check')?><?=ts_kpi('Pending', '37', 'clock')?><?=ts_kpi('Failed', '12', 'alert')?><?=ts_kpi('Tracked Wallets', '8,902', 'wallet')?>
+    <?=ts_kpi('Simulated records', '<span id="tx-total-kpi">...</span>', 'check')?><?=ts_kpi('Pending', '<span id="tx-pending-kpi">...</span>', 'clock')?><?=ts_kpi('Failed', '<span id="tx-failed-kpi">...</span>', 'alert')?><?=ts_kpi('Tracked Wallets', '<span id="tx-wallets-kpi">...</span>', 'wallet')?>
 </div>
 <div class="ts-card">
     <div class="ts-filter-bar">
@@ -50,6 +50,10 @@ window.addEventListener('ts-auth-ready', async () => {
         const txs = await window.tsBlockchain.getTransactions();
         const tbody = document.getElementById('tx-table-body');
         if (!tbody) return;
+        document.getElementById('tx-total-kpi').textContent = txs.length.toLocaleString();
+        document.getElementById('tx-pending-kpi').textContent = txs.filter(tx => String(tx.status || '').toUpperCase() === 'PENDING').length.toLocaleString();
+        document.getElementById('tx-failed-kpi').textContent = txs.filter(tx => String(tx.status || '').toUpperCase() === 'FAILED').length.toLocaleString();
+        document.getElementById('tx-wallets-kpi').textContent = new Set(txs.map(tx => tx.walletAddress).filter(Boolean)).size.toLocaleString();
         
         if (txs.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" class="text-center secondary" style="padding:40px">No transactions found.</td></tr>';
@@ -60,21 +64,23 @@ window.addEventListener('ts-auth-ready', async () => {
         
         tbody.innerHTML = txs.map(tx => {
             let tone = 'neutral';
-            if (tx.status === 'confirmed' || tx.status === 'success') tone = 'success';
-            else if (tx.status === 'pending') tone = 'purple';
-            else if (tx.status === 'failed') tone = 'error';
+            const status = String(tx.status || '').toUpperCase();
+            if (status === 'CONFIRMED' || status === 'SUCCESS') tone = 'success';
+            else if (status === 'PENDING') tone = 'purple';
+            else if (status === 'FAILED') tone = 'error';
             
-            const hashShort = tx.hash ? tx.hash.substring(0,6) + '…' + tx.hash.substring(tx.hash.length-4) : 'N/A';
+            const hash = tx.transactionHash || tx.hash || '';
+            const hashShort = hash ? hash.substring(0,6) + '…' + hash.substring(hash.length-4) : 'N/A';
             const walletShort = tx.walletAddress ? tx.walletAddress.substring(0,6) + '…' + tx.walletAddress.substring(tx.walletAddress.length-4) : 'N/A';
 
             return `
                 <tr>
                     <td><span class="ts-copy-code">${esc(hashShort)}</span></td>
                     <td class="ts-wallet-id">${esc(walletShort)}</td>
-                    <td>${esc(tx.type)}</td>
-                    <td>${esc(tx.ticketId || tx.targetId)}</td>
-                    <td><span class="ts-chip ts-chip-${tone}">${esc(tx.status)}</span></td>
-                    <td>${new Date(tx.createdAt).toLocaleString()}</td>
+                    <td>${esc(tx.transactionType)}</td>
+                    <td>${esc(tx.ticketId || tx.relatedEntityId)}</td>
+                    <td><span class="ts-chip ts-chip-${tone}">${esc(status || 'UNKNOWN')}</span></td>
+                    <td>${tx.timestamp ? new Date(tx.timestamp).toLocaleString() : '—'}</td>
                     <td><button class="ts-btn ts-btn-secondary ts-btn-sm" onclick="alert('Transaction ID: ${tx.id}')">Details</button></td>
                 </tr>
             `;

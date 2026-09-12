@@ -58,9 +58,13 @@ window.addEventListener('ts-auth-ready', async () => {
             document.getElementById('orgPhone').value = profile.organizationPhone || '';
             document.getElementById('orgAddress').value = profile.organizationAddress || '';
             
-            const tone = profile.status === 'APPROVED' ? 'success' : (profile.status === 'REJECTED' ? 'error' : 'warning');
-            document.getElementById('org-status-chip').innerHTML = `<span class="ts-chip ts-chip-${tone}">${esc(profile.status || 'PENDING')}</span>`;
-            document.getElementById('org-approved-date').textContent = profile.updatedAt ? new Date(profile.updatedAt).toLocaleDateString() : '-';
+            const accountStatus = String(window.tsCurrentUser?.status || 'pending').toUpperCase();
+            const tone = accountStatus === 'ACTIVE' ? 'success' : (accountStatus === 'REJECTED' ? 'error' : 'warning');
+            document.getElementById('org-status-chip').innerHTML = `<span class="ts-chip ts-chip-${tone}">${esc(accountStatus)}</span>`;
+            const accountUpdatedAt = window.tsCurrentUser?.updatedAt || '';
+            document.getElementById('org-approved-date').textContent = accountStatus === 'ACTIVE' && accountUpdatedAt
+                ? new Date(accountUpdatedAt).toLocaleDateString()
+                : '-';
         }
         
         document.getElementById('save-profile-btn')?.addEventListener('click', async (e) => {

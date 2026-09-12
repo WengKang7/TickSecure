@@ -7,15 +7,15 @@ ob_start();
 <p class="ts-auth-sub">Use a strong password you have not used previously.</p>
 <div class="ts-auth-fields" id="reset-form">
     <div class="ts-field">
-        <label class="ts-label">New Password</label>
-        <input class="ts-input" type="password" name="newPassword" placeholder="New password">
+        <label class="ts-label" for="new-password">New Password</label>
+        <input class="ts-input" id="new-password" type="password" name="newPassword" autocomplete="new-password" maxlength="4096" placeholder="New password" required>
         <div class="ts-help">Use at least 8 characters with upper/lowercase, number and symbol.</div>
     </div>
     <div class="ts-field">
-        <label class="ts-label">Confirm Password</label>
-        <input class="ts-input" type="password" name="confirmPassword" placeholder="Repeat new password">
+        <label class="ts-label" for="confirm-password">Confirm Password</label>
+        <input class="ts-input" id="confirm-password" type="password" name="confirmPassword" autocomplete="new-password" maxlength="4096" placeholder="Repeat new password" required>
     </div>
-    <button class="ts-btn ts-btn-primary w-full" id="update-btn">Update Password</button>
+    <button class="ts-btn ts-btn-primary w-full" id="update-btn" type="button">Update Password</button>
 </div>
 
 <script type="module">

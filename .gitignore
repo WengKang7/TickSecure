@@ -6,6 +6,11 @@
 # Firebase private credentials
 serviceAccountKey.json
 firebase-adminsdk*.json
+api/firebase-config.local.php
+api/*.service-account.json
+
+# Local XAMPP fallback storage
+uploads/
 
 # Dependencies
 vendor/

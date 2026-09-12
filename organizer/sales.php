@@ -58,9 +58,7 @@ ob_start();
 window.addEventListener('ts-auth-ready', async () => {
     try {
         const events = await window.tsEvents.getOrganizerEvents();
-        const eventIds = new Set(events.map(e => e.id));
-        const allBookings = await window.tsBookings.getBookings();
-        const bookings = allBookings.filter(b => eventIds.has(b.eventId));
+        const bookings = await window.tsBookings.getBookings();
         
         let sold = 0;
         let revenue = 0;
@@ -69,8 +67,8 @@ window.addEventListener('ts-auth-ready', async () => {
 
         bookings.forEach(b => {
             if(b.status === 'CONFIRMED' || b.status === 'COMPLETED') {
-                sold += (b.tickets?.length || 0);
-                revenue += (b.totalAmount || 0);
+                sold += Number(b.quantity) || b.seats?.length || 0;
+                revenue += Number(b.totalAmount) || 0;
                 successful++;
             } else if(b.status === 'FAILED' || b.status === 'CANCELLED') {
                 failed++;

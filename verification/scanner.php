@@ -14,48 +14,56 @@
 <script type="module" src="../assets/js/firebase-init.js"></script>
 <script type="module" src="../assets/js/auth-guard.js"></script>
 <script type="module">
+import '../assets/js/firestore-crud.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('verify-btn');
     const input = document.getElementById('qr-input');
-    
+
     if (!btn || !input) return;
+
+    const setScannerAvailability = (profile = window.tsCurrentUser) => {
+        const authorized = profile
+            && ['admin', 'organizer'].includes(profile.role)
+            && profile.status === 'active';
+        btn.disabled = !authorized;
+        btn.textContent = authorized ? 'Verify' : (profile ? 'Access Restricted' : 'Preparing...');
+    };
+
+    window.addEventListener('ts-auth-ready', event => setScannerAvailability(event.detail));
+    setScannerAvailability();
 
     btn.addEventListener('click', async () => {
         const val = input.value.trim();
-        if (!val) return;
 
         btn.disabled = true;
         btn.textContent = 'Verifying...';
 
         try {
             // Expected format: TKSECURE:ticketId:eventId:seatId
-            const parts = val.split(':');
-            if (parts.length < 4 || parts[0] !== 'TKSECURE') {
+            const parts = val.split(':').map(part => part.trim());
+            const [prefix, ticketId, eventId, seatId] = parts;
+            if (parts.length !== 4 || prefix !== 'TKSECURE' || !ticketId || !eventId || !seatId) {
                 throw new Error('Invalid QR format');
             }
 
-            const ticketId = parts[1];
-            const eventId = parts[2];
-            // verifyTicket(ticketId, eventId)
-            
-            // Note: In real app, we need auth-ready, but this is a tool for personnel.
-            // Let's assume window.tsTickets is loaded via auth-guard/init.
-            // Wait for window.tsTickets to be available
-            if(!window.tsTickets) {
-                throw new Error('Services not initialized. Are you logged in as personnel?');
+            // TicketService delegates this state-changing operation to the
+            // protected scanTicket callable in deployed environments.
+            if (!window.tsTickets) {
+                throw new Error('Ticket services are still loading. Please try again.');
             }
-            
+
             const result = await window.tsTickets.verifyTicket(ticketId, eventId);
             if (result && result.valid) {
-                window.location.href = `valid.php?ticketId=${encodeURIComponent(ticketId)}`;
+                window.location.href = 'valid.php?ticketId=' + encodeURIComponent(ticketId);
             } else {
                 throw new Error(result.reason || 'Invalid ticket');
             }
         } catch (err) {
-            window.location.href = `invalid.php?reason=${encodeURIComponent(err.message)}`;
+            const reason = err?.message || 'Unable to verify this ticket.';
+            window.location.href = 'invalid.php?reason=' + encodeURIComponent(reason);
         } finally {
-            btn.disabled = false;
-            btn.textContent = 'Verify';
+            setScannerAvailability();
         }
     });
 });

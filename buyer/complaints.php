@@ -46,26 +46,27 @@ window.addEventListener('ts-auth-ready', async () => {
         }
         
         tbody.innerHTML = complaints.map(c => {
+            const complaintStatus = (c.status || 'OPEN').toUpperCase();
             let tone = 'warning';
-            let status = 'Under Investigation';
-            if (c.status === 'open') { tone = 'info'; status = 'Open'; }
-            else if (c.status === 'resolved') { tone = 'success'; status = 'Resolved'; }
-            else if (c.status === 'rejected') { tone = 'error'; status = 'Rejected'; }
-            else if (c.status === 'investigating') { tone = 'warning'; status = 'Investigating'; }
+            let status = complaintStatus.replace(/_/g, ' ');
+            if (complaintStatus === 'OPEN') { tone = 'info'; status = 'Open'; }
+            else if (complaintStatus === 'RESOLVED') { tone = 'success'; status = 'Resolved'; }
+            else if (complaintStatus === 'REJECTED') { tone = 'error'; status = 'Rejected'; }
+            else if (complaintStatus === 'UNDER_INVESTIGATION' || complaintStatus === 'INVESTIGATING') { tone = 'warning'; status = 'Under Investigation'; }
             
             const submitStr = c.createdAt ? (typeof c.createdAt.toDate === 'function' ? c.createdAt.toDate().toLocaleDateString() : c.createdAt) : '-';
             const updateStr = c.updatedAt ? (typeof c.updatedAt.toDate === 'function' ? c.updatedAt.toDate().toLocaleDateString() : c.updatedAt) : submitStr;
             
-            return \`
+            return `
             <tr>
-                <td class="cell-title">\${c.id}</td>
-                <td>\${c.category || '-'}</td>
-                <td>\${submitStr}</td>
-                <td><span class="ts-chip ts-chip-\${tone}">\${status}</span></td>
-                <td>\${updateStr}</td>
-                <td><a class="ts-btn ts-btn-secondary ts-btn-sm" href="complaint-detail.php?id=\${c.id}">View</a></td>
+                <td class="cell-title">${c.referenceNumber || c.id}</td>
+                <td>${c.category || '-'}</td>
+                <td>${submitStr}</td>
+                <td><span class="ts-chip ts-chip-${tone}">${status}</span></td>
+                <td>${updateStr}</td>
+                <td><a class="ts-btn ts-btn-secondary ts-btn-sm" href="complaint-detail.php?id=${c.id}">View</a></td>
             </tr>
-            \`;
+            `;
         }).join('');
     } catch (err) {
         console.error('Load error:', err);

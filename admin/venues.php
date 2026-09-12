@@ -50,18 +50,18 @@ window.addEventListener('ts-auth-ready', async () => {
             const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
             
             tbody.innerHTML = venues.map(v => {
+                const layoutStatus = (v.layoutStatus || 'DRAFT').toUpperCase();
                 let tone = 'neutral';
-                if (v.status === 'active') tone = 'success';
-                else if (v.status === 'processing') tone = 'purple';
-                else if (v.status === 'draft') tone = 'neutral';
+                if (layoutStatus === 'ACTIVE') tone = 'success';
+                else if (layoutStatus === 'PROCESSING') tone = 'purple';
 
                 return `
                     <tr>
                         <td class="cell-title">${esc(v.name)}</td>
                         <td>${esc(v.address)}</td>
                         <td>${esc(v.capacity)}</td>
-                        <td><span class="ts-chip ts-chip-${tone}">${esc(v.status)}</span></td>
-                        <td>${v.sections ? Object.keys(v.sections).length : '—'}</td>
+                        <td><span class="ts-chip ts-chip-${tone}">${esc(layoutStatus)}</span></td>
+                        <td>${Array.isArray(v.sections) ? v.sections.length : 0}</td>
                         <td>${new Date(v.updatedAt || v.createdAt).toLocaleDateString()}</td>
                         <td>
                             <a class="ts-btn ts-btn-secondary ts-btn-sm" href="venue-detail.php?id=${v.id}">Manage</a>

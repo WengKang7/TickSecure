@@ -17,17 +17,17 @@ ob_start();
         <div class="ts-card-title">Step 1 · Basic Information</div>
         <div class="ts-form-grid mt-20" id="event-form">
             <div class="ts-field span-2"><label class="ts-label">Event Name</label><input class="ts-input"
-                    name="eventName" id="eventName" placeholder="e.g. Aurora After Dark"></div>
+                    name="eventName" id="eventName" maxlength="120" required placeholder="e.g. Aurora After Dark"></div>
             <div class="ts-field span-2"><label class="ts-label">Event Description</label><textarea class="ts-textarea"
-                    name="eventDescription" id="eventDescription" placeholder="Describe the concert experience and key information buyers should know."></textarea></div>
+                    name="eventDescription" id="eventDescription" minlength="10" maxlength="5000" required placeholder="Describe the concert experience and key information buyers should know."></textarea></div>
             <div class="ts-field"><label class="ts-label">Event Category</label><select class="ts-select" name="eventCategory" id="eventCategory">
                     <option value="">Select category...</option>
                     <option value="Concert">Concert</option>
                     <option value="Festival">Festival</option>
                     <option value="Live Performance">Live Performance</option>
                 </select></div>
-            <div class="ts-field"><label class="ts-label">Event Date</label><input class="ts-input" type="date" name="eventDate" id="eventDate"></div>
-            <div class="ts-field"><label class="ts-label">Start Time</label><input class="ts-input" type="time" name="eventTime" id="eventTime"></div>
+            <div class="ts-field"><label class="ts-label">Event Date</label><input class="ts-input" type="date" name="eventDate" id="eventDate" required></div>
+            <div class="ts-field"><label class="ts-label">Start Time</label><input class="ts-input" type="time" name="eventTime" id="eventTime" required></div>
             <div class="ts-field"><label class="ts-label">Organizer</label><input class="ts-input" id="organizerName"
                     value="Loading..." disabled></div>
         </div>
@@ -42,7 +42,7 @@ ob_start();
         <div class="ts-card-title">Step 2 · Venue</div>
         <div class="ts-field mt-20">
             <label class="ts-label">Select Administrator-managed Venue</label>
-            <select class="ts-select" id="venue-select" name="venueId">
+            <select class="ts-select" id="venue-select" name="venueId" required>
                 <option value="">Loading venues...</option>
             </select>
             <div class="ts-help">Only Administrator-approved venues with an active seating layout can be selected.</div>
@@ -63,7 +63,7 @@ ob_start();
     <div class="ts-card ts-card-pad">
         <div class="ts-card-title">Step 3 · Promotional Media</div>
         <label class="ts-dropzone mt-20">
-            <input type="file" id="poster-upload" accept="image/png, image/jpeg" style="display:none">
+            <input type="file" id="poster-upload" accept="image/png,image/jpeg" style="display:none">
             <span class="ts-drop-icon">
                 <?=ts_icon('upload')?>
             </span>
@@ -109,60 +109,116 @@ document.addEventListener('DOMContentLoaded', () => {
         if (s > 2) nav2.classList.add('done'); else nav2.classList.remove('done');
     }
 
-    document.getElementById('btn-next-1').addEventListener('click', (e) => {
-        e.preventDefault();
+    const localToday = () => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    };
+
+    const eventDateInput = document.getElementById('eventDate');
+    if (eventDateInput) eventDateInput.min = localToday();
+
+    const validateBasicInfo = () => {
         const V = window.tsValidation;
-        V.clearFieldErrors(document);
+        const form = document.getElementById('event-form');
+        V.clearFieldErrors(step1);
+        const date = V.val(form, 'eventDate');
+        const time = V.val(form, 'eventTime');
         const ok = V.runAll([
             {
                 check: () => {
-                    const v = V.val(document, 'eventName');
+                    const v = V.val(form, 'eventName');
                     let r = V.validateRequired(v, 'Event Name');
                     if (!r.valid) return r;
                     r = V.validateMinLength(v, 3, 'Event Name');
                     if (!r.valid) return r;
-                    return V.validateMaxLength(v, 200, 'Event Name');
+                    return V.validateMaxLength(v, 120, 'Event Name');
                 },
-                el: V.el(document, 'eventName')
+                el: V.el(form, 'eventName')
             },
             {
                 check: () => {
-                    const v = V.val(document, 'eventDescription');
+                    const v = V.val(form, 'eventDescription');
                     let r = V.validateRequired(v, 'Description');
                     if (!r.valid) return r;
                     r = V.validateMinLength(v, 10, 'Description');
                     if (!r.valid) return r;
                     return V.validateMaxLength(v, 5000, 'Description');
                 },
-                el: V.el(document, 'eventDescription')
+                el: V.el(form, 'eventDescription')
             },
-            { check: () => V.validateRequired(V.val(document, 'eventCategory'), 'Category'), el: V.el(document, 'eventCategory') },
+            { check: () => V.validateSelect(V.val(form, 'eventCategory'), 'event category'), el: V.el(form, 'eventCategory') },
             {
                 check: () => {
-                    const v = V.val(document, 'eventDate');
-                    let r = V.validateRequired(v, 'Event Date');
+                    let r = V.validateRequired(date, 'Event Date');
                     if (!r.valid) return r;
-                    const date = new Date(v);
-                    if (date < new Date(new Date().setHours(0,0,0,0))) return { valid: false, error: 'Event Date must be in the future.' };
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { valid: false, error: 'Event Date is invalid.' };
+                    if (time && new Date(`${date}T${time}`).getTime() <= Date.now()) {
+                        return { valid: false, error: 'Event start must be in the future.' };
+                    }
                     return { valid: true };
                 },
-                el: V.el(document, 'eventDate')
+                el: V.el(form, 'eventDate')
             },
-            { check: () => V.validateRequired(V.val(document, 'eventTime'), 'Start Time'), el: V.el(document, 'eventTime') }
+            {
+                check: () => {
+                    const required = V.validateRequired(time, 'Start Time');
+                    if (!required.valid) return required;
+                    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return { valid: false, error: 'Start Time is invalid.' };
+                    return { valid: true };
+                },
+                el: V.el(form, 'eventTime')
+            }
         ]);
-        if (ok) showStep(2);
+        if (!ok) V.showGlobalError(step1, 'Check the event details', 'Correct the highlighted fields before continuing.');
+        return ok;
+    };
+
+    const validateVenue = () => {
+        const V = window.tsValidation;
+        V.clearFieldErrors(step2);
+        const selectedVenue = venuesData.find(venue => venue.id === venueSelect.value);
+        const ok = V.runAll([
+            {
+                check: () => {
+                    const selected = V.validateSelect(venueSelect.value, 'venue');
+                    if (!selected.valid) return selected;
+                    if (!selectedVenue) return { valid: false, error: 'Choose a currently active venue from the list.' };
+                    const validSections = Array.isArray(selectedVenue.sections)
+                        && selectedVenue.sections.some(section => Number(section.seatCount ?? section.seats) > 0);
+                    return validSections
+                        ? { valid: true }
+                        : { valid: false, error: 'Choose a venue with an active seating layout.' };
+                },
+                el: venueSelect
+            }
+        ]);
+        if (!ok) V.showGlobalError(step2, 'Choose a venue', 'Select an active venue with a usable seating layout.');
+        return ok;
+    };
+
+    const validatePoster = () => {
+        const V = window.tsValidation;
+        V.clearFieldErrors(step3);
+        const file = posterInput?.files?.[0];
+        if (!file) return true;
+        const ok = V.runAll([
+            { check: () => V.validateFileType(file, ['image/jpeg', 'image/png']), el: posterInput },
+            { check: () => V.validateFileSize(file, 5 * 1024 * 1024), el: posterInput }
+        ]);
+        if (!ok) V.showGlobalError(step3, 'Poster could not be used', 'Use a JPG or PNG image no larger than 5 MB.');
+        return ok;
+    };
+
+    document.getElementById('btn-next-1').addEventListener('click', (e) => {
+        e.preventDefault();
+        if (validateBasicInfo()) showStep(2);
     });
 
     document.getElementById('btn-prev-2').addEventListener('click', (e) => { e.preventDefault(); showStep(1); });
     
     document.getElementById('btn-next-2').addEventListener('click', (e) => {
         e.preventDefault();
-        const V = window.tsValidation;
-        V.clearFieldErrors(document);
-        const ok = V.runAll([
-            { check: () => V.validateRequired(venueSelect.value, 'Venue'), el: venueSelect }
-        ]);
-        if (ok) showStep(3);
+        if (validateVenue()) showStep(3);
     });
 
     document.getElementById('btn-prev-3').addEventListener('click', (e) => { e.preventDefault(); showStep(2); });
@@ -172,6 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
         posterInput.addEventListener('change', () => {
             if (posterInput.files && posterInput.files.length > 0) {
                 posterName.textContent = posterInput.files[0].name;
+                validatePoster();
             } else {
                 posterName.textContent = 'Upload event poster';
             }
@@ -218,10 +275,20 @@ document.addEventListener('DOMContentLoaded', () => {
     submitBtn.addEventListener('click', async (e) => {
         e.preventDefault();
         const V = window.tsValidation;
-        V.clearFieldErrors(document);
-        
-        // Final sanity check
-        if (!venueSelect.value) return showStep(2);
+
+        // Re-check every step so the create action cannot bypass validation.
+        if (!validateBasicInfo()) {
+            showStep(1);
+            return;
+        }
+        if (!validateVenue()) {
+            showStep(2);
+            return;
+        }
+        if (!validatePoster()) {
+            showStep(3);
+            return;
+        }
 
         submitBtn.disabled = true;
         submitBtn.textContent = 'Saving...';
@@ -229,11 +296,11 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const selectedVenue = venuesData.find(v => v.id === venueSelect.value);
             const newEventId = await window.tsEvents.createEvent({
-                name: V.val(document, 'eventName'),
-                description: V.val(document, 'eventDescription'),
-                category: V.val(document, 'eventCategory'),
-                date: V.val(document, 'eventDate'),
-                time: V.val(document, 'eventTime'),
+                name: V.val(document.getElementById('event-form'), 'eventName'),
+                description: V.val(document.getElementById('event-form'), 'eventDescription'),
+                eventCategory: V.val(document.getElementById('event-form'), 'eventCategory'),
+                date: V.val(document.getElementById('event-form'), 'eventDate'),
+                time: V.val(document.getElementById('event-form'), 'eventTime'),
                 venueId: venueSelect.value,
                 venueName: selectedVenue ? selectedVenue.name : ''
             });

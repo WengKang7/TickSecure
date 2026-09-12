@@ -47,8 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const ticket = await window.tsTickets.getTicket(ticketId);
-            document.getElementById('transfer-desc').textContent = \`Transfer \${ticket.eventName} · \${ticket.category} · Seat \${ticket.seat} to another eligible wallet.\`;
-            document.getElementById('btn-cancel').href = \`ticket-detail.php?id=\${ticket.id}\`;
+            document.getElementById('transfer-desc').textContent = `Transfer ${ticket.eventName} · ${ticket.categoryName || 'N/A'} · Seat ${ticket.seatId || 'N/A'} to another eligible wallet.`;
+            document.getElementById('btn-cancel').href = `ticket-detail.php?id=${ticket.id}`;
             
             const form = document.getElementById('transfer-form');
             const submitBtn = document.getElementById('btn-submit');
@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 submitBtn.textContent = 'Transferring...';
                 try {
                     await window.tsTickets.transferTicket(ticket.id, V.val(form, 'recipientWallet'));
-                    window.location.href = \`ticket-detail.php?id=\${ticket.id}\`;
+                    window.location.href = `ticket-detail.php?id=${ticket.id}`;
                 } catch (err) {
                     V.showGlobalError(form, 'Transfer Error', err.message);
                     submitBtn.disabled = false;

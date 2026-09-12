@@ -42,7 +42,10 @@ export function validateFullName(name) {
     const t = (name || '').trim();
     if (!t) return { valid: false, error: 'Full name is required.' };
     if (t.length < 3) return { valid: false, error: 'Full name must be at least 3 characters.' };
-    if (!/^[a-zA-Z\s'.-]+$/.test(t)) return { valid: false, error: 'Full name must contain only letters and spaces.' };
+    if (t.length > 100) return { valid: false, error: 'Full name must not exceed 100 characters.' };
+    if (!/^[\p{L}\p{M}][\p{L}\p{M}\s'.-]*$/u.test(t)) {
+        return { valid: false, error: 'Full name may contain letters, spaces, apostrophes, periods and hyphens only.' };
+    }
     return { valid: true, error: null };
 }
 
@@ -53,16 +56,30 @@ export function validatePhone(phone) {
 }
 
 export function validatePrice(price, min = 1, max = 99999) {
-    const num = parseFloat(price);
-    if (isNaN(num) || num < min || num > max)
-        return { valid: false, error: `Price must be between RM ${min} and RM ${max}.` };
+    const text = String(price ?? '').trim();
+    const minimum = Number.isFinite(Number(min)) ? Number(min) : 1;
+    const maximum = Number.isFinite(Number(max)) ? Number(max) : 99999;
+    if (!/^\d+(?:\.\d{1,2})?$/.test(text)) {
+        return { valid: false, error: 'Price must be a valid amount with no more than 2 decimal places.' };
+    }
+    const num = Number(text);
+    if (!Number.isFinite(num) || num < minimum || num > maximum) {
+        return { valid: false, error: `Price must be between RM ${minimum} and RM ${maximum}.` };
+    }
     return { valid: true, error: null };
 }
 
 export function validateQuantity(qty, min = 1, max = 100000) {
-    const num = parseInt(qty, 10);
-    if (isNaN(num) || num < min || num > max)
-        return { valid: false, error: `Quantity must be between ${min} and ${max}.` };
+    const text = String(qty ?? '').trim();
+    const minimum = Number.isFinite(Number(min)) ? Number(min) : 1;
+    const maximum = Number.isFinite(Number(max)) ? Number(max) : 100000;
+    if (!/^\d+$/.test(text)) {
+        return { valid: false, error: 'Quantity must be a whole number.' };
+    }
+    const num = Number(text);
+    if (!Number.isSafeInteger(num) || num < minimum || num > maximum) {
+        return { valid: false, error: `Quantity must be between ${minimum} and ${maximum}.` };
+    }
     return { valid: true, error: null };
 }
 
@@ -111,12 +128,98 @@ export function validateSelect(value, fieldName) {
     return { valid: true, error: null };
 }
 
+/**
+ * Validate normal user-entered text without silently accepting control
+ * characters or whitespace-only values. This is used for names,
+ * descriptions, and administrator reasons.
+ */
+export function validateText(value, fieldName, min = 1, max = 5000, options = {}) {
+    const text = String(value ?? '').trim();
+    if (!text && options.allowBlank) return { valid: true, error: null };
+    if (!text) return { valid: false, error: `${fieldName} is required.` };
+    if (text.length < min) return { valid: false, error: `${fieldName} must be at least ${min} characters.` };
+    if (text.length > max) return { valid: false, error: `${fieldName} must not exceed ${max} characters.` };
+    if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(text)) {
+        return { valid: false, error: `${fieldName} contains unsupported control characters.` };
+    }
+    return { valid: true, error: null };
+}
+
+export function validatePercentage(value, fieldName = 'Percentage', min = 0, max = 100) {
+    const text = String(value ?? '').trim();
+    if (!/^\d+(?:\.\d{1,2})?$/.test(text)) {
+        return { valid: false, error: `${fieldName} must be a number with no more than 2 decimal places.` };
+    }
+    const number = Number(text);
+    if (!Number.isFinite(number) || number < min || number > max) {
+        return { valid: false, error: `${fieldName} must be between ${min} and ${max}.` };
+    }
+    return { valid: true, error: null };
+}
+
+export function validateDateTimeAfter(startStr, endStr, startName = 'Start date', endName = 'End date') {
+    const start = new Date(startStr);
+    const end = new Date(endStr);
+    if (Number.isNaN(start.getTime())) return { valid: false, error: `${startName} is invalid.` };
+    if (Number.isNaN(end.getTime())) return { valid: false, error: `${endName} is invalid.` };
+    if (end <= start) return { valid: false, error: `${endName} must be after ${startName.toLowerCase()}.` };
+    return { valid: true, error: null };
+}
+
+export function validateCardholderName(value) {
+    const text = String(value ?? '').trim();
+    if (text.length < 3 || text.length > 100) {
+        return { valid: false, error: 'Cardholder name must be between 3 and 100 characters.' };
+    }
+    if (!/^[\p{L}\p{M}][\p{L}\p{M}\s'.-]*$/u.test(text)) {
+        return { valid: false, error: 'Cardholder name may contain letters, spaces, apostrophes, periods and hyphens only.' };
+    }
+    return { valid: true, error: null };
+}
+
+export function validateCardNumber(value) {
+    const digits = String(value ?? '').replace(/[\s-]/g, '');
+    if (!/^\d{13,19}$/.test(digits)) return { valid: false, error: 'Enter a valid card number.' };
+    let sum = 0;
+    let doubleDigit = false;
+    for (let index = digits.length - 1; index >= 0; index -= 1) {
+        let digit = Number(digits[index]);
+        if (doubleDigit) {
+            digit *= 2;
+            if (digit > 9) digit -= 9;
+        }
+        sum += digit;
+        doubleDigit = !doubleDigit;
+    }
+    return sum % 10 === 0
+        ? { valid: true, error: null }
+        : { valid: false, error: 'Enter a valid card number.' };
+}
+
+export function validateCardExpiry(value) {
+    const match = String(value ?? '').trim().match(/^(0[1-9]|1[0-2])\s*\/\s*(\d{2}|\d{4})$/);
+    if (!match) return { valid: false, error: 'Enter expiry as MM/YY.' };
+    const month = Number(match[1]);
+    const year = match[2].length === 2 ? 2000 + Number(match[2]) : Number(match[2]);
+    const expiry = new Date(year, month, 1);
+    if (Number.isNaN(expiry.getTime()) || expiry <= new Date()) {
+        return { valid: false, error: 'The card expiry date must be in the future.' };
+    }
+    return { valid: true, error: null };
+}
+
+export function validateCvv(value) {
+    return /^\d{3,4}$/.test(String(value ?? '').trim())
+        ? { valid: true, error: null }
+        : { valid: false, error: 'Security code must contain 3 or 4 digits.' };
+}
+
 // ============================================================
 // DOM ERROR DISPLAY — matches TickSecure design system
 // ============================================================
 
 export function showFieldError(inputEl, message) {
-    if (!inputEl) return;
+    if (!inputEl || !inputEl.parentElement) return;
     inputEl.style.borderColor = 'var(--error)';
     inputEl.style.boxShadow = '0 0 0 3px var(--error-bg)';
     let node = inputEl.parentElement.querySelector('.ts-error-msg');
@@ -143,6 +246,7 @@ export function clearFieldErrors(container) {
 }
 
 export function showGlobalError(container, title, message) {
+    if (!container) return;
     let el = container.querySelector('.ts-global-error');
     if (!el) {
         el = document.createElement('div');
@@ -150,18 +254,31 @@ export function showGlobalError(container, title, message) {
         el.style.cssText = 'background:var(--error-bg);color:var(--error);border:1px solid #F0B4AF';
         container.prepend(el);
     }
-    el.innerHTML = `<strong>${title}</strong><div class="small mt-8">${message}</div>`;
+    el.replaceChildren();
+    const heading = document.createElement('strong');
+    heading.textContent = String(title || 'Error');
+    const detail = document.createElement('div');
+    detail.className = 'small mt-8';
+    detail.textContent = String(message || 'Please review the highlighted fields and try again.');
+    el.append(heading, detail);
     el.style.display = 'block';
 }
 
 export function showGlobalSuccess(container, title, message) {
+    if (!container) return;
     let el = container.querySelector('.ts-global-success');
     if (!el) {
         el = document.createElement('div');
         el.className = 'ts-global-success ts-alert ts-alert-success mb-24';
         container.prepend(el);
     }
-    el.innerHTML = `<strong>${title}</strong><div class="small mt-8">${message}</div>`;
+    el.replaceChildren();
+    const heading = document.createElement('strong');
+    heading.textContent = String(title || 'Success');
+    const detail = document.createElement('div');
+    detail.className = 'small mt-8';
+    detail.textContent = String(message || 'Your changes have been saved.');
+    el.append(heading, detail);
     el.style.display = 'block';
 }
 
@@ -202,7 +319,8 @@ window.tsValidation = {
     validateEmail, validatePassword, validateFullName, validatePhone,
     validatePrice, validateQuantity, validateFutureDate, validateDateRange,
     validateWalletAddress, validateFileType, validateFileSize, validateSelect,
+    validateText, validatePercentage, validateDateTimeAfter,
+    validateCardholderName, validateCardNumber, validateCardExpiry, validateCvv,
     showFieldError, clearFieldErrors, showGlobalError, showGlobalSuccess,
     runAll, val, el
 };
-

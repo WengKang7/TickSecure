@@ -11,8 +11,7 @@ ob_start();
                     <?=ts_icon('check', 'ts-icon-xl')?>
                 </div>
                 <div class="ts-success-title">Booking confirmed</div>
-                <p class="ts-success-copy" id="success-copy">Your payment has been confirmed and your booking has been created. NFT
-                    ticket issuance is now being initiated.</p>
+                <p class="ts-success-copy" id="success-copy">Your booking is being loaded.</p>
                 <div class="ts-card ts-card-pad mt-24 text-left">
                     <div class="ts-detail-grid">
                         <div class="ts-detail-item">
@@ -79,20 +78,30 @@ window.addEventListener('ts-auth-ready', async () => {
     try {
         const booking = await window.tsBookings.getBooking(bookingId);
         
-        document.getElementById('success-copy').textContent = \`Your payment has been confirmed and booking \${booking.id} has been created. NFT ticket issuance is now being initiated.\`;
+        const simulatedPayment = String(booking.paymentStatus || '').toUpperCase() === 'SIMULATED_PAID';
+        document.getElementById('success-copy').textContent = simulatedPayment
+            ? `Your simulated payment was successful and booking ${booking.id} has been created. NFT ticket issuance is now being initiated.`
+            : `Your payment has been confirmed and booking ${booking.id} has been created. NFT ticket issuance is now being initiated.`;
         
         document.getElementById('val-event').textContent = booking.eventName || 'Event';
-        document.getElementById('val-booking-id').textContent = booking.id;
-        document.getElementById('val-category').textContent = booking.category || 'Category';
-        document.getElementById('val-seat').textContent = booking.seat || (booking.seats || []).join(', ') || 'Auto';
-        document.getElementById('val-paid').textContent = \`RM\${parseFloat(booking.totalAmount || 0).toFixed(2)}\`;
+        document.getElementById('val-booking-id').textContent = booking.bookingNumber || booking.id;
+        document.getElementById('val-category').textContent = booking.categoryName || 'Category';
+        document.getElementById('val-seat').textContent = (booking.seats || []).join(', ') || 'Auto';
+        document.getElementById('val-paid').textContent = `RM${parseFloat(booking.totalAmount || 0).toFixed(2)}`;
         
-        document.getElementById('btn-view-booking').href = \`booking-detail.php?id=\${booking.id}\`;
+        document.getElementById('btn-view-booking').href = `booking-detail.php?id=${booking.id}`;
         
-        if (booking.txHash) {
-            document.getElementById('val-tx').textContent = booking.txHash;
-            document.getElementById('val-tx-status').innerHTML = '<span class="ts-chip ts-chip-success">Confirmed</span>';
-            document.getElementById('val-nft-status').innerHTML = '<span class="ts-chip ts-chip-success">Minted</span>';
+        const bookingTickets = await window.tsTickets.getTickets({ bookingId: booking.id });
+        const ticket = bookingTickets[0];
+        if (ticket) {
+            const minted = (ticket.mintingStatus || '').toUpperCase() === 'MINTED';
+            document.getElementById('val-tx').textContent = ticket.transactionHash || 'Pending mint...';
+            document.getElementById('val-tx-status').innerHTML = minted
+                ? '<span class="ts-chip ts-chip-success">Confirmed</span>'
+                : '<span class="ts-chip ts-chip-warning">Pending</span>';
+            document.getElementById('val-nft-status').innerHTML = minted
+                ? '<span class="ts-chip ts-chip-success">Minted</span>'
+                : '<span class="ts-chip ts-chip-warning">Pending</span>';
         }
         
     } catch (err) {

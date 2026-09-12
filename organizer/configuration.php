@@ -43,15 +43,15 @@ ob_start();
     <div class="ts-card ts-card-pad">
         <div class="ts-card-title">Add / Edit Category</div>
         <div class="ts-auth-fields mt-20">
-            <div class="ts-field"><label class="ts-label">Category Name</label><input class="ts-input" id="catName" name="catName" value="">
+            <div class="ts-field"><label class="ts-label">Category Name</label><input class="ts-input" id="catName" name="catName" maxlength="80" value="">
             </div>
             <div class="ts-field"><label class="ts-label">Physical Venue Section</label><select class="ts-select" id="catSection" name="catSection">
                     <option value="">Select Section...</option>
                 </select></div>
             <div class="ts-form-grid">
-                <div class="ts-field"><label class="ts-label">Ticket Price (RM)</label><input class="ts-input" type="number" id="catPrice" name="catPrice"
+                <div class="ts-field"><label class="ts-label">Ticket Price (RM)</label><input class="ts-input" type="number" id="catPrice" name="catPrice" min="1" max="99999" step="0.01"
                         value=""></div>
-                <div class="ts-field"><label class="ts-label">Ticket Quantity</label><input class="ts-input" type="number" id="catQuantity" name="catQuantity" value="">
+                <div class="ts-field"><label class="ts-label">Ticket Quantity</label><input class="ts-input" type="number" id="catQuantity" name="catQuantity" min="1" step="1" value="">
                 </div>
             </div><button class="ts-btn ts-btn-secondary" id="add-cat-btn">Add Category</button>
         </div>
@@ -89,10 +89,10 @@ ob_start();
                 type="datetime-local" id="salesStart" name="salesStart"></div>
         <div class="ts-field"><label class="ts-label">Sales Closing Date / Time</label><input class="ts-input"
                 type="datetime-local" id="salesEnd" name="salesEnd"></div>
-        <div class="ts-field"><label class="ts-label">Maximum Tickets per Buyer</label><input class="ts-input"
+        <div class="ts-field"><label class="ts-label">Maximum Tickets per Buyer</label><input class="ts-input" type="number" min="1" step="1"
                 id="maxTickets" name="maxTickets"></div>
         <div class="ts-field"><label class="ts-label">Maximum Resale Markup (%)</label><input class="ts-input" type="number"
-                id="maxResaleMarkup" name="maxResaleMarkup" value="5"></div>
+                id="maxResaleMarkup" name="maxResaleMarkup" min="0" max="100" step="0.01" value="5"></div>
         <div class="ts-field"><label class="ts-label">Resale Start</label><input class="ts-input" type="datetime-local"
                 id="resaleStart" name="resaleStart"></div>
         <div class="ts-field"><label class="ts-label">Resale Deadline</label><input class="ts-input"
@@ -152,19 +152,20 @@ window.addEventListener('ts-auth-ready', async () => {
             const secSelect = document.getElementById('catSection');
             if (secSelect) {
                 secSelect.innerHTML = '<option value="">Select Section...</option>' + venueSections.map(s => 
-                    `<option value="${esc(s.name)}">${esc(s.name)} · ${s.seatCount} seats</option>`
+                    `<option value="${esc(s.sectionId)}">${esc(s.name)} (Section ${esc(s.sectionId)}) · ${s.seatCount} seats</option>`
                 ).join('');
             }
         }
         
-        let existingCats = event.categories || [];
-        if (!Array.isArray(existingCats)) existingCats = Object.values(existingCats);
+        let existingCats = Array.isArray(event.categories)
+            ? event.categories.map(c => ({ ...c, sectionId: c.sectionId || c.section || c.id || '' }))
+            : Object.entries(event.categories || {}).map(([sectionId, c]) => ({ ...c, sectionId }));
 
         const tbody = document.getElementById('categories-tbody');
         if (tbody) {
             tbody.innerHTML = existingCats.map((c, i) => {
                 // Capacity check logic
-                const vSec = venueSections.find(vs => vs.name === c.section);
+                const vSec = venueSections.find(vs => vs.sectionId === c.sectionId);
                 const capacity = vSec ? parseInt(vSec.seatCount) || 0 : 0;
                 const isOver = c.quantity > capacity;
                 const checkChip = isOver ? '<span class="ts-chip ts-chip-danger">Over Capacity</span>' : '<span class="ts-chip ts-chip-success">Valid</span>';
@@ -172,7 +173,7 @@ window.addEventListener('ts-auth-ready', async () => {
                 return `
                 <tr>
                     <td class="cell-title">${esc(c.name)}</td>
-                    <td>${esc(c.section)}</td>
+                    <td>${esc(vSec?.name || c.sectionId)} <span class="small muted">(${esc(c.sectionId)})</span></td>
                     <td>RM${c.price}</td>
                     <td class="${isOver ? 'text-danger' : ''}">${c.quantity} / ${capacity}</td>
                     <td>${checkChip}</td>
@@ -203,13 +204,157 @@ window.addEventListener('ts-auth-ready', async () => {
         // Pre-fill rules form if existing
         const rulesForm = document.getElementById('sales-rules-form');
         const V = window.tsValidation;
+        const categoryForm = document.querySelector('.ts-auth-fields');
+        const wholeNumber = value => /^\d+$/.test(String(value ?? '').trim());
+        const validMoney = value => /^\d+(?:\.\d{1,2})?$/.test(String(value ?? '').trim());
+        const toLocalDateTime = value => {
+            const raw = String(value || '').trim();
+            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) return raw.slice(0, 16);
+            const date = new Date(raw);
+            if (Number.isNaN(date.getTime())) return '';
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        };
+        const eventStart = () => {
+            const date = String(event.date || '').trim();
+            const time = String(event.time || '23:59').trim();
+            const parsed = new Date(`${date}T${time}`);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        };
+        const categoryCapacity = sectionId => {
+            const section = venueSections.find(item => String(item.sectionId) === String(sectionId));
+            return Number(section?.seatCount ?? section?.seats ?? 0);
+        };
+        const validateConfiguredCategories = () => {
+            if (!existingCats.length) return 'Add at least one ticket category before submitting the event.';
+
+            const mappedSections = new Set();
+            const categoryNames = new Set();
+            for (const category of existingCats) {
+                const name = String(category.name || '').trim();
+                const sectionId = String(category.sectionId || '').trim();
+                const price = String(category.price ?? '').trim();
+                const quantity = String(category.quantity ?? '').trim();
+                const nameKey = name.toLocaleLowerCase();
+
+                if (name.length < 2 || name.length > 80) return 'Each category name must be between 2 and 80 characters.';
+                if (!sectionId || !Number.isFinite(categoryCapacity(sectionId)) || categoryCapacity(sectionId) < 1) {
+                    return `Category “${name || 'Unnamed'}” is not mapped to a valid venue section.`;
+                }
+                if (mappedSections.has(sectionId)) return `Section ${sectionId} is mapped to more than one ticket category.`;
+                if (categoryNames.has(nameKey)) return `Ticket category name “${name}” is duplicated.`;
+                if (!validMoney(price) || !V.validatePrice(price, 1, 99999).valid) {
+                    return `Category “${name}” must have a price from RM 1.00 to RM 99,999.00 with no more than two decimal places.`;
+                }
+                if (!wholeNumber(quantity) || !V.validateQuantity(quantity, 1, Math.floor(categoryCapacity(sectionId))).valid) {
+                    return `Category “${name}” must have a whole-ticket quantity within its physical section capacity.`;
+                }
+                mappedSections.add(sectionId);
+                categoryNames.add(nameKey);
+            }
+            return '';
+        };
+
+        const validateRules = () => {
+            V.clearFieldErrors(rulesForm);
+            const salesStart = V.val(rulesForm, 'salesStart');
+            const salesEnd = V.val(rulesForm, 'salesEnd');
+            const resaleEnabled = document.getElementById('resaleEnabled').checked;
+            const resaleStart = V.val(rulesForm, 'resaleStart');
+            const resaleEnd = V.val(rulesForm, 'resaleEnd');
+            const totalTickets = existingCats.reduce((total, category) => total + (Number(category.quantity) || 0), 0);
+            const startsAt = eventStart();
+            const rules = [
+                {
+                    check: () => {
+                        const required = V.validateRequired(salesStart, 'Sales Start Date');
+                        if (!required.valid) return required;
+                        const start = new Date(salesStart);
+                        if (Number.isNaN(start.getTime())) return { valid: false, error: 'Sales Start Date is invalid.' };
+                        if (start.getTime() <= Date.now()) return { valid: false, error: 'Sales must start in the future.' };
+                        if (startsAt && start >= startsAt) return { valid: false, error: 'Sales must start before the event begins.' };
+                        return { valid: true };
+                    },
+                    el: V.el(rulesForm, 'salesStart')
+                },
+                {
+                    check: () => {
+                        const required = V.validateRequired(salesEnd, 'Sales Closing Date');
+                        if (!required.valid) return required;
+                        const range = V.validateDateRange(salesStart, salesEnd);
+                        if (!range.valid) return range;
+                        const end = new Date(salesEnd);
+                        if (startsAt && end > startsAt) return { valid: false, error: 'Sales must close on or before the event start.' };
+                        return { valid: true };
+                    },
+                    el: V.el(rulesForm, 'salesEnd')
+                },
+                {
+                    check: () => {
+                        const value = V.val(rulesForm, 'maxTickets');
+                        const required = V.validateRequired(value, 'Maximum Tickets per Buyer');
+                        if (!required.valid) return required;
+                        if (!wholeNumber(value)) return { valid: false, error: 'Maximum tickets per buyer must be a whole number.' };
+                        if (!totalTickets) return { valid: false, error: 'Add valid ticket categories before setting a buyer limit.' };
+                        return V.validateQuantity(value, 1, totalTickets);
+                    },
+                    el: V.el(rulesForm, 'maxTickets')
+                }
+            ];
+
+            if (resaleEnabled) {
+                rules.push(
+                    {
+                        check: () => {
+                            const value = V.val(rulesForm, 'maxResaleMarkup');
+                            const required = V.validateRequired(value, 'Maximum Resale Markup');
+                            if (!required.valid) return required;
+                            if (!validMoney(value)) return { valid: false, error: 'Maximum resale markup must use no more than two decimal places.' };
+                            const markup = Number(value);
+                            return markup >= 0 && markup <= 100
+                                ? { valid: true }
+                                : { valid: false, error: 'Maximum resale markup must be between 0% and 100%.' };
+                        },
+                        el: V.el(rulesForm, 'maxResaleMarkup')
+                    },
+                    {
+                        check: () => {
+                            const required = V.validateRequired(resaleStart, 'Resale Start Date');
+                            if (!required.valid) return required;
+                            const start = new Date(resaleStart);
+                            if (Number.isNaN(start.getTime())) return { valid: false, error: 'Resale Start Date is invalid.' };
+                            if (start < new Date(salesStart)) return { valid: false, error: 'Resale cannot start before ticket sales open.' };
+                            if (startsAt && start >= startsAt) return { valid: false, error: 'Resale must start before the event begins.' };
+                            return { valid: true };
+                        },
+                        el: V.el(rulesForm, 'resaleStart')
+                    },
+                    {
+                        check: () => {
+                            const required = V.validateRequired(resaleEnd, 'Resale Deadline');
+                            if (!required.valid) return required;
+                            const range = V.validateDateRange(resaleStart, resaleEnd);
+                            if (!range.valid) return range;
+                            const end = new Date(resaleEnd);
+                            if (startsAt && end > startsAt) return { valid: false, error: 'Resale must end on or before the event start.' };
+                            return { valid: true };
+                        },
+                        el: V.el(rulesForm, 'resaleEnd')
+                    }
+                );
+            }
+
+            const ok = V.runAll(rules);
+            if (!ok) V.showGlobalError(rulesForm, 'Check sales and resale rules', 'Correct the highlighted fields before submitting the event.');
+            return ok;
+        };
+
         if (rulesForm) {
-            if(event.salesStartDate) document.getElementById('salesStart').value = event.salesStartDate;
-            if(event.salesEndDate) document.getElementById('salesEnd').value = event.salesEndDate;
+            if(event.salesStartDate) document.getElementById('salesStart').value = toLocalDateTime(event.salesStartDate);
+            if(event.salesEndDate) document.getElementById('salesEnd').value = toLocalDateTime(event.salesEndDate);
             if(event.maxTicketsPerBuyer) document.getElementById('maxTickets').value = event.maxTicketsPerBuyer;
             if(event.maxResaleMarkup !== undefined) document.getElementById('maxResaleMarkup').value = event.maxResaleMarkup;
-            if(event.resaleStartDate) document.getElementById('resaleStart').value = event.resaleStartDate;
-            if(event.resaleDeadline) document.getElementById('resaleEnd').value = event.resaleDeadline;
+            if(event.resaleStartDate) document.getElementById('resaleStart').value = toLocalDateTime(event.resaleStartDate);
+            if(event.resaleDeadline) document.getElementById('resaleEnd').value = toLocalDateTime(event.resaleDeadline);
             
             if(event.transferEnabled !== undefined) document.getElementById('transferEnabled').checked = event.transferEnabled;
             if(event.resaleEnabled !== undefined) document.getElementById('resaleEnabled').checked = event.resaleEnabled;
@@ -217,43 +362,97 @@ window.addEventListener('ts-auth-ready', async () => {
         
         document.getElementById('add-cat-btn')?.addEventListener('click', async (e) => {
             e.preventDefault();
-            const form = document.querySelector('.ts-auth-fields');
+            const form = categoryForm;
             V.clearFieldErrors(form);
+            const categoryName = V.val(form, 'catName');
+            const categorySection = V.val(form, 'catSection');
+            const categoryPrice = V.val(form, 'catPrice');
+            const categoryQuantity = V.val(form, 'catQuantity');
+            const capacity = categoryCapacity(categorySection);
             const ok = V.runAll([
-                { check: () => V.validateRequired(V.val(form, 'catName'), 'Name'), el: V.el(form, 'catName') },
-                { check: () => V.validateRequired(V.val(form, 'catSection'), 'Section'), el: V.el(form, 'catSection') },
-                { check: () => V.validatePrice(V.val(form, 'catPrice'), 'Price'), el: V.el(form, 'catPrice') },
-                { check: () => V.validateQuantity(V.val(form, 'catQuantity'), 'Quantity'), el: V.el(form, 'catQuantity') }
+                {
+                    check: () => {
+                        let result = V.validateRequired(categoryName, 'Category Name');
+                        if (!result.valid) return result;
+                        result = V.validateMinLength(categoryName, 2, 'Category Name');
+                        if (!result.valid) return result;
+                        return V.validateMaxLength(categoryName, 80, 'Category Name');
+                    },
+                    el: V.el(form, 'catName')
+                },
+                {
+                    check: () => {
+                        const result = V.validateSelect(categorySection, 'physical venue section');
+                        if (!result.valid) return result;
+                        return capacity > 0
+                            ? { valid: true }
+                            : { valid: false, error: 'Choose a valid section with a positive seating capacity.' };
+                    },
+                    el: V.el(form, 'catSection')
+                },
+                {
+                    check: () => {
+                        if (!validMoney(categoryPrice)) return { valid: false, error: 'Ticket Price must use no more than two decimal places.' };
+                        return V.validatePrice(categoryPrice, 1, 99999);
+                    },
+                    el: V.el(form, 'catPrice')
+                },
+                {
+                    check: () => {
+                        if (!wholeNumber(categoryQuantity)) return { valid: false, error: 'Ticket Quantity must be a whole number.' };
+                        return V.validateQuantity(categoryQuantity, 1, Math.max(1, Math.floor(capacity)));
+                    },
+                    el: V.el(form, 'catQuantity')
+                }
             ]);
-            if(!ok) return;
+            if(!ok) {
+                V.showGlobalError(form, 'Check the ticket category', 'Correct the highlighted fields before adding this category.');
+                return;
+            }
             
             const newCat = {
-                name: V.val(form, 'catName'),
-                section: V.val(form, 'catSection'),
-                price: parseFloat(V.val(form, 'catPrice')),
-                quantity: parseInt(V.val(form, 'catQuantity'))
+                name: categoryName,
+                sectionId: categorySection,
+                price: Number(categoryPrice),
+                quantity: Number(categoryQuantity)
             };
 
             // Validation 1: Prevent duplicate mapping
-            const isSectionUsed = existingCats.some(c => c.section === newCat.section);
+            const isSectionUsed = existingCats.some(c => c.sectionId === newCat.sectionId);
             if (isSectionUsed) {
-                alert('This physical section is already mapped to another category. Each section can only be mapped to one ticket category.');
+                V.showFieldError(V.el(form, 'catSection'), 'This physical section is already mapped to another category.');
+                V.showGlobalError(form, 'Check the ticket category', 'Each physical section can only be mapped to one ticket category.');
+                return;
+            }
+
+            if (existingCats.some(category => String(category.name || '').trim().toLocaleLowerCase() === newCat.name.toLocaleLowerCase())) {
+                V.showFieldError(V.el(form, 'catName'), 'Ticket category names must be unique for this event.');
+                V.showGlobalError(form, 'Check the ticket category', 'Use a distinct category name so buyers can identify ticket types clearly.');
                 return;
             }
 
             // Validation 2: Prevent exceeding physical capacity
-            const vSec = venueSections.find(vs => vs.name === newCat.section);
+            const vSec = venueSections.find(vs => vs.sectionId === newCat.sectionId);
             const capacity = vSec ? parseInt(vSec.seatCount) || 0 : 0;
             if (newCat.quantity > capacity) {
-                alert(`Cannot add category: The quantity (${newCat.quantity}) exceeds the physical capacity of ${newCat.section} (${capacity} seats).`);
+                V.showFieldError(V.el(form, 'catQuantity'), `The quantity cannot exceed ${capacity} seats in this physical section.`);
+                V.showGlobalError(form, 'Check the ticket category', `The selected section has a capacity of ${capacity} seats.`);
                 return;
             }
 
             const updatedCats = [...existingCats, newCat];
             const addBtn = document.getElementById('add-cat-btn');
-            addBtn.disabled = true; addBtn.textContent = 'Saving...';
-            await window.tsEvents.updateCategories(eventId, updatedCats);
-            window.location.reload();
+            addBtn.disabled = true;
+            addBtn.textContent = 'Saving...';
+            try {
+                await window.tsEvents.updateCategories(eventId, updatedCats);
+                window.location.reload();
+            } catch (error) {
+                console.error('Unable to add ticket category:', error);
+                V.showGlobalError(form, 'Category was not saved', error?.message || 'Please try again.');
+                addBtn.disabled = false;
+                addBtn.textContent = 'Add Category';
+            }
         });
         
         document.getElementById('confirm-btn')?.addEventListener('click', async (e) => {
@@ -261,25 +460,21 @@ window.addEventListener('ts-auth-ready', async () => {
             const confirmBtn = document.getElementById('confirm-btn');
             
             // 1. Check if all physical sections have been mapped
-            const unmappedSections = venueSections.filter(vs => !existingCats.some(c => c.section === vs.name));
+            const unmappedSections = venueSections.filter(vs => !existingCats.some(c => c.sectionId === vs.sectionId));
             if (unmappedSections.length > 0) {
                 alert(`Cannot submit: You have unmapped venue sections (${unmappedSections.map(s => s.name).join(', ')}). You must map a ticket category to every section.`);
                 return;
             }
 
-            // 2. Validate all rules fields
-            V.clearFieldErrors(rulesForm);
-            const ok = V.runAll([
-                { check: () => V.validateRequired(V.val(rulesForm, 'salesStart'), 'Sales Start Date'), el: V.el(rulesForm, 'salesStart') },
-                { check: () => V.validateRequired(V.val(rulesForm, 'salesEnd'), 'Sales Closing Date'), el: V.el(rulesForm, 'salesEnd') },
-                { check: () => V.validateRequired(V.val(rulesForm, 'maxTickets'), 'Max Tickets per Buyer'), el: V.el(rulesForm, 'maxTickets') },
-                { check: () => V.validateRequired(V.val(rulesForm, 'maxResaleMarkup'), 'Max Resale Markup'), el: V.el(rulesForm, 'maxResaleMarkup') },
-                { check: () => V.validateRequired(V.val(rulesForm, 'resaleStart'), 'Resale Start Date'), el: V.el(rulesForm, 'resaleStart') },
-                { check: () => V.validateRequired(V.val(rulesForm, 'resaleEnd'), 'Resale Deadline'), el: V.el(rulesForm, 'resaleEnd') }
-            ]);
-            
-            if (!ok) {
-                alert('Please fill out all the Sales, Transfer & Resale Rules fields before submitting.');
+            const categoriesError = validateConfiguredCategories();
+            if (categoriesError) {
+                V.showGlobalError(categoryForm, 'Ticket configuration is incomplete', categoriesError);
+                document.getElementById('categories-tbody')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+
+            // 2. Validate sales, transfer, and resale rules in relation to the event time.
+            if (!validateRules()) {
                 return;
             }
 

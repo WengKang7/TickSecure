@@ -54,23 +54,23 @@ window.addEventListener('ts-auth-ready', async () => {
         
         tbody.innerHTML = complaints.map(c => {
             let statusTone = 'neutral';
-            if (c.status === 'open') statusTone = 'info';
-            else if (c.status === 'investigating') statusTone = 'warning';
-            else if (c.status === 'resolved') statusTone = 'success';
-            else if (c.status === 'rejected') statusTone = 'error';
+            const complaintStatus = (c.status || 'OPEN').toUpperCase();
+            if (complaintStatus === 'OPEN') statusTone = 'info';
+            else if (complaintStatus === 'UNDER_INVESTIGATION' || complaintStatus === 'AWAITING_INFORMATION') statusTone = 'warning';
+            else if (complaintStatus === 'RESOLVED') statusTone = 'success';
+            else if (complaintStatus === 'REJECTED') statusTone = 'error';
 
             let priorityTone = 'neutral';
-            if (c.priority === 'high') priorityTone = 'error';
-            else if (c.priority === 'normal') priorityTone = 'neutral';
+            if ((c.priority || '').toUpperCase() === 'HIGH') priorityTone = 'error';
             
             return `
                 <tr>
-                    <td class="cell-title">${esc(c.reference || c.id)}</td>
-                    <td>${esc(c.complainantName || c.userId)}</td>
-                    <td>${esc(c.role || 'Unknown')}</td>
+                    <td class="cell-title">${esc(c.referenceNumber || c.id)}</td>
+                    <td>${esc(c.complainantName || c.complainantUid)}</td>
+                    <td>${esc(c.complainantRole || 'Unknown')}</td>
                     <td>${esc(c.category)}</td>
-                    <td><span class="ts-chip ts-chip-${priorityTone}">${esc(c.priority || 'normal')}</span></td>
-                    <td><span class="ts-chip ts-chip-${statusTone}">${esc(c.status || 'open')}</span></td>
+                    <td><span class="ts-chip ts-chip-${priorityTone}">${esc(c.priority || 'MEDIUM')}</span></td>
+                    <td><span class="ts-chip ts-chip-${statusTone}">${esc(complaintStatus.replaceAll('_', ' '))}</span></td>
                     <td>${new Date(c.createdAt).toLocaleDateString()}</td>
                     <td><a class="ts-btn ts-btn-primary ts-btn-sm" href="complaint-detail.php?id=${c.id}">Investigate</a></td>
                 </tr>

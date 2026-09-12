@@ -32,20 +32,20 @@ window.addEventListener('ts-auth-ready', async () => {
                 return;
             }
 
-            container.innerHTML = notifs.map(n => \`
-                <div class="ts-list-item \${!n.isRead ? 'unread' : ''}">
+            container.innerHTML = notifs.map(n => `
+                <div class="ts-list-item ${!n.read ? 'unread' : ''}">
                     <div class="flex gap-12">
                         <div>
-                            <div class="ts-list-title">\${n.title}</div>
-                            <div class="ts-list-sub">\${n.message}</div>
+                            <div class="ts-list-title">${(n.type || 'Notification').replace(/_/g, ' ')}</div>
+                            <div class="ts-list-sub">${n.message}</div>
                         </div>
                     </div>
                     <div class="flex items-center gap-12">
-                        <span class="small muted">\${n.createdAt ? (typeof n.createdAt.toDate === 'function' ? n.createdAt.toDate().toLocaleString() : n.createdAt) : ''}</span>
-                        \${!n.isRead ? \`<button class="ts-btn ts-btn-secondary ts-btn-sm btn-read" data-id="\${n.id}">Mark Read</button>\` : ''}
+                        <span class="small muted">${n.createdAt ? (typeof n.createdAt.toDate === 'function' ? n.createdAt.toDate().toLocaleString() : n.createdAt) : ''}</span>
+                        ${!n.read ? `<button class="ts-btn ts-btn-secondary ts-btn-sm btn-read" data-id="${n.id}">Mark Read</button>` : ''}
                     </div>
                 </div>
-            \`).join('');
+            `).join('');
 
             container.querySelectorAll('.btn-read').forEach(btn => {
                 btn.addEventListener('click', async (e) => {

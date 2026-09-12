@@ -95,13 +95,21 @@ window.addEventListener('ts-auth-ready', () => {
     render(walletAddress);
     
     document.getElementById('btn-connect').addEventListener('click', async () => {
-        // Mock connection
-        const newAddr = '0x12A478198F92';
         try {
+            if (!window.ethereum?.request) {
+                throw new Error('No compatible wallet was detected. Install or unlock an Ethereum wallet such as MetaMask.');
+            }
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const newAddr = String(accounts?.[0] || '').trim();
+            if (!/^0x[a-fA-F0-9]{40}$/.test(newAddr)) {
+                throw new Error('The connected wallet did not return a valid Ethereum address.');
+            }
             await window.tsUsers.updateProfile(curUser.uid, { walletAddress: newAddr });
+            curUser.walletAddress = newAddr;
             render(newAddr);
         } catch (e) {
             console.error('Wallet error', e);
+            window.alert(e?.message || 'Unable to connect the wallet.');
         }
     });
 });

@@ -42,12 +42,7 @@ ob_start();
 const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
 window.addEventListener('ts-auth-ready', async () => {
     try {
-        const events = await window.tsEvents.getOrganizerEvents();
-        const eventIds = new Set(events.map(e => e.id));
-        
-        // Mock getTickets since tsTickets.getTickets generally returns all tickets we mock it to filter
-        const allTickets = await window.tsTickets.getTickets();
-        const tickets = allTickets.filter(t => eventIds.has(t.eventId));
+        const tickets = await window.tsTickets.getTickets();
 
         let total = tickets.length;
         let minted = 0;
@@ -76,7 +71,7 @@ window.addEventListener('ts-auth-ready', async () => {
                         <td class="cell-title">${esc(t.id)}</td>
                         <td>${esc(t.category || 'N/A')} · ${esc(t.seatId || 'N/A')}</td>
                         <td>${esc(t.tokenId || '-')}</td>
-                        <td class="ts-wallet-id">${esc(t.ownerAddress || 'Unassigned')}</td>
+                        <td class="ts-wallet-id">${esc(t.walletAddress || t.ownerWallet || 'Unassigned')}</td>
                         <td><span class="ts-chip ts-chip-${tone}">${status}</span></td>
                         <td><span class="ts-copy-code">${esc(t.transactionHash || '-')}</span></td>
                         <td><button class="ts-btn ts-btn-secondary ts-btn-sm">Details</button></td>

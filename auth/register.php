@@ -13,16 +13,16 @@ ob_start();
     <div class="ts-role-card" data-role="organizer">
         <?=ts_icon('building', 'ts-icon-lg')?><strong>Event Organizer</strong><span>Create events and manage ticket configuration after approval.</span></div>
 </div>
-<div class="ts-auth-fields">
-    <div class="ts-field"><label class="ts-label">Full Name</label><input class="ts-input" placeholder="Your full name">
+<div class="ts-auth-fields" id="registration-form" novalidate>
+    <div class="ts-field"><label class="ts-label" for="registration-name">Full Name</label><input class="ts-input" id="registration-name" name="fullName" autocomplete="name" maxlength="100" placeholder="Your full name" required>
     </div>
-    <div class="ts-field"><label class="ts-label">Email</label><input class="ts-input" type="email"
-            placeholder="you@example.com"></div>
+    <div class="ts-field"><label class="ts-label" for="registration-email">Email</label><input class="ts-input" id="registration-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="254"
+            placeholder="you@example.com" required></div>
     <div class="ts-form-grid">
-        <div class="ts-field"><label class="ts-label">Password</label><input class="ts-input" type="password"
-                placeholder="Create password"></div>
-        <div class="ts-field"><label class="ts-label">Confirm Password</label><input class="ts-input" type="password"
-                placeholder="Repeat password"></div>
+        <div class="ts-field"><label class="ts-label" for="registration-password">Password</label><input class="ts-input" id="registration-password" name="password" type="password" autocomplete="new-password" maxlength="4096"
+                placeholder="Create password" required></div>
+        <div class="ts-field"><label class="ts-label" for="registration-password-confirmation">Confirm Password</label><input class="ts-input" id="registration-password-confirmation" name="confirmPassword" type="password" autocomplete="new-password" maxlength="4096"
+                placeholder="Repeat password" required></div>
     </div>
 <div
     id="organizer-fields"
@@ -47,7 +47,9 @@ ob_start();
             <input
                 class="ts-input"
                 name="organizationName"
+                maxlength="120"
                 placeholder="Organization name"
+                required
             >
         </div>
 
@@ -60,7 +62,9 @@ ob_start();
             <textarea
                 class="ts-textarea"
                 name="organizationDescription"
+                maxlength="1000"
                 placeholder="Tell us about your organization"
+                required
             ></textarea>
         </div>
 
@@ -75,7 +79,11 @@ ob_start();
                 <input
                     class="ts-input"
                     name="organizationPhone"
+                    type="tel"
+                    inputmode="tel"
+                    maxlength="16"
                     placeholder="+60"
+                    required
                 >
             </div>
 
@@ -88,7 +96,9 @@ ob_start();
                 <input
                     class="ts-input"
                     name="organizationAddress"
+                    maxlength="240"
                     placeholder="Business address"
+                    required
                 >
             </div>
 
@@ -96,9 +106,9 @@ ob_start();
 
     </div>
 </div>
-    <div class="ts-check-row"><input type="checkbox" id="terms"><label for="terms" class="small secondary">I agree to
+    <div class="ts-check-row"><input type="checkbox" id="terms" name="terms"><label for="terms" class="small secondary">I agree to
             the Terms of Service and Privacy Notice.</label></div><button class="ts-btn ts-btn-primary w-full"
-        id="reg-submit">Create Account</button>
+        id="reg-submit" type="button">Create Account</button>
 </div>
 <div class="ts-auth-footer">
     Already have an account?
@@ -154,131 +164,87 @@ document.addEventListener('DOMContentLoaded', function () {
 <script type="module">
 document.addEventListener('DOMContentLoaded', () => {
     const submitBtn = document.getElementById('reg-submit');
-    if(!submitBtn) return;
-
-    const showError = (input, msg) => {
-        input.style.borderColor = 'var(--error)';
-        input.style.boxShadow = '0 0 0 3px var(--error-bg)';
-        let errNode = input.parentElement.querySelector('.ts-error-msg');
-        if (!errNode) {
-            errNode = document.createElement('div');
-            errNode.className = 'ts-error-msg small mt-8';
-            errNode.style.color = 'var(--error)';
-            errNode.style.fontWeight = '500';
-            input.parentElement.appendChild(errNode);
-        }
-        errNode.textContent = msg;
-        errNode.style.display = 'block';
-    };
-
-    const clearErrors = () => {
-        document.querySelectorAll('.ts-input, .ts-textarea').forEach(el => {
-            el.style.borderColor = '';
-            el.style.boxShadow = '';
-        });
-        document.querySelectorAll('.ts-error-msg').forEach(el => el.style.display = 'none');
-        const globalErr = document.getElementById('global-err');
-        if(globalErr) globalErr.style.display = 'none';
-    };
+    const form = document.getElementById('registration-form');
+    if(!submitBtn || !form) return;
 
     submitBtn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        clearErrors();
-        
-        let hasError = false;
+        const V = window.tsValidation;
+        if (!V) return;
+        V.clearFieldErrors(form);
 
-        const nameInput = document.querySelector('input[placeholder="Your full name"]');
-        const emailInput = document.querySelector('input[type="email"]');
-        const passInputs = document.querySelectorAll('input[type="password"]');
-        const passInput = passInputs[0];
-        const confirmPassInput = passInputs[1];
+        const nameInput = V.el(form, 'fullName');
+        const emailInput = V.el(form, 'email');
+        const passInput = V.el(form, 'password');
+        const confirmPassInput = V.el(form, 'confirmPassword');
         const role = document.getElementById('selected-role').value;
         const terms = document.getElementById('terms');
 
-        const fullName = nameInput.value.trim();
-        const email = emailInput.value.trim();
-        const password = passInput.value;
-        const confirmPassword = confirmPassInput.value;
-
-        if(fullName.length === 0) {
-            showError(nameInput, "Full name cannot be blank.");
-            hasError = true;
-        } else if(fullName.length < 3) {
-            showError(nameInput, "Full name must be at least 3 characters.");
-            hasError = true;
-        } else if(!/^[a-zA-Z\s]+$/.test(fullName)) {
-            showError(nameInput, "Full name must contain only letters and spaces (no numbers).");
-            hasError = true;
+        const fullName = V.val(form, 'fullName');
+        const email = V.val(form, 'email');
+        const password = passInput?.value || '';
+        const confirmPassword = confirmPassInput?.value || '';
+        let valid = V.runAll([
+            { check: () => V.validateFullName(fullName), el: nameInput },
+            { check: () => V.validateMaxLength(fullName, 100, 'Full Name'), el: nameInput },
+            { check: () => V.validateRequired(email, 'Email'), el: emailInput },
+            { check: () => V.validateEmail(email), el: emailInput },
+            { check: () => V.validatePassword(password), el: passInput },
+            { check: () => V.validateRequired(confirmPassword, 'Confirm Password'), el: confirmPassInput }
+        ]);
+        if (password && confirmPassword && password !== confirmPassword) {
+            V.showFieldError(confirmPassInput, 'Passwords do not match.');
+            valid = false;
         }
 
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if(!emailRegex.test(email)) {
-            showError(emailInput, "Please enter a valid email address.");
-            hasError = true;
-        }
-
-        const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-        if(!passRegex.test(password)) {
-            showError(passInput, "Password must be 8+ chars and include uppercase, lowercase, number, and special character.");
-            hasError = true;
-        }
-
-        if(password !== confirmPassword || confirmPassword === '') {
-            showError(confirmPassInput, "Passwords do not match.");
-            hasError = true;
+        if (!['buyer', 'organizer'].includes(role)) {
+            V.showGlobalError(form, 'Invalid account type', 'Choose either a buyer or organizer account and try again.');
+            return;
         }
 
         const profileData = { fullName };
         if (role === 'organizer') {
-            const orgNameInput = document.querySelector('[name="organizationName"]');
-            const orgDescInput = document.querySelector('[name="organizationDescription"]');
-            const orgPhoneInput = document.querySelector('[name="organizationPhone"]');
-            const orgAddressInput = document.querySelector('[name="organizationAddress"]');
+            const orgNameInput = V.el(form, 'organizationName');
+            const orgDescInput = V.el(form, 'organizationDescription');
+            const orgPhoneInput = V.el(form, 'organizationPhone');
+            const orgAddressInput = V.el(form, 'organizationAddress');
+            const organizationName = V.val(form, 'organizationName');
+            const organizationDescription = V.val(form, 'organizationDescription');
+            const organizationPhone = V.val(form, 'organizationPhone');
+            const organizationAddress = V.val(form, 'organizationAddress');
 
-            if(orgNameInput.value.trim().length < 3) { showError(orgNameInput, "Organization name is required."); hasError = true; }
-            if(orgDescInput.value.trim().length < 10) { showError(orgDescInput, "Please provide a more detailed description (min 10 chars)."); hasError = true; }
-            if(!/^\+?[0-9]{8,15}$/.test(orgPhoneInput.value.trim())) { showError(orgPhoneInput, "Valid phone required (8-15 digits, optional +)."); hasError = true; }
-            if(orgAddressInput.value.trim().length < 5) { showError(orgAddressInput, "Organization address is required."); hasError = true; }
+            valid = V.runAll([
+                { check: () => V.validateMinLength(organizationName, 3, 'Organization Name'), el: orgNameInput },
+                { check: () => V.validateMaxLength(organizationName, 120, 'Organization Name'), el: orgNameInput },
+                { check: () => V.validateMinLength(organizationDescription, 10, 'Organization Description'), el: orgDescInput },
+                { check: () => V.validateMaxLength(organizationDescription, 1000, 'Organization Description'), el: orgDescInput },
+                { check: () => V.validatePhone(organizationPhone), el: orgPhoneInput },
+                { check: () => V.validateMinLength(organizationAddress, 5, 'Organization Address'), el: orgAddressInput },
+                { check: () => V.validateMaxLength(organizationAddress, 240, 'Organization Address'), el: orgAddressInput }
+            ]) && valid;
 
-            profileData.organizationName = orgNameInput.value.trim();
-            profileData.organizationDescription = orgDescInput.value.trim();
-            profileData.organizationPhone = orgPhoneInput.value.trim();
-            profileData.organizationAddress = orgAddressInput.value.trim();
+            profileData.organizationName = organizationName;
+            profileData.organizationDescription = organizationDescription;
+            profileData.organizationPhone = organizationPhone;
+            profileData.organizationAddress = organizationAddress;
         }
 
         if(!terms.checked) {
-            showError(terms.parentElement, "You must agree to the Terms of Service.");
-            hasError = true;
+            V.showGlobalError(form, 'Terms required', 'You must agree to the Terms of Service and Privacy Notice.');
+            valid = false;
         }
 
-        if(hasError) return;
+        if(!valid) return;
         
         submitBtn.textContent = "Creating Account...";
         submitBtn.disabled = true;
         
         try {
             await window.tsAuth.registerUser(email, password, role, profileData);
-            await window.tsAuth.logout(); // Ensure they are signed out before redirecting
-            if (role === 'organizer') {
-                alert('Organizer account created successfully! Please wait for administrator approval before logging in.');
-            } else {
-                alert('Account created successfully! You can now log in.');
-            }
-            window.location.href = 'login.php'; // Redirect to Sign In page
+            window.location.href = `verify-email.php?email=${encodeURIComponent(email)}`;
         } catch (err) {
-            let topErr = document.getElementById('global-err');
-            if(!topErr) {
-                topErr = document.createElement('div');
-                topErr.id = 'global-err';
-                topErr.className = 'ts-alert mb-24';
-                topErr.style.backgroundColor = 'var(--error-bg)';
-                topErr.style.color = 'var(--error)';
-                topErr.style.border = '1px solid #F0B4AF';
-                document.querySelector('.ts-auth-fields').prepend(topErr);
-            }
-            topErr.innerHTML = `<strong>Registration Failed</strong><div class="small mt-8">${err.message}</div>`;
-            topErr.style.display = 'block';
+            V.showGlobalError(form, 'Registration Failed', err.message || 'Your account could not be created.');
             submitBtn.textContent = "Create Account";
             submitBtn.disabled = false;
         }

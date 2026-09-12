@@ -78,57 +78,98 @@ ob_start();
 </main>
 
 <script type="module">
-window.addEventListener('ts-auth-ready', async () => {
+window.addEventListener('ts-auth-ready', async (authEvent) => {
+    if (!authEvent.detail) return;
+
     const urlParams = new URLSearchParams(window.location.search);
     const ticketId = urlParams.get('id');
     if (!ticketId) return;
 
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    }[character]));
+
+    const eventDateLabel = (ticket, event) => {
+        if (ticket.eventDate) return String(ticket.eventDate);
+        const date = String(event?.date ?? event?.eventDate ?? '').trim();
+        const time = String(event?.time ?? '').trim();
+        return [date, time].filter(Boolean).join(' · ') || 'Date to be announced';
+    };
+
+    const timestampLabel = (value, fallback = 'Just now') => {
+        if (!value) return fallback;
+        const date = typeof value?.toDate === 'function' ? value.toDate() : new Date(value);
+        return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+    };
+
     try {
         const ticket = await window.tsTickets.getTicket(ticketId);
+        if (!ticket) throw new Error('Ticket not found or you no longer have access to it.');
+
+        let event = null;
+        if (ticket.eventId && (!ticket.eventDate || !ticket.eventName || ticket.transferEnabled === undefined || ticket.resaleEnabled === undefined)) {
+            try {
+                event = await window.tsEvents.getEvent(ticket.eventId);
+            } catch (error) {
+                console.warn('Unable to load ticket event details:', ticket.eventId, error);
+            }
+        }
         
-        document.getElementById('val-event').textContent = ticket.eventName;
-        document.getElementById('val-event-meta').textContent = ticket.eventDate || 'Upcoming Event';
+        document.getElementById('val-event').textContent = ticket.eventName || event?.name || 'Untitled event';
+        document.getElementById('val-event-meta').textContent = eventDateLabel(ticket, event);
         
-        let tone = 'success';
-        let label = 'Valid';
-        if (ticket.status === 'listed') { tone = 'gold'; label = 'Listed'; }
-        else if (ticket.status === 'transferred') { tone = 'neutral'; label = 'Transferred'; }
-        else if (ticket.status === 'used') { tone = 'info'; label = 'Used'; }
-        else if (ticket.status === 'cancelled') { tone = 'error'; label = 'Cancelled'; }
+        const ticketStatus = (ticket.status || '').toUpperCase();
+        const status = {
+            VALID: { tone: 'success', label: 'Valid' },
+            LISTED_FOR_RESALE: { tone: 'gold', label: 'Listed' },
+            TRANSFERRED: { tone: 'neutral', label: 'Transferred' },
+            USED: { tone: 'info', label: 'Used' },
+            CANCELLED: { tone: 'error', label: 'Cancelled' },
+            EXPIRED: { tone: 'error', label: 'Expired' }
+        }[ticketStatus] || { tone: 'neutral', label: ticketStatus.replace(/_/g, ' ') || 'Unknown' };
         
-        const statusHtml = \`<span class="ts-chip ts-chip-\${tone}">\${label}</span>\`;
+        const statusHtml = `<span class="ts-chip ts-chip-${status.tone}">${escapeHtml(status.label)}</span>`;
         document.getElementById('val-status').innerHTML = statusHtml;
         document.getElementById('val-status-label').innerHTML = statusHtml;
         
-        document.getElementById('val-category').textContent = ticket.category || 'N/A';
+        document.getElementById('val-category').textContent = ticket.categoryName || 'N/A';
         document.getElementById('val-section').textContent = ticket.sectionId || 'N/A';
-        document.getElementById('val-seat').textContent = ticket.seat || 'N/A';
+        document.getElementById('val-seat').textContent = ticket.seatId || 'N/A';
         
-        document.getElementById('val-owner').textContent = ticket.ownerWallet || 'Unassigned';
+        document.getElementById('val-owner').textContent = ticket.walletAddress || 'Unassigned';
         document.getElementById('val-token-id').textContent = ticket.tokenId || 'Pending Mint';
         
-        document.getElementById('btn-transfer').href = \`ticket-transfer.php?ticketId=\${ticket.id}\`;
-        document.getElementById('btn-resale').href = \`resale-new.php?ticketId=\${ticket.id}\`;
+        const canTransfer = ticketStatus === 'VALID' && event?.transferEnabled !== false;
+        const canResell = ticketStatus === 'VALID' && event?.resaleEnabled !== false;
+        const transferButton = document.getElementById('btn-transfer');
+        const resaleButton = document.getElementById('btn-resale');
+        transferButton.href = `ticket-transfer.php?ticketId=${encodeURIComponent(ticket.id)}`;
+        resaleButton.href = `resale-new.php?ticketId=${encodeURIComponent(ticket.id)}`;
+        transferButton.hidden = !canTransfer;
+        resaleButton.hidden = !canResell;
         
-        if (ticket.contractAddress) document.getElementById('val-contract').textContent = ticket.contractAddress;
-        if (ticket.mintTxHash) document.getElementById('val-tx').textContent = ticket.mintTxHash;
+        document.getElementById('val-contract').textContent = ticket.contractAddress || 'Not configured';
+        document.getElementById('val-tx').textContent = ticket.transactionHash || 'Pending mint';
         
-        const history = ticket.history || [];
+        // Callable transfer/resale functions write fromWallet/toWallet. The
+        // old from/to names remain a read-time fallback for already-issued
+        // tickets only.
+        const history = Array.isArray(ticket.transferHistory) ? [...ticket.transferHistory].reverse() : [];
         const tlContainer = document.getElementById('timeline-container');
         if (history.length > 0) {
-            tlContainer.innerHTML = history.map((h, i) => \`
-                <div class="ts-timeline-item \${i === 0 ? 'current' : ''}">
-                    <div class="ts-timeline-title">\${h.title}</div>
-                    <div class="ts-timeline-meta">\${h.date || 'Just now'}</div>
+            tlContainer.innerHTML = history.map((h, i) => `
+                <div class="ts-timeline-item ${i === 0 ? 'current' : ''}">
+                    <div class="ts-timeline-title">${h.type === 'RESALE' ? 'Resale purchase' : 'Transferred'}</div>
+                    <div class="ts-timeline-meta">${escapeHtml(h.fromWallet ?? h.from ?? 'Previous wallet')} &rarr; ${escapeHtml(h.toWallet ?? h.to ?? 'Current wallet')} &middot; ${escapeHtml(timestampLabel(h.timestamp))}</div>
                 </div>
-            \`).join('');
+            `).join('');
         } else {
-            tlContainer.innerHTML = \`
+            tlContainer.innerHTML = `
                 <div class="ts-timeline-item current">
                     <div class="ts-timeline-title">Issued</div>
-                    <div class="ts-timeline-meta">Ticket created</div>
+                    <div class="ts-timeline-meta">${escapeHtml(timestampLabel(ticket.createdAt, 'Ticket created'))}</div>
                 </div>
-            \`;
+            `;
         }
         
     } catch (err) {

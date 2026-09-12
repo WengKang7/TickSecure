@@ -39,15 +39,25 @@ onAuthStateChanged(auth, async (user) => {
     // 1. Auth pages: redirect authenticated users away
     // -------------------------------------------------------
     if (section === 'auth' && user) {
-        // Skip auto-redirects on register page to avoid race conditions during sign-up
-        if (window.location.pathname.includes('register.php')) return;
+        // Keep onboarding pages accessible during account creation and while
+        // a newly registered user is waiting for an email verification link.
+        if (window.location.pathname.includes('register.php')
+            || window.location.pathname.includes('verify-email.php')) return;
 
         try {
+            // A verification link changes Firebase Auth outside this tab. A
+            // fresh reload prevents the sign-in page from looping back to the
+            // verification page with a stale emailVerified value.
+            await user.reload();
             const snap = await getDoc(doc(db, 'Users', user.uid));
             if (snap.exists()) {
                 const profile = snap.data();
                 const role = profile.role;
                 const status = profile.status;
+                if (!user.emailVerified) {
+                    window.location.href = base + '/auth/verify-email.php';
+                    return;
+                }
                 
                 if (role === 'admin') {
                     window.location.href = base + '/admin/dashboard.php';
@@ -90,6 +100,11 @@ onAuthStateChanged(auth, async (user) => {
             const status = profile.status;
 
             // Admin section — only admins
+            if (!user.emailVerified) {
+                window.location.href = base + '/auth/verify-email.php';
+                return;
+            }
+
             if (section === 'admin' && role !== 'admin') {
                 window.location.href = base + '/auth/login.php';
                 return;
@@ -112,11 +127,27 @@ onAuthStateChanged(auth, async (user) => {
             // Buyer section — any authenticated user
             // (organizers and admins can also view buyer pages)
 
+            if (status !== 'active') {
+                alert(`Your account is ${status || 'not active'}. Please contact support.`);
+                await signOut(auth);
+                window.location.href = base + '/auth/login.php';
+                return;
+            }
+
+            // Entry scanning consumes a ticket, so it is limited to the same
+            // active organizer/admin roles enforced by the backend endpoint.
+            if (section === 'verification'
+                && (!['admin', 'organizer'].includes(role) || status !== 'active')) {
+                window.location.href = base + '/auth/login.php';
+                return;
+            }
+
             // Store profile in window for page scripts to use
             window.tsCurrentUser = {
                 uid: user.uid,
                 email: user.email,
-                ...profile
+                ...profile,
+                emailVerified: user.emailVerified === true
             };
 
             // Update UI Sidebar/Header if elements exist
@@ -152,7 +183,8 @@ onAuthStateChanged(auth, async (user) => {
                 window.tsCurrentUser = {
                     uid: user.uid,
                     email: user.email,
-                    ...snap.data()
+                    ...snap.data(),
+                    emailVerified: user.emailVerified === true
                 };
                 
                 const profile = snap.data();
@@ -175,4 +207,3 @@ onAuthStateChanged(auth, async (user) => {
         window.dispatchEvent(new CustomEvent('ts-auth-ready', { detail: null }));
     }
 });
-

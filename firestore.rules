@@ -2,126 +2,394 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Helpers ──────────────────────────────────────────────
-    function isAuth()       { return request.auth != null; }
-    function isOwner(uid)   { return isAuth() && request.auth.uid == uid; }
-    function userRole()     { return get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.role; }
-    function isAdmin()      { return isAuth() && userRole() == 'admin'; }
-    function isOrganizer()  { return isAuth() && userRole() == 'organizer'; }
-    function isBuyer()      { return isAuth() && userRole() == 'buyer'; }
+    // -----------------------------------------------------------------------
+    // IMPORTANT TRUST BOUNDARY
+    // -----------------------------------------------------------------------
+    // An administrator account must be provisioned by a trusted environment
+    // (Firebase Admin SDK, a protected Cloud Function, or the Firebase
+    // Console). A browser client must never be able to create or promote an
+    // admin account. These rules deliberately allow self-registration only as
+    // a buyer or a pending organizer.
+    //
+    // Callable Cloud Functions in functions/index.js own payment simulation,
+    // event-seat allocation, ticket issuance/transfer, resale settlement,
+    // audit logs, and entry scanning. Security Rules cannot safely validate
+    // payment or make those multi-document workflows atomic, so browser
+    // writes to the corresponding records are intentionally denied below.
+    // A real payment provider and minting integration are still required
+    // before accepting live money or claiming on-chain settlement.
 
-    // ── Users ────────────────────────────────────────────────
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasProfile() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/Users/$(request.auth.uid));
+    }
+
+    function currentRole() {
+      return get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.role;
+    }
+
+    function currentStatus() {
+      return get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.status;
+    }
+
+    function currentEmailVerified() {
+      // Firebase Authentication is the source of truth. This avoids trapping
+      // a user on the verification page when their email link succeeds but a
+      // callable backend is unavailable (for example, a Spark-plan demo).
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isActiveAccount() {
+      return hasProfile()
+        && currentStatus() == 'active'
+        && currentEmailVerified();
+    }
+
+    function isAdmin() {
+      return isActiveAccount() && currentRole() == 'admin';
+    }
+
+    function isActiveOrganizer() {
+      return isActiveAccount() && currentRole() == 'organizer';
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isOrganizerAccount(userId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/Users/$(userId))
+        && get(/databases/$(database)/documents/Users/$(userId)).data.role == 'organizer';
+    }
+
+    function isEventOwner() {
+      return isActiveOrganizer()
+        && resource.data.organizerUid == request.auth.uid;
+    }
+
+    // Bookings, tickets, and listings carry organizerUid as a server-written
+    // authorization projection. This avoids broad collection reads and
+    // cross-document lookups in organizer queries.
+    function isOrganizerRecord() {
+      return isActiveOrganizer()
+        && resource.data.organizerUid == request.auth.uid;
+    }
+
+    function hasValidComplaintEvidence() {
+      return !('evidenceUrls' in request.resource.data)
+        || (
+          request.resource.data.evidenceUrls is list
+          && request.resource.data.evidenceUrls.size() <= 1
+          && (
+            request.resource.data.evidenceUrls.size() == 0
+            || (
+              request.resource.data.evidenceUrls[0] is string
+              && request.resource.data.evidenceUrls[0].matches(
+                '^https://firebasestorage\\.googleapis\\.com/.*'
+              )
+            )
+          )
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // USERS AND ORGANIZER PROFILES
+    // -----------------------------------------------------------------------
     match /Users/{userId} {
-      allow read:   if isAuth();
+      // Profiles contain email and account state, so they are not a public
+      // directory. Admin screens retain list access.
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+
+      // Email/password registration creates this document immediately after
+      // Firebase Auth creates the account. The email must match the ID token
+      // and only the two public onboarding roles are allowed.
       allow create: if isOwner(userId)
-                    && request.resource.data.keys().hasAll(['email','fullName','role','status','createdAt'])
-                    && request.resource.data.role in ['buyer','organizer']
-                    && request.resource.data.email is string
-                    && request.resource.data.fullName is string;
-      allow update: if isOwner(userId) || isAdmin();
+        && request.resource.data.keys().hasAll([
+          'email', 'fullName', 'role', 'status', 'emailVerified', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'email', 'fullName', 'role', 'status', 'emailVerified', 'createdAt', 'walletAddress'
+        ])
+        && request.resource.data.email is string
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.fullName is string
+        && request.resource.data.emailVerified is bool
+        && request.resource.data.emailVerified == false
+        && request.resource.data.createdAt is string
+        && (!('walletAddress' in request.resource.data)
+          || (request.resource.data.walletAddress is string
+            && (request.resource.data.walletAddress == ''
+              || request.resource.data.walletAddress.matches('^0x[a-fA-F0-9]{40}$'))))
+        && (
+          (request.resource.data.role == 'buyer'
+            && request.resource.data.status == 'active')
+          ||
+          (request.resource.data.role == 'organizer'
+            && request.resource.data.status == 'pending')
+        );
+
+      // A user can change only display/wallet fields. In particular, role,
+      // status, email, and moderation fields can never be self-edited.
+      allow update: if isAdmin()
+        || (
+          isOwner(userId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'fullName', 'walletAddress', 'emailVerified', 'updatedAt'
+          ])
+          && request.resource.data.fullName is string
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['emailVerified'])
+            || (
+              request.auth.token.email_verified == true
+              && request.resource.data.emailVerified == true
+            )
+          )
+          && (!('walletAddress' in request.resource.data)
+            || (request.resource.data.walletAddress is string
+              && (request.resource.data.walletAddress == ''
+                || request.resource.data.walletAddress.matches('^0x[a-fA-F0-9]{40}$'))))
+          && (!('updatedAt' in request.resource.data)
+            || request.resource.data.updatedAt is string)
+        );
+
       allow delete: if isAdmin();
     }
 
-    // ── OrganizerProfiles ────────────────────────────────────
-    match /OrganizerProfiles/{uid} {
-      allow read:   if isAuth();
-      allow create: if isOwner(uid)
-                    && request.resource.data.keys().hasAll(['organizationName','organizationDescription','organizationPhone','organizationAddress']);
-      allow update: if isOwner(uid) || isAdmin();
+    match /OrganizerProfiles/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+
+      allow create: if isOwner(userId)
+        && isOrganizerAccount(userId)
+        && request.resource.data.keys().hasAll([
+          'organizationName', 'organizationDescription',
+          'organizationPhone', 'organizationAddress'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'organizationName', 'organizationDescription',
+          'organizationPhone', 'organizationAddress'
+        ])
+        && request.resource.data.organizationName is string
+        && request.resource.data.organizationDescription is string
+        && request.resource.data.organizationPhone is string
+        && request.resource.data.organizationAddress is string;
+
+      allow update: if isAdmin()
+        || (
+          isOwner(userId)
+          && isOrganizerAccount(userId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'organizationName', 'organizationDescription',
+            'organizationPhone', 'organizationAddress'
+          ])
+        );
+
       allow delete: if isAdmin();
     }
 
-    // ── Venues ───────────────────────────────────────────────
+    // -----------------------------------------------------------------------
+    // VENUES AND SEAT INVENTORY
+    // -----------------------------------------------------------------------
     match /Venues/{venueId} {
-      allow read:   if isAuth();
-      allow create: if isAdmin()
-                    && request.resource.data.keys().hasAll(['name','location','capacity','layoutStatus'])
-                    && request.resource.data.name is string
-                    && request.resource.data.capacity is int;
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      // Non-admin users may read active venue metadata only. Their queries
+      // must include layoutStatus == 'ACTIVE'.
+      allow get: if isAdmin()
+        || (isActiveAccount() && resource.data.layoutStatus == 'ACTIVE');
+      allow list: if isAdmin()
+        || (isActiveAccount() && resource.data.layoutStatus == 'ACTIVE');
+
+      allow create, update, delete: if isAdmin();
     }
 
-    // ── Seats ────────────────────────────────────────────────
     match /Seats/{seatId} {
-      allow read:   if isAuth();
-      allow create: if isAdmin();
-      allow update: if isAuth();
-      allow delete: if isAdmin();
+      allow read: if isActiveAccount();
+
+      // A client must not reserve, sell, release, or fabricate seats. A
+      // trusted booking service must change inventory in a transaction.
+      allow create, update, delete: if isAdmin();
     }
 
-    // ── Events ───────────────────────────────────────────────
+    // Physical Seats belong to a reusable venue. EventSeats is the separate
+    // event-scoped inventory used for temporary reservations and completed
+    // sales, so one event can never consume a venue's seats for another.
+    // Reservation ownership must not be exposed to other buyers; callable
+    // booking operations return only the caller's selected seat labels.
+    match /EventSeats/{eventSeatId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // EVENTS
+    // -----------------------------------------------------------------------
     match /Events/{eventId} {
-      allow read:   if true;  // Published events are public
-      allow create: if isOrganizer()
-                    && request.resource.data.keys().hasAll(['name','date','venueId','organizerUid','status'])
-                    && request.resource.data.organizerUid == request.auth.uid
-                    && request.resource.data.status == 'DRAFT';
-      allow update: if (isOrganizer() && resource.data.organizerUid == request.auth.uid) || isAdmin();
-      allow delete: if (isOrganizer() && resource.data.organizerUid == request.auth.uid && resource.data.status == 'DRAFT') || isAdmin();
+      // Public visitors can see only published events. Organizers can see
+      // their own drafts/review records; admins can see everything.
+      allow get, list: if resource.data.status == 'PUBLISHED'
+        || isAdmin()
+        || isEventOwner();
+
+      allow create: if isActiveOrganizer()
+        && request.resource.data.keys().hasAll([
+          'name', 'date', 'venueId', 'organizerUid', 'status', 'categories',
+          'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'name', 'description', 'eventCategory', 'date', 'time',
+          'venueId', 'venueName', 'venueLocation', 'organizerUid',
+          'organizerName', 'status', 'posterUrl', 'startingPrice',
+          'availability', 'categories', 'maxTicketsPerBuyer',
+          'salesStartDate', 'salesEndDate', 'transferEnabled', 'resaleEnabled',
+          'resaleStartDate', 'resaleDeadline', 'maxResaleMarkup', 'maxResalePrice',
+          'statusHistory', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.date is string
+        && request.resource.data.venueId is string
+        && request.resource.data.organizerUid == request.auth.uid
+        && request.resource.data.status == 'DRAFT'
+        && request.resource.data.categories is map
+        && request.resource.data.createdAt is string
+        && request.resource.data.updatedAt is string;
+
+      // Organizers may edit only their own draft and may submit it for review.
+      // They cannot publish, suspend, cancel, reassign, or alter another
+      // organizer's event. Admins perform all moderation transitions.
+      allow update: if isAdmin()
+        || (
+          isEventOwner()
+          && resource.data.status == 'DRAFT'
+          && request.resource.data.organizerUid == resource.data.organizerUid
+          && request.resource.data.status in ['DRAFT', 'PENDING_REVIEW']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name', 'description', 'eventCategory', 'date', 'time',
+            'venueId', 'venueName', 'venueLocation', 'organizerName',
+            'posterUrl', 'startingPrice', 'availability', 'categories',
+            'maxTicketsPerBuyer', 'salesStartDate', 'salesEndDate',
+            'transferEnabled', 'resaleEnabled', 'resaleStartDate',
+            'resaleDeadline', 'maxResaleMarkup', 'maxResalePrice', 'status', 'statusHistory',
+            'updatedAt'
+          ])
+          && request.resource.data.categories is map
+          && request.resource.data.updatedAt is string
+        );
+
+      // Deleting a non-draft event would orphan bookings, tickets, and resale
+      // records. Administrators should cancel/suspend those events instead.
+      allow delete: if resource.data.status == 'DRAFT'
+        && (isAdmin() || isEventOwner());
     }
 
-    // ── Bookings ─────────────────────────────────────────────
+    // -----------------------------------------------------------------------
+    // PURCHASE, TICKET, AND RESALE WORKFLOWS
+    // -----------------------------------------------------------------------
     match /Bookings/{bookingId} {
-      allow read:   if isAuth() && (resource.data.buyerUid == request.auth.uid || isAdmin() || isOrganizer());
-      allow create: if isAuth()
-                    && request.resource.data.buyerUid == request.auth.uid
-                    && request.resource.data.keys().hasAll(['bookingNumber','buyerUid','eventId','categoryName','totalAmount','status']);
-      allow update: if isAdmin() || resource.data.buyerUid == request.auth.uid;
-      allow delete: if false;
+      allow get, list: if isAdmin()
+        || (isActiveAccount() && resource.data.buyerUid == request.auth.uid)
+        || isOrganizerRecord();
+
+      // Payment confirmation, seat allocation, and ticket issuance must be a
+      // trusted, atomic workflow. Browser writes are intentionally denied.
+      allow create, update, delete: if false;
     }
 
-    // ── NFTTickets ───────────────────────────────────────────
     match /NFTTickets/{ticketId} {
-      allow read:   if isAuth();
-      allow create: if isAuth();
-      allow update: if isAuth() && (resource.data.ownerUid == request.auth.uid || isAdmin());
-      allow delete: if false;
+      allow get, list: if isAdmin()
+        || (isActiveAccount() && resource.data.ownerUid == request.auth.uid)
+        || isOrganizerRecord();
+
+      // Prevent a client from minting a ticket, changing ownership, or marking
+      // a QR ticket used. Use protected callable/server endpoints instead.
+      allow create, update, delete: if false;
     }
 
-    // ── Complaints ───────────────────────────────────────────
-    match /Complaints/{complaintId} {
-      allow read:   if isAuth() && (resource.data.complainantUid == request.auth.uid || isAdmin());
-      allow create: if isAuth()
-                    && request.resource.data.complainantUid == request.auth.uid
-                    && request.resource.data.keys().hasAll(['referenceNumber','category','description','status']);
-      allow update: if isAuth() && (resource.data.complainantUid == request.auth.uid || isAdmin());
-      allow delete: if false;
-    }
-
-    // ── ResaleListings ───────────────────────────────────────
     match /ResaleListings/{listingId} {
-      allow read:   if true;  // Public marketplace
-      allow create: if isAuth()
-                    && request.resource.data.sellerUid == request.auth.uid
-                    && request.resource.data.keys().hasAll(['ticketId','eventId','resalePrice','status']);
-      allow update: if isAuth() && (resource.data.sellerUid == request.auth.uid || isAdmin());
+      // Marketplace views may show active listings. Sellers can see their own
+      // completed/cancelled records and admins retain oversight.
+      allow get, list: if resource.data.status == 'ACTIVE'
+        || isAdmin()
+        || (isActiveAccount() && resource.data.sellerUid == request.auth.uid)
+        || isOrganizerRecord();
+
+      // Listing, repricing, cancellation, and settlement touch ticket state
+      // and pricing rules, so they must be coordinated by the backend.
+      allow create, update, delete: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // SUPPORT AND USER NOTIFICATIONS
+    // -----------------------------------------------------------------------
+    match /Complaints/{complaintId} {
+      allow get, list: if isAdmin()
+        || (isActiveAccount() && resource.data.complainantUid == request.auth.uid);
+
+      allow create: if isActiveAccount()
+        && request.resource.data.keys().hasAll([
+          'referenceNumber', 'complainantUid', 'category', 'description',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'referenceNumber', 'complainantUid', 'complainantName',
+          'complainantRole', 'category', 'description', 'relatedBookingId',
+          'relatedTicketId', 'evidenceUrls', 'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.complainantUid == request.auth.uid
+        && request.resource.data.referenceNumber is string
+        && request.resource.data.category is string
+        && request.resource.data.description is string
+        && request.resource.data.status == 'OPEN'
+        && request.resource.data.createdAt is string
+        && request.resource.data.updatedAt is string
+        && hasValidComplaintEvidence();
+
+      // Only administrators may change a case's priority, status, timeline,
+      // or resolution. This prevents self-resolution and evidence tampering.
+      allow update: if isAdmin();
       allow delete: if false;
     }
 
-    // ── Notifications ────────────────────────────────────────
-    match /Notifications/{notifId} {
-      allow read:   if isAuth() && resource.data.recipientUid == request.auth.uid;
-      allow create: if isAuth();
-      allow update: if isAuth() && resource.data.recipientUid == request.auth.uid;
-      allow delete: if isAuth() && resource.data.recipientUid == request.auth.uid;
+    match /Notifications/{notificationId} {
+      allow get, list: if isActiveAccount()
+        && resource.data.recipientUid == request.auth.uid;
+
+      // System notifications are emitted by a trusted backend or an admin.
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasAll([
+          'recipientUid', 'message', 'type', 'read', 'createdAt'
+        ])
+        && request.resource.data.recipientUid is string
+        && request.resource.data.message is string
+        && request.resource.data.type is string
+        && request.resource.data.read is bool
+        && request.resource.data.createdAt is string;
+
+      // Recipients may mark a notification as read, but cannot redirect or
+      // rewrite it. Deletion is limited to the recipient as well.
+      allow update: if isActiveAccount()
+        && resource.data.recipientUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+        && request.resource.data.read is bool;
+      allow delete: if isActiveAccount()
+        && resource.data.recipientUid == request.auth.uid;
     }
 
-    // ── AuditLogs ────────────────────────────────────────────
+    // -----------------------------------------------------------------------
+    // SYSTEM-ONLY RECORDS
+    // -----------------------------------------------------------------------
     match /AuditLogs/{logId} {
-      allow read:   if isAdmin();
-      allow create: if isAuth();
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
     }
 
-    // ── BlockchainTransactions ───────────────────────────────
-    match /BlockchainTransactions/{txId} {
-      allow read:   if isAuth();
-      allow create: if isAuth();
-      allow update: if isAuth();
-      allow delete: if false;
+    match /BlockchainTransactions/{transactionId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
     }
   }
 }
-

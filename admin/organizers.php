@@ -5,7 +5,7 @@ ob_start();
 
 <?=ts_page_head('Organizer Applications', 'Review pending Event Organizer registrations and record approval or rejection decisions.', '')?>
 <div class="ts-kpi-grid mb-24">
-    <?=ts_kpi('Pending', '7', 'clock')?><?=ts_kpi('Approved This Month', '14', 'check')?><?=ts_kpi('Rejected This Month', '2', 'x')?><?=ts_kpi('Average Review', '6.2h', 'activity')?>
+    <?=ts_kpi('Pending', '<span id="pending-organizers-kpi">...</span>', 'clock')?><?=ts_kpi('Active organizers', '<span id="active-organizers-kpi">...</span>', 'check')?><?=ts_kpi('Rejected', '<span id="rejected-organizers-kpi">...</span>', 'x')?><?=ts_kpi('Total organizers', '<span id="total-organizers-kpi">...</span>', 'activity')?>
 </div>
 <div class="ts-card">
     <div class="ts-filter-bar">
@@ -42,6 +42,10 @@ window.addEventListener('ts-auth-ready', async () => {
         const organizers = users.filter(u => u.role === 'organizer');
         const tbody = document.getElementById('orgs-table-body');
         if (!tbody) return;
+        document.getElementById('pending-organizers-kpi').textContent = organizers.filter(o => o.status === 'pending').length;
+        document.getElementById('active-organizers-kpi').textContent = organizers.filter(o => o.status === 'active').length;
+        document.getElementById('rejected-organizers-kpi').textContent = organizers.filter(o => o.status === 'rejected').length;
+        document.getElementById('total-organizers-kpi').textContent = organizers.length;
         
         if (organizers.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" class="text-center secondary" style="padding:40px">No organizer applications found.</td></tr>';
@@ -53,7 +57,7 @@ window.addEventListener('ts-auth-ready', async () => {
         tbody.innerHTML = organizers.map(o => {
             let tone = 'neutral';
             if (o.status === 'pending') tone = 'warning';
-            else if (o.status === 'approved') tone = 'success';
+            else if (o.status === 'active') tone = 'success';
             else if (o.status === 'rejected') tone = 'error';
 
             return `

@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const ticketId = urlParams.get('ticketId');
         if (!ticketId) return;
 
-        let ticket, eventRules;
+        let ticket;
         let originalPrice = 0;
         let maxAllowedPrice = 0;
 
@@ -77,32 +77,45 @@ document.addEventListener('DOMContentLoaded', () => {
             const event = await window.tsEvents.getEvent(ticket.eventId);
             
             document.getElementById('val-event').textContent = ticket.eventName;
-            document.getElementById('val-ticket-info').textContent = \`\${ticket.category} · Seat \${ticket.seat} · Ticket \${ticket.id}\`;
-            document.getElementById('val-owner').textContent = ticket.ownerWallet || window.tsCurrentUser.walletAddress;
-            document.getElementById('val-status').innerHTML = \`<span class="ts-chip ts-chip-success">Eligible</span>\`;
+            document.getElementById('val-ticket-info').textContent = `${ticket.categoryName || 'N/A'} · Seat ${ticket.seatId || 'N/A'} · Ticket ${ticket.id}`;
+            document.getElementById('val-owner').textContent = ticket.walletAddress || window.tsCurrentUser.walletAddress;
+            document.getElementById('val-status').innerHTML = `<span class="ts-chip ts-chip-success">Eligible</span>`;
             
-            // Mock event rules if not present
-            eventRules = event.resaleRules || { maxMarkupPercent: 10 };
+            const categories = Array.isArray(event.categories)
+                ? event.categories
+                : Object.entries(event.categories || {}).map(([sectionId, category]) => ({
+                    ...category,
+                    sectionId
+                }));
+            const category = categories.find(c =>
+                c.sectionId === ticket.sectionId ||
+                c.section === ticket.sectionId ||
+                c.name === ticket.categoryName
+            );
+            const maxMarkupPercent = Number(event.maxResaleMarkup ?? 0);
+            originalPrice = Number(category?.price) || 0;
+            const configuredMaxPrice = Number(event.maxResalePrice ?? 0);
+            maxAllowedPrice = configuredMaxPrice > 0
+                ? configuredMaxPrice
+                : originalPrice * (1 + (maxMarkupPercent / 100));
             
-            // For mockup, assume a category price based on ticket
-            originalPrice = ticket.price || 518;
-            maxAllowedPrice = originalPrice * (1 + (eventRules.maxMarkupPercent / 100));
+            document.getElementById('val-rules').textContent = configuredMaxPrice > 0
+                ? `The organizer set a fixed maximum resale price of RM${maxAllowedPrice.toFixed(2)}.`
+                : `Maximum allowed markup is ${maxMarkupPercent}%. Maximum allowed price RM${maxAllowedPrice.toFixed(2)}.`;
+            document.getElementById('val-price-help').textContent = `Original price RM${originalPrice.toFixed(2)} · Maximum RM${maxAllowedPrice.toFixed(2)}`;
             
-            document.getElementById('val-rules').textContent = \`Maximum allowed markup is \${eventRules.maxMarkupPercent}%. Maximum allowed price RM\${maxAllowedPrice.toFixed(2)}.\`;
-            document.getElementById('val-price-help').textContent = \`Original price RM\${originalPrice.toFixed(2)} · Maximum RM\${maxAllowedPrice.toFixed(2)}\`;
+            document.getElementById('summary-original').textContent = `RM${originalPrice.toFixed(2)}`;
+            document.getElementById('summary-max').textContent = `RM${maxAllowedPrice.toFixed(2)}`;
             
-            document.getElementById('summary-original').textContent = \`RM\${originalPrice.toFixed(2)}\`;
-            document.getElementById('summary-max').textContent = \`RM\${maxAllowedPrice.toFixed(2)}\`;
-            
-            document.getElementById('btn-cancel').href = \`ticket-detail.php?id=\${ticketId}\`;
+            document.getElementById('btn-cancel').href = `ticket-detail.php?id=${ticketId}`;
             
             const priceInput = document.getElementById('input-price');
             priceInput.value = originalPrice.toFixed(2);
-            document.getElementById('summary-resale').textContent = \`RM\${originalPrice.toFixed(2)}\`;
+            document.getElementById('summary-resale').textContent = `RM${originalPrice.toFixed(2)}`;
             
             priceInput.addEventListener('input', () => {
                 const p = parseFloat(priceInput.value) || 0;
-                document.getElementById('summary-resale').textContent = \`RM\${p.toFixed(2)}\`;
+                document.getElementById('summary-resale').textContent = `RM${p.toFixed(2)}`;
                 const alertBox = document.getElementById('price-alert');
                 const alertText = document.getElementById('price-alert-text');
                 
@@ -121,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const p = parseFloat(priceInput.value);
                 if (!p || p <= 0 || p > maxAllowedPrice) {
-                    window.tsValidation.showGlobalError(document.getElementById('resale-form-container'), 'Invalid Price', \`Price must be between RM1 and RM\${maxAllowedPrice.toFixed(2)}\`);
+                    window.tsValidation.showGlobalError(document.getElementById('resale-form-container'), 'Invalid Price', `Price must be between RM1 and RM${maxAllowedPrice.toFixed(2)}`);
                     return;
                 }
                 

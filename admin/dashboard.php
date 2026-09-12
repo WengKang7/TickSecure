@@ -123,15 +123,15 @@ window.addEventListener('ts-auth-ready', async () => {
         ]);
         
         document.getElementById('kpi-users').textContent = users.length;
-        document.getElementById('kpi-organizers').textContent = users.filter(u => u.role === 'organizer' && u.status === 'approved').length;
+        document.getElementById('kpi-organizers').textContent = users.filter(u => u.role === 'organizer' && u.status === 'active').length;
         document.getElementById('kpi-pending-orgs').textContent = users.filter(u => u.role === 'organizer' && u.status === 'pending').length;
         
-        document.getElementById('kpi-events').textContent = events.filter(e => e.status === 'published').length;
-        document.getElementById('kpi-pending-events').textContent = events.filter(e => e.status === 'pending').length;
+        document.getElementById('kpi-events').textContent = events.filter(e => e.status === 'PUBLISHED').length;
+        document.getElementById('kpi-pending-events').textContent = events.filter(e => e.status === 'PENDING_REVIEW').length;
         
-        document.getElementById('kpi-complaints').textContent = complaints.filter(c => c.status === 'open').length;
+        document.getElementById('kpi-complaints').textContent = complaints.filter(c => c.status === 'OPEN').length;
         document.getElementById('kpi-txs').textContent = txs.length;
-        document.getElementById('kpi-risk-flags').textContent = txs.filter(t => t.status === 'failed').length;
+        document.getElementById('kpi-risk-flags').textContent = txs.filter(t => t.status === 'FAILED').length;
 
         const tbody = document.getElementById('audit-table-body');
         if (!tbody) return;
@@ -143,15 +143,15 @@ window.addEventListener('ts-auth-ready', async () => {
         const esc = s => (s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         
         tbody.innerHTML = logs.slice(0, 5).map(log => {
-            const date = new Date(log.createdAt).toLocaleString();
+            const date = log.timestamp ? new Date(log.timestamp).toLocaleString() : '—';
             let tone = log.result === 'success' ? 'success' : 'error';
             return `
                 <tr>
                     <td>${esc(date)}</td>
-                    <td>${esc(log.actorName)}</td>
+                    <td>${esc(log.actorEmail || log.actorUid || 'System')}</td>
                     <td>${esc(log.actorRole)}</td>
                     <td>${esc(log.action)}</td>
-                    <td>${esc(log.targetId)}</td>
+                    <td>${esc(log.entityId || '—')}</td>
                     <td><span class="ts-chip ts-chip-${tone}">${esc(log.result)}</span></td>
                 </tr>
             `;

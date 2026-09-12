@@ -43,32 +43,90 @@ ob_start();
 </main>
 
 <script type="module">
+const esc = value => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const amount = value => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const currency = value => `RM${amount(value).toFixed(2)}`;
+
+const formatDate = value => {
+    if (!value) return '—';
+    const date = typeof value.toDate === 'function' ? value.toDate() : new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString();
+};
+
 window.addEventListener('ts-auth-ready', async () => {
     let listings = [];
+    let activeFilter = 'active';
     const tbody = document.getElementById('resale-tbody');
     const tabs = document.querySelectorAll('#resale-tabs .ts-tab');
     
     const loadData = async () => {
         try {
             listings = await window.tsResale.getUserListings();
-            render('active');
+            render(activeFilter);
         } catch (err) {
             console.error('Load error:', err);
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center secondary" style="padding:40px">${esc(err?.message || 'Unable to load your resale listings.')}</td></tr>`;
         }
     };
     
     const cancelListing = async (id) => {
-        if (!confirm('Are you sure you want to cancel this listing?')) return;
+        if (!window.confirm('Are you sure you want to cancel this listing?')) return;
         try {
             await window.tsResale.cancelListing(id);
             await loadData();
         } catch (err) {
-            alert('Cancel Error: ' + err.message);
+            console.error('Cancel error:', err);
+            window.alert(err?.message || 'The listing could not be cancelled.');
+        }
+    };
+
+    const repriceListing = async id => {
+        const listing = listings.find(item => item.id === id);
+        if (!listing || String(listing.status || '').toUpperCase() !== 'ACTIVE') return;
+
+        const currentPrice = amount(listing.resalePrice);
+        const maximumPrice = amount(listing.maxAllowedPrice);
+        const maximumLabel = maximumPrice > 0 ? ` (maximum RM${maximumPrice.toFixed(2)})` : '';
+        const entered = window.prompt(`Enter a new resale price${maximumLabel}:`, currentPrice.toFixed(2));
+        if (entered === null) return;
+
+        const newPrice = Number(entered);
+        if (!Number.isFinite(newPrice) || newPrice <= 0) {
+            window.alert('Enter a valid resale price greater than RM0.00.');
+            return;
+        }
+        if (maximumPrice > 0 && newPrice > maximumPrice) {
+            window.alert(`The maximum permitted resale price is RM${maximumPrice.toFixed(2)}.`);
+            return;
+        }
+
+        try {
+            await window.tsResale.updatePrice(id, newPrice);
+            await loadData();
+        } catch (err) {
+            console.error('Reprice error:', err);
+            window.alert(err?.message || 'The resale price could not be updated.');
         }
     };
     
     const render = (filter) => {
-        const filtered = listings.filter(l => l.status === filter);
+        const statusByFilter = {
+            active: 'ACTIVE',
+            sold: 'SOLD',
+            cancelled: 'CANCELLED',
+            suspended: 'SUSPENDED'
+        };
+        const filtered = listings.filter(l => (l.status || '').toUpperCase() === statusByFilter[filter]);
         
         if (filtered.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" class="text-center secondary" style="padding:40px">No listings found.</td></tr>';
@@ -76,34 +134,41 @@ window.addEventListener('ts-auth-ready', async () => {
         }
         
         tbody.innerHTML = filtered.map(l => {
-            const ticketName = l.ticketId;
-            let tone = 'success';
-            let status = 'Active';
-            if (l.status === 'sold') { tone = 'info'; status = 'Sold'; }
-            else if (l.status === 'cancelled') { tone = 'neutral'; status = 'Cancelled'; }
-            else if (l.status === 'suspended') { tone = 'error'; status = 'Suspended'; }
+            const ticketName = l.ticketId || l.id;
+            const listingStatus = String(l.status || '').toUpperCase();
+            const status = {
+                ACTIVE: ['success', 'Active'],
+                SOLD: ['info', 'Sold'],
+                CANCELLED: ['neutral', 'Cancelled'],
+                SUSPENDED: ['error', 'Suspended']
+            }[listingStatus] || ['neutral', listingStatus || 'Unknown'];
+            const listingId = encodeURIComponent(l.id);
             
-            const actionHtml = l.status === 'active' ? \`
+            const actionHtml = listingStatus === 'ACTIVE' ? `
                 <div class="ts-table-actions">
-                    <button class="ts-btn ts-btn-danger ts-btn-sm btn-cancel" data-id="\${l.id}">Cancel</button>
+                    <button class="ts-btn ts-btn-secondary ts-btn-sm btn-reprice" type="button" data-id="${listingId}">Edit price</button>
+                    <button class="ts-btn ts-btn-danger ts-btn-sm btn-cancel" type="button" data-id="${listingId}">Cancel</button>
                 </div>
-            \` : '';
+            ` : '';
             
-            return \`
+            return `
             <tr>
-                <td class="cell-title">\${ticketName}<div class="cell-sub">\${l.category || '-'} · \${l.seat || '-'}</div></td>
-                <td>\${l.eventName || '-'}</td>
-                <td>RM\${l.originalPrice || 0}</td>
-                <td>RM\${l.resalePrice || 0}</td>
-                <td>\${l.createdAt ? (typeof l.createdAt.toDate === 'function' ? l.createdAt.toDate().toLocaleDateString() : l.createdAt) : '-'}</td>
-                <td><span class="ts-chip ts-chip-\${tone}">\${status}</span></td>
-                <td>\${actionHtml}</td>
+                <td class="cell-title">${esc(ticketName)}<div class="cell-sub">${esc(l.categoryName || 'Unassigned')} · Section ${esc(l.sectionId || '—')} · Seat ${esc(l.seatId || '—')}</div></td>
+                <td>${esc(l.eventName || 'Untitled event')}</td>
+                <td>${currency(l.originalPrice)}</td>
+                <td>${currency(l.resalePrice)}${amount(l.maxAllowedPrice) > 0 ? `<div class="cell-sub">Max ${currency(l.maxAllowedPrice)}</div>` : ''}</td>
+                <td>${esc(formatDate(l.createdAt))}</td>
+                <td><span class="ts-chip ts-chip-${status[0]}">${esc(status[1])}</span></td>
+                <td>${actionHtml}</td>
             </tr>
-            \`;
+            `;
         }).join('');
         
         tbody.querySelectorAll('.btn-cancel').forEach(btn => {
-            btn.addEventListener('click', (e) => cancelListing(e.target.getAttribute('data-id')));
+            btn.addEventListener('click', event => cancelListing(decodeURIComponent(event.currentTarget.dataset.id || '')));
+        });
+        tbody.querySelectorAll('.btn-reprice').forEach(btn => {
+            btn.addEventListener('click', event => repriceListing(decodeURIComponent(event.currentTarget.dataset.id || '')));
         });
     };
     
@@ -111,7 +176,8 @@ window.addEventListener('ts-auth-ready', async () => {
         tab.addEventListener('click', () => {
             tabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
-            render(tab.getAttribute('data-filter'));
+            activeFilter = tab.getAttribute('data-filter') || 'active';
+            render(activeFilter);
         });
     });
     

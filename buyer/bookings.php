@@ -54,7 +54,7 @@ window.addEventListener('ts-auth-ready', async () => {
     try {
         const bookings = await window.tsBookings.getUserBookings();
         const tbody = document.getElementById('bookings-tbody');
-        document.getElementById('bookings-count').textContent = \`\${bookings.length} bookings\`;
+        document.getElementById('bookings-count').textContent = `${bookings.length} bookings`;
         
         if (bookings.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" class="text-center secondary" style="padding:40px">No bookings found.</td></tr>';
@@ -62,27 +62,28 @@ window.addEventListener('ts-auth-ready', async () => {
         }
         
         tbody.innerHTML = bookings.map(b => {
-            const seats = b.seat || (b.seats || []).join(', ') || 'N/A';
-            const catSeat = \`\${b.category || 'N/A'} · \${seats}\`;
+            const seats = (b.seats || []).join(', ') || 'N/A';
+            const catSeat = `${b.categoryName || 'N/A'} · ${seats}`;
             let tone = 'success';
             let status = 'Confirmed';
-            if (b.status === 'completed') { tone = 'neutral'; status = 'Completed'; }
-            else if (b.status === 'cancelled') { tone = 'error'; status = 'Cancelled'; }
+            const bookingStatus = (b.status || '').toUpperCase();
+            if (bookingStatus === 'COMPLETED') { tone = 'neutral'; status = 'Completed'; }
+            else if (bookingStatus === 'CANCELLED') { tone = 'error'; status = 'Cancelled'; }
             
             const dateStr = b.createdAt ? (typeof b.createdAt.toDate === 'function' ? b.createdAt.toDate().toLocaleDateString() : b.createdAt) : 'N/A';
-            const amountStr = \`RM\${parseFloat(b.totalAmount || 0).toFixed(2)}\`;
+            const amountStr = `RM${parseFloat(b.totalAmount || 0).toFixed(2)}`;
             
-            return \`
+            return `
             <tr>
-                <td class="cell-title">\${b.id}</td>
-                <td>\${b.eventName}</td>
-                <td>\${catSeat}</td>
-                <td>\${dateStr}</td>
-                <td>\${amountStr}</td>
-                <td><span class="ts-chip ts-chip-\${tone}">\${status}</span></td>
-                <td class="text-right"><a class="ts-btn ts-btn-secondary ts-btn-sm" href="booking-detail.php?id=\${b.id}">View</a></td>
+                <td class="cell-title">${b.bookingNumber || b.id}</td>
+                <td>${b.eventName}</td>
+                <td>${catSeat}</td>
+                <td>${dateStr}</td>
+                <td>${amountStr}</td>
+                <td><span class="ts-chip ts-chip-${tone}">${status}</span></td>
+                <td class="text-right"><a class="ts-btn ts-btn-secondary ts-btn-sm" href="booking-detail.php?id=${b.id}">View</a></td>
             </tr>
-            \`;
+            `;
         }).join('');
     } catch (err) {
         console.error('Load error:', err);

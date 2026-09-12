@@ -41,6 +41,38 @@ ob_start();
 </main>
 
 <script type="module">
+const escapeHtml = value => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+const safeEvidenceUrl = value => {
+    try {
+        const parsed = new URL(String(value || ''));
+        if (parsed.protocol === 'https:' && parsed.hostname === 'firebasestorage.googleapis.com') {
+            return parsed.href;
+        }
+    } catch (_) {
+        // A local PHP fallback stores a deliberately relative, allow-listed
+        // upload path rather than an arbitrary public URL.
+    }
+
+    const localPath = String(value || '');
+    const backend = window.tsFirebase?.backend;
+    if (backend?.mode === 'php'
+        && /^uploads\/local\/\d{4}\/\d{2}\/[a-f0-9]{40}\.(?:jpg|png|pdf)$/.test(localPath)) {
+        try {
+            const localUrl = new URL(localPath, backend.projectUrl);
+            return localUrl.origin === window.location.origin ? localUrl.href : '';
+        } catch (_) {
+            return '';
+        }
+    }
+    return '';
+};
+
 window.addEventListener('ts-auth-ready', async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const id = urlParams.get('id');
@@ -54,40 +86,45 @@ window.addEventListener('ts-auth-ready', async () => {
         
         const submitStr = c.createdAt ? (typeof c.createdAt.toDate === 'function' ? c.createdAt.toDate().toLocaleDateString() : c.createdAt) : '-';
         const updateStr = c.updatedAt ? (typeof c.updatedAt.toDate === 'function' ? c.updatedAt.toDate().toLocaleDateString() : c.updatedAt) : submitStr;
-        document.getElementById('val-dates').textContent = \`Submitted \${submitStr} · Last updated \${updateStr}\`;
+        document.getElementById('val-dates').textContent = `Submitted ${submitStr} · Last updated ${updateStr}`;
         
+        const complaintStatus = (c.status || 'OPEN').toUpperCase();
         let tone = 'warning';
-        let status = 'Under Investigation';
-        if (c.status === 'open') { tone = 'info'; status = 'Open'; }
-        else if (c.status === 'resolved') { tone = 'success'; status = 'Resolved'; }
-        else if (c.status === 'rejected') { tone = 'error'; status = 'Rejected'; }
-        else if (c.status === 'investigating') { tone = 'warning'; status = 'Investigating'; }
+        let status = complaintStatus.replace(/_/g, ' ');
+        if (complaintStatus === 'OPEN') { tone = 'info'; status = 'Open'; }
+        else if (complaintStatus === 'RESOLVED') { tone = 'success'; status = 'Resolved'; }
+        else if (complaintStatus === 'REJECTED') { tone = 'error'; status = 'Rejected'; }
+        else if (complaintStatus === 'UNDER_INVESTIGATION' || complaintStatus === 'INVESTIGATING') { tone = 'warning'; status = 'Under Investigation'; }
         
-        document.getElementById('val-status-head').innerHTML = \`<span class="ts-chip ts-chip-\${tone}">\${status}</span>\`;
+        document.getElementById('val-status-head').innerHTML = `<span class="ts-chip ts-chip-${tone}">${escapeHtml(status)}</span>`;
         
         document.getElementById('val-desc').textContent = c.description || 'No description provided.';
         document.getElementById('val-booking').textContent = c.relatedBookingId || 'None';
-        if (c.evidenceUrl) {
-            document.getElementById('val-evidence').innerHTML = \`<a href="\${c.evidenceUrl}" target="_blank">View File</a>\`;
+        const evidenceUrls = Array.isArray(c.evidenceUrls) ? c.evidenceUrls : [];
+        const safeEvidenceUrls = evidenceUrls.map(safeEvidenceUrl).filter(Boolean);
+        if (safeEvidenceUrls.length > 0) {
+            document.getElementById('val-evidence').innerHTML = safeEvidenceUrls
+                .map(url => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">View File</a>`)
+                .join('<br>');
         }
         
-        const timeline = c.history || [];
+        const timeline = c.timeline || [];
         const tlContainer = document.getElementById('timeline-container');
         
         if (timeline.length > 0) {
-            tlContainer.innerHTML = timeline.map((h, i) => \`
-                <div class="ts-timeline-item \${i === timeline.length - 1 ? 'current' : ''}">
-                    <div class="ts-timeline-title">\${h.status || h.title}</div>
-                    <div class="ts-timeline-meta">\${h.date || ''} · \${h.note || ''}</div>
+            tlContainer.innerHTML = timeline.map((h, i) => `
+                <div class="ts-timeline-item ${i === timeline.length - 1 ? 'current' : ''}">
+                    <div class="ts-timeline-title">${escapeHtml(h.status || h.title || 'Update')}</div>
+                    <div class="ts-timeline-meta">${escapeHtml(h.timestamp || '')} · ${escapeHtml(h.note || '')}</div>
                 </div>
-            \`).join('');
+            `).join('');
         } else {
-            tlContainer.innerHTML = \`
+            tlContainer.innerHTML = `
                 <div class="ts-timeline-item current">
                     <div class="ts-timeline-title">Submitted</div>
                     <div class="ts-timeline-meta">Complaint received</div>
                 </div>
-            \`;
+            `;
         }
         
     } catch (err) {

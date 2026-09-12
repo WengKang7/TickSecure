@@ -21,9 +21,9 @@ ob_start();
                             name="fullName" id="val-fullname" value=""></div>
                     <div class="ts-field"><label class="ts-label">Email</label><input class="ts-input"
                             id="val-email" value="" readonly style="background-color:#f8f9fa"></div>
-                    <div class="ts-alert ts-alert-success">
-                        <?=ts_icon('check')?>
-                        Email verified</div>
+                    <div class="ts-alert" id="email-verification-alert">
+                        <?=ts_icon('mail')?>
+                        Checking email verification...</div>
                 </div>
             </div>
             <div class="ts-card ts-card-pad">
@@ -45,10 +45,10 @@ ob_start();
             <div class="ts-card ts-card-pad">
                 <div class="ts-card-title">Account Status</div>
                 <div class="flex justify-between items-center mt-20"><span>Buyer
-                        Account</span><?=ts_status('Active', 'success')?>
+                        Account</span><span id="account-status-chip">Checking...</span>
                 </div>
                 <div class="flex justify-between items-center mt-16"><span>Email
-                        Verification</span><?=ts_status('Verified', 'success')?>
+                        Verification</span><span id="email-status-chip">Checking...</span>
                 </div>
             </div>
         </div>
@@ -63,15 +63,26 @@ window.addEventListener('ts-auth-ready', async () => {
         
         document.getElementById('val-fullname').value = p.fullName || curUser.fullName || '';
         document.getElementById('val-email').value = p.email || curUser.email || '';
+
+        const verified = p.emailVerified === true;
+        const emailAlert = document.getElementById('email-verification-alert');
+        emailAlert.className = `ts-alert ${verified ? 'ts-alert-success' : 'ts-alert-warning'}`;
+        emailAlert.innerHTML = verified
+            ? 'Email verified'
+            : 'Email verification is required before ticket actions are available.';
+        document.getElementById('account-status-chip').innerHTML = `<span class="ts-chip ts-chip-${p.status === 'active' ? 'success' : 'warning'}">${p.status || 'Unknown'}</span>`;
+        document.getElementById('email-status-chip').innerHTML = verified
+            ? '<span class="ts-chip ts-chip-success">Verified</span>'
+            : '<span class="ts-chip ts-chip-warning">Not verified</span>';
         
         const walletId = p.walletAddress || curUser.walletAddress;
         if (walletId) {
             document.getElementById('val-wallet-id').textContent = walletId;
-            document.getElementById('val-wallet-status').innerHTML = \`<span class="ts-chip ts-chip-success">Connected</span>\`;
+            document.getElementById('val-wallet-status').innerHTML = `<span class="ts-chip ts-chip-success">Connected</span>`;
             document.getElementById('btn-wallet-action').textContent = 'Change Wallet';
         } else {
             document.getElementById('val-wallet-id').textContent = 'Not connected';
-            document.getElementById('val-wallet-status').innerHTML = \`<span class="ts-chip ts-chip-warning">Required</span>\`;
+            document.getElementById('val-wallet-status').innerHTML = `<span class="ts-chip ts-chip-warning">Required</span>`;
             document.getElementById('btn-wallet-action').textContent = 'Connect Wallet';
         }
         

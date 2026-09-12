@@ -41,7 +41,7 @@ ob_start();
                             <th>Section</th>
                             <th>Price</th>
                             <th>Quantity</th>
-                            <th>Available</th>
+                            <th>Remaining (confirmed)</th>
                         </tr>
                     </thead>
                     <tbody id="tickets-tbody">
@@ -101,29 +101,49 @@ window.addEventListener('ts-auth-ready', async () => {
         document.querySelector('.ts-page-subtitle').textContent = `${event.date ? new Date(event.date).toLocaleDateString() : 'No date'} · ${event.venueName || 'No venue'} · Last updated ${event.updatedAt ? new Date(event.updatedAt).toLocaleDateString() : ''}`;
         document.getElementById('preview-link').href = `../public/event-detail.php?id=${eventId}`;
 
-        const toneMap = { 'PUBLISHED': 'success', 'APPROVED': 'info', 'REJECTED': 'error', 'DRAFT': 'neutral', 'PENDING': 'warning' };
-        const tone = toneMap[event.status?.toUpperCase()] || 'neutral';
-        document.getElementById('status-chips').innerHTML = `<span class="ts-chip ts-chip-${tone}">${esc(event.status)}</span>`;
+        const normalizedStatus = String(event.status || 'DRAFT').toUpperCase();
+        const toneMap = {
+            PUBLISHED: 'success',
+            PENDING_REVIEW: 'warning',
+            REJECTED: 'error',
+            SUSPENDED: 'warning',
+            CANCELLED: 'error',
+            DRAFT: 'neutral'
+        };
+        const tone = toneMap[normalizedStatus] || 'neutral';
+        document.getElementById('status-chips').innerHTML = `<span class="ts-chip ts-chip-${tone}">${esc(normalizedStatus.replace(/_/g, ' '))}</span>`;
 
         document.getElementById('overview-venue').textContent = event.venueName || 'Unassigned';
         
-        let totalAllocated = 0;
-        const cats = event.categories || [];
-        cats.forEach(c => totalAllocated += (c.quantity || 0));
+        const cats = Array.isArray(event.categories)
+            ? event.categories.map(c => ({ ...c, sectionId: c.sectionId || c.section || c.id || '' }))
+            : Object.entries(event.categories || {}).map(([sectionId, c]) => ({ ...c, sectionId }));
+        const totalAllocated = cats.reduce((total, category) => total + (Number(category.quantity) || 0), 0);
 
-        // Mock totals for now, since we aren't loading actual bookings in detail view right now
-        document.getElementById('overview-sold').textContent = '0';
-        document.getElementById('overview-sold-sub').textContent = `of ${totalAllocated} allocated`;
+        const confirmedBookings = await window.tsBookings.getBookings({ eventId, status: 'CONFIRMED' });
+        const soldBySection = new Map();
+        let soldTotal = 0;
+        let revenueTotal = 0;
+        confirmedBookings.forEach(booking => {
+            const quantity = Number(booking.quantity) || booking.seats?.length || 0;
+            soldTotal += quantity;
+            revenueTotal += Number(booking.totalAmount) || 0;
+            const section = String(booking.sectionId || '').trim();
+            if (section) soldBySection.set(section, (soldBySection.get(section) || 0) + quantity);
+        });
+        document.getElementById('overview-sold').textContent = soldTotal.toLocaleString();
+        document.getElementById('overview-sold-sub').textContent = `of ${totalAllocated.toLocaleString()} allocated`;
+        document.getElementById('overview-rev').textContent = `RM${revenueTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
         const tbody = document.getElementById('tickets-tbody');
         if(tbody) {
             tbody.innerHTML = cats.map(c => `
                 <tr>
                     <td>${esc(c.name)}</td>
-                    <td>${esc(c.section)}</td>
+                    <td>${esc(c.sectionId)}</td>
                     <td>RM${c.price}</td>
-                    <td>${c.quantity}</td>
-                    <td>${c.quantity}</td>
+                    <td>${Number(c.quantity) || 0}</td>
+                    <td>${Math.max(0, (Number(c.quantity) || 0) - (soldBySection.get(c.sectionId) || 0))}</td>
                 </tr>
             `).join('') || '<tr><td colspan="5" class="text-center">No categories configured.</td></tr>';
         }

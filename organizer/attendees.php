@@ -54,26 +54,22 @@ ob_start();
 const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
 window.addEventListener('ts-auth-ready', async () => {
     try {
-        const events = await window.tsEvents.getOrganizerEvents();
-        const eventIds = new Set(events.map(e => e.id));
-        const allBookings = await window.tsBookings.getBookings();
-        const bookings = allBookings.filter(b => eventIds.has(b.eventId) && b.status === 'CONFIRMED');
-
-        let attendees = [];
-        bookings.forEach(b => {
-            if(b.tickets) {
-                b.tickets.forEach(t => {
-                    attendees.push({
-                        buyer: b.userId || 'Unknown',
-                        bookingId: b.id,
-                        ticketId: t.id,
-                        category: t.category,
-                        seat: t.seatId,
-                        wallet: '0x... (Mock)',
-                        verified: Math.random() > 0.5 // mock verification
-                    });
-                });
-            }
+        const [bookings, tickets] = await Promise.all([
+            window.tsBookings.getBookings(),
+            window.tsTickets.getTickets()
+        ]);
+        const bookingById = new Map(bookings.map(booking => [booking.id, booking]));
+        const attendees = tickets.map(ticket => {
+            const booking = bookingById.get(ticket.bookingId);
+            return {
+                buyer: booking?.buyerName || booking?.buyerUid || 'Unknown',
+                bookingId: ticket.bookingId || '—',
+                ticketId: ticket.id,
+                category: ticket.categoryName || ticket.category || 'N/A',
+                seat: ticket.seatId || ticket.seat || 'N/A',
+                wallet: ticket.walletAddress || ticket.ownerWallet || '—',
+                verified: ticket.status === 'USED'
+            };
         });
 
         const verifiedCount = attendees.filter(a => a.verified).length;
@@ -91,7 +87,7 @@ window.addEventListener('ts-auth-ready', async () => {
                     <td>${esc(a.ticketId)}</td>
                     <td>${esc(a.category)}</td>
                     <td>${esc(a.seat)}</td>
-                    <td class="ts-wallet-id">${a.wallet}</td>
+                    <td class="ts-wallet-id">${esc(a.wallet)}</td>
                     <td><span class="ts-chip ts-chip-${a.verified ? 'success' : 'neutral'}">${a.verified ? 'Verified' : 'Unverified'}</span></td>
                 </tr>
             `).join('') || '<tr><td colspan="7" class="text-center">No attendees found.</td></tr>';

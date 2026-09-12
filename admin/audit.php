@@ -64,20 +64,27 @@ window.addEventListener('ts-auth-ready', async () => {
         
         const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
         
-        tbody.innerHTML = logs.map(l => {
+        tbody.innerHTML = logs.map((l, index) => {
             let tone = l.result === 'success' ? 'success' : 'error';
             return `
                 <tr>
-                    <td>${new Date(l.createdAt).toLocaleString()}</td>
-                    <td>${esc(l.actorName || l.actorId)}</td>
+                    <td>${l.timestamp ? esc(new Date(l.timestamp).toLocaleString()) : '—'}</td>
+                    <td>${esc(l.actorEmail || l.actorUid || 'System')}</td>
                     <td>${esc(l.actorRole)}</td>
                     <td>${esc(l.action)}</td>
-                    <td>${esc(l.targetId)}</td>
+                    <td>${esc(l.entityId || '—')}</td>
                     <td><span class="ts-chip ts-chip-${tone}">${esc(l.result)}</span></td>
-                    <td><button class="ts-btn ts-btn-tertiary ts-btn-sm" onclick="alert('Raw Data:\\n' + JSON.stringify(${esc(JSON.stringify(l.details || {}))}, null, 2))">View</button></td>
+                    <td><button class="ts-btn ts-btn-tertiary ts-btn-sm audit-details" type="button" data-index="${index}">View</button></td>
                 </tr>
             `;
         }).join('');
+
+        tbody.querySelectorAll('.audit-details').forEach(button => {
+            button.addEventListener('click', () => {
+                const log = logs[Number(button.dataset.index)];
+                window.alert(`Raw Data:\n${JSON.stringify(log?.details || {}, null, 2)}`);
+            });
+        });
     } catch (err) {
         console.error('Load error:', err);
     }

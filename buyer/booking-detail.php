@@ -78,43 +78,53 @@ window.addEventListener('ts-auth-ready', async () => {
     try {
         const booking = await window.tsBookings.getBooking(bookingId);
         
-        document.getElementById('val-eyebrow').textContent = \`Booking \${booking.id}\`;
+        document.getElementById('val-eyebrow').textContent = `Booking ${booking.bookingNumber || booking.id}`;
         document.getElementById('val-event').textContent = booking.eventName || 'Event';
         
         const dateStr = booking.createdAt ? (typeof booking.createdAt.toDate === 'function' ? booking.createdAt.toDate().toLocaleString() : booking.createdAt) : '';
-        document.getElementById('val-date').textContent = \`Confirmed \${dateStr}\`;
+        document.getElementById('val-date').textContent = `Confirmed ${dateStr}`;
         
         let tone = 'success';
         let status = 'Confirmed';
-        if (booking.status === 'completed') { tone = 'neutral'; status = 'Completed'; }
-        else if (booking.status === 'cancelled') { tone = 'error'; status = 'Cancelled'; }
+        const bookingStatus = (booking.status || '').toUpperCase();
+        if (bookingStatus === 'COMPLETED') { tone = 'neutral'; status = 'Completed'; }
+        else if (bookingStatus === 'CANCELLED') { tone = 'error'; status = 'Cancelled'; }
         
-        const statusHtml = \`<span class="ts-chip ts-chip-\${tone}">\${status}</span>\`;
+        const statusHtml = `<span class="ts-chip ts-chip-${tone}">${status}</span>`;
         document.getElementById('val-status-head').innerHTML = statusHtml;
         document.getElementById('val-status').innerHTML = statusHtml;
         
-        document.getElementById('val-cat').textContent = booking.category || 'N/A';
-        document.getElementById('val-seat').textContent = booking.seat || (booking.seats || []).join(', ') || 'N/A';
-        document.getElementById('val-qty').textContent = booking.qty || 1;
+        document.getElementById('val-cat').textContent = booking.categoryName || 'N/A';
+        document.getElementById('val-seat').textContent = (booking.seats || []).join(', ') || 'N/A';
+        document.getElementById('val-qty').textContent = booking.quantity || 1;
         
         const total = parseFloat(booking.totalAmount || 0);
-        document.getElementById('val-subtotal').textContent = \`RM\${(total - 20).toFixed(2)}\`;
-        document.getElementById('val-total').textContent = \`RM\${total.toFixed(2)}\`;
-        document.getElementById('val-payment-status').innerHTML = \`<span class="ts-chip ts-chip-success">Successful</span>\`;
-        
-        if (booking.txHash) {
-            document.getElementById('val-mint-status').innerHTML = '<span class="ts-chip ts-chip-success">Confirmed</span>';
-            document.getElementById('val-tx').textContent = booking.txHash;
+        document.getElementById('val-subtotal').textContent = `RM${(total - 20).toFixed(2)}`;
+        document.getElementById('val-total').textContent = `RM${total.toFixed(2)}`;
+        const paymentStatus = (booking.paymentStatus || '').toUpperCase();
+        const paid = paymentStatus === 'PAID' || paymentStatus === 'SIMULATED_PAID';
+        const paymentLabel = paymentStatus === 'SIMULATED_PAID'
+            ? 'Simulated payment successful'
+            : (paymentStatus === 'PAID' ? 'Successful' : (booking.paymentStatus || 'Pending'));
+        document.getElementById('val-payment-status').innerHTML = paid
+            ? `<span class="ts-chip ts-chip-success">${paymentLabel}</span>`
+            : `<span class="ts-chip ts-chip-warning">${paymentLabel}</span>`;
+
+        const bookingTickets = await window.tsTickets.getTickets({ bookingId });
+        const ticket = bookingTickets[0];
+        if (ticket) {
+            const minted = (ticket.mintingStatus || '').toUpperCase() === 'MINTED';
+            document.getElementById('val-mint-status').innerHTML = minted
+                ? '<span class="ts-chip ts-chip-success">Confirmed</span>'
+                : '<span class="ts-chip ts-chip-warning">Pending</span>';
+            document.getElementById('val-tx').textContent = ticket.transactionHash || 'Pending mint...';
+
+            const btn = document.getElementById('btn-ticket');
+            btn.href = `ticket-detail.php?id=${ticket.id}`;
+            btn.style.display = 'block';
         } else {
             document.getElementById('val-mint-status').innerHTML = '<span class="ts-chip ts-chip-warning">Pending</span>';
             document.getElementById('val-tx').textContent = 'Pending mint...';
-        }
-        
-        // If ticketId is associated, wire the Open Ticket button
-        if (booking.ticketId) {
-            const btn = document.getElementById('btn-ticket');
-            btn.href = \`ticket-detail.php?id=\${booking.ticketId}\`;
-            btn.style.display = 'block';
         }
         
     } catch (err) {

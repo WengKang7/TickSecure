@@ -43,17 +43,65 @@ ob_start();
 </div>
 
 <script type="module">
-const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const esc = value => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const asDate = value => {
+    if (!value) return null;
+    if (typeof value.toDate === 'function') return value.toDate();
+    if (value instanceof Date) return value;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatDate = value => {
+    if (!value) return 'Not configured';
+    // Date-only values are intentional event dates, not UTC instants.
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return new Intl.DateTimeFormat(undefined, { timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
+    }
+    const date = asDate(value);
+    return date ? date.toLocaleDateString() : String(value);
+};
+
+const formatSalesPeriod = event => {
+    if (!event.salesStartDate && !event.salesEndDate) return 'Not configured';
+    return `${formatDate(event.salesStartDate)} – ${formatDate(event.salesEndDate)}`;
+};
+
 window.addEventListener('ts-auth-ready', async () => {
     try {
-        let events = await window.tsEvents.getOrganizerEvents();
+        let events = [];
+        let bookingStats = new Map();
         const tbody = document.getElementById('events-table-body');
         if (!tbody) return;
 
-        // Populate Venue Filter dynamically
-        const venueSelect = document.getElementById('venue-filter');
-        const uniqueVenues = [...new Set(events.map(e => e.venueName).filter(Boolean))];
-        venueSelect.innerHTML = '<option value="">All venues</option>' + uniqueVenues.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+        const loadData = async () => {
+            const [loadedEvents, bookings] = await Promise.all([
+                window.tsEvents.getOrganizerEvents(),
+                window.tsBookings.getBookings()
+            ]);
+            events = loadedEvents;
+            bookingStats = new Map();
+            bookings.forEach(booking => {
+                if (String(booking.status || '').toUpperCase() !== 'CONFIRMED') return;
+                const current = bookingStats.get(booking.eventId) || { sold: 0 };
+                current.sold += Number(booking.quantity) || booking.seats?.length || 0;
+                bookingStats.set(booking.eventId, current);
+            });
+
+            // Populate the filter from canonical event venue snapshots.
+            const venueSelect = document.getElementById('venue-filter');
+            const selectedVenue = venueSelect.value;
+            const uniqueVenues = [...new Set(events.map(e => e.venueName).filter(Boolean))];
+            venueSelect.innerHTML = '<option value="">All venues</option>'
+                + uniqueVenues.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+            if (uniqueVenues.includes(selectedVenue)) venueSelect.value = selectedVenue;
+        };
         
         function renderTable() {
             const search = document.getElementById('search-input').value.toLowerCase();
@@ -62,7 +110,7 @@ window.addEventListener('ts-auth-ready', async () => {
             
             const filtered = events.filter(e => {
                 if (search && !(e.name || '').toLowerCase().includes(search)) return false;
-                if (statusF && e.status !== statusF) return false;
+                if (statusF && String(e.status || '').toUpperCase() !== statusF) return false;
                 if (venueF && e.venueName !== venueF) return false;
                 return true;
             });
@@ -75,17 +123,23 @@ window.addEventListener('ts-auth-ready', async () => {
             }
             
             tbody.innerHTML = filtered.map(e => {
-                const toneMap = { 'PUBLISHED': 'success', 'APPROVED': 'info', 'REJECTED': 'error', 'DRAFT': 'neutral', 'PENDING_REVIEW': 'warning', 'CANCELLED': 'error', 'SUSPENDED': 'error' };
+                const toneMap = { 'PUBLISHED': 'success', 'REJECTED': 'error', 'DRAFT': 'neutral', 'PENDING_REVIEW': 'warning', 'CANCELLED': 'error', 'SUSPENDED': 'error' };
                 const statusStr = (e.status || 'DRAFT').toUpperCase();
                 const tone = toneMap[statusStr] || 'neutral';
-                const statusHtml = `<span class="ts-chip ts-chip-${tone}">${esc(e.status)}</span>`;
+                const statusHtml = `<span class="ts-chip ts-chip-${tone}">${esc(statusStr.replaceAll('_', ' '))}</span>`;
                 
-                const eventDate = e.date ? new Date(e.date).toLocaleDateString() : 'N/A';
-                const updated = e.updatedAt ? new Date(e.updatedAt).toLocaleDateString() : 'N/A';
-                const salesPeriod = e.salesStartDate ? `${new Date(e.salesStartDate).toLocaleDateString()} - ${new Date(e.salesEndDate).toLocaleDateString()}` : 'Not configured';
+                const eventDate = e.date ? [formatDate(e.date), e.time].filter(Boolean).join(' · ') : 'Not configured';
+                const updated = e.updatedAt ? formatDate(e.updatedAt) : 'Not available';
+                const salesPeriod = formatSalesPeriod(e);
                 
-                let totalAllocated = 0;
-                if(e.categories) e.categories.forEach(c => totalAllocated += (c.quantity || 0));
+                const categories = Array.isArray(e.categories) ? e.categories : Object.values(e.categories || {});
+                const totalAllocated = categories
+                    .reduce((total, category) => total + (Number(category.quantity) || 0), 0);
+                const sold = bookingStats.get(e.id)?.sold || 0;
+                const eventId = encodeURIComponent(e.id);
+                const actions = statusStr === 'DRAFT'
+                    ? `<div class="ts-table-actions"><a class="ts-btn ts-btn-secondary ts-btn-sm" href="configuration.php?id=${eventId}">Configure</a><button class="ts-btn ts-btn-danger ts-btn-sm" type="button" data-delete-event="${eventId}">Delete</button></div>`
+                    : `<a class="ts-btn ts-btn-secondary ts-btn-sm" href="event-detail.php?id=${eventId}">Open</a>`;
 
                 return `
                     <tr>
@@ -94,22 +148,47 @@ window.addEventListener('ts-auth-ready', async () => {
                         <td>${eventDate}</td>
                         <td class="small">${esc(salesPeriod)}</td>
                         <td>${statusHtml}</td>
-                        <td>0 / ${totalAllocated}</td>
+                        <td>${sold.toLocaleString()} / ${totalAllocated.toLocaleString()}</td>
                         <td>${updated}</td>
-                        <td><a class="ts-btn ts-btn-secondary ts-btn-sm" href="event-detail.php?id=${e.id}">Open</a></td>
+                        <td>${actions}</td>
                     </tr>
                 `;
             }).join('');
+
+            tbody.querySelectorAll('[data-delete-event]').forEach(button => {
+                button.addEventListener('click', async () => {
+                    const eventId = decodeURIComponent(button.dataset.deleteEvent || '');
+                    const event = events.find(item => item.id === eventId);
+                    if (!event || String(event.status || '').toUpperCase() !== 'DRAFT') return;
+                    if (!window.confirm(`Delete the draft event “${event.name || 'Untitled event'}”? This cannot be undone.`)) return;
+
+                    button.disabled = true;
+                    try {
+                        await window.tsEvents.deleteEvent(eventId);
+                        await loadData();
+                        renderTable();
+                    } catch (error) {
+                        console.error('Unable to delete draft event:', error);
+                        window.alert(error?.message || 'The draft event could not be deleted.');
+                        button.disabled = false;
+                    }
+                });
+            });
         }
 
         document.getElementById('search-input').addEventListener('input', renderTable);
         document.getElementById('status-filter').addEventListener('change', renderTable);
         document.getElementById('venue-filter').addEventListener('change', renderTable);
 
+        await loadData();
         renderTable();
 
     } catch (err) {
         console.error('Events load error:', err);
+        const tbody = document.getElementById('events-table-body');
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center secondary" style="padding:40px">${esc(err?.message || 'Unable to load events.')}</td></tr>`;
+        }
     }
 });
 </script>

@@ -38,11 +38,7 @@ ob_start();
 const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
 window.addEventListener('ts-auth-ready', async () => {
     try {
-        const events = await window.tsEvents.getOrganizerEvents();
-        const eventIds = new Set(events.map(e => e.id));
-
-        const allListings = await window.tsResale.getListings();
-        const listings = allListings.filter(l => eventIds.has(l.eventId));
+        const listings = await window.tsResale.getListings();
         
         const tbody = document.getElementById('resale-tbody');
         if(tbody) {
@@ -51,10 +47,10 @@ window.addEventListener('ts-auth-ready', async () => {
                 return `
                 <tr>
                     <td class="cell-title">${esc(l.ticketId || l.id)}</td>
-                    <td class="ts-wallet-id">${esc(l.sellerId || '0x...')}</td>
-                    <td>${esc(l.category || 'N/A')}</td>
+                    <td class="ts-wallet-id">${esc(l.sellerWallet || l.sellerUid || '—')}</td>
+                    <td>${esc(l.categoryName || l.ticketCategory || 'N/A')}</td>
                     <td>RM${l.originalPrice || 0}</td>
-                    <td>RM${l.price || 0}</td>
+                    <td>RM${l.resalePrice || l.askingPrice || 0}</td>
                     <td>${new Date(l.createdAt).toLocaleDateString()}</td>
                     <td><span class="ts-chip ts-chip-${statusTone}">${esc(l.status)}</span></td>
                     <td><span class="ts-chip ts-chip-success">Compliant</span></td>

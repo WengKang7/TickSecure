@@ -3,32 +3,6 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<?php
-
-$eventVenueId = 'merdeka-hall';
-
-
-$eventCategoryMap = [
-
-    'A' => [
-        'name' => 'VIP1',
-        'price' => 'RM688'
-    ],
-
-    'B' => [
-        'name' => 'VIP2',
-        'price' => 'RM488'
-    ],
-
-    'C' => [
-        'name' => 'CAT1',
-        'price' => 'RM288'
-    ]
-
-];
-
-?>
-
 <main>
   <section class="ts-section-tight">
     <div class="ts-container ts-event-hero-detail">
@@ -41,7 +15,7 @@ $eventCategoryMap = [
       <div class="ts-event-info">
         <div class="ts-section-eyebrow">Live Concert</div>
         <h1 id="ev-title">Loading...</h1>
-        <p class="secondary" id="ev-desc">An immersive live performance presented by Nova Stage Entertainment, with verified tickets and automatically assigned seating.</p>
+         <p class="secondary" id="ev-desc">Loading event details...</p>
         <div class="ts-info-list">
           <div class="ts-info-pill">
             <?=ts_icon('calendar')?>
@@ -57,7 +31,7 @@ $eventCategoryMap = [
           </div>
           <div class="ts-info-pill">
             <?=ts_icon('ticket')?>
-            <div id="ev-price"><strong>Loading</strong><span>Tickets available</span></div>
+             <div id="ev-price"><strong>Loading</strong><span>Availability checked at booking</span></div>
           </div>
         </div>
         <div class="flex gap-12 wrap">
@@ -92,10 +66,10 @@ $eventCategoryMap = [
         <div class="ts-card ts-card-pad">
             <div class="flex justify-between items-center">
                 <div>
-                    <h3 class="mt-0 mb-4" id="ven-name">Merdeka Hall</h3>
-                    <p class="secondary" id="ven-address">Jalan Hang Jebat, Kuala Lumpur · Capacity 2,400</p>
+                     <h3 class="mt-0 mb-4" id="ven-name">Venue TBA</h3>
+                     <p class="secondary" id="ven-address">Venue details will appear when available.</p>
                 </div>
-                <?= ts_status('Approved Venue Layout', 'success') ?>
+                 <span class="ts-chip ts-chip-neutral" id="ven-status">Event venue</span>
             </div>
             <div class="ts-venue-layout-shell mt-24">
                 <div class="ts-venue-layout-board" id="ven-board">
@@ -125,11 +99,11 @@ $eventCategoryMap = [
         <div class="ts-grid-2">
           <div class="ts-card ts-card-pad">
             <div class="ts-card-title">Transfer policy</div>
-            <p class="secondary">Eligible tickets may be transferred before the organizer-defined deadline. Wallet approval is required.</p>
+             <p class="secondary" id="transfer-policy">Loading transfer policy...</p>
           </div>
           <div class="ts-card ts-card-pad">
             <div class="ts-card-title">Resale policy</div>
-            <p class="secondary">Official resale is enabled. Prices cannot exceed the organizer-defined maximum.</p>
+             <p class="secondary" id="resale-policy">Loading resale policy...</p>
           </div>
         </div>
       </div>
@@ -154,11 +128,11 @@ window.addEventListener('ts-auth-ready', async () => {
         
         document.getElementById('ev-poster-title').innerHTML = esc(ev.name);
         document.getElementById('ev-title').textContent = ev.name;
-        document.getElementById('ev-desc').textContent = ev.description || 'An immersive live performance...';
-        document.getElementById('ev-about').textContent = ev.description || 'An immersive live performance...';
+        document.getElementById('ev-desc').textContent = ev.description || 'Event details are being provided by the organizer.';
+        document.getElementById('ev-about').textContent = ev.description || 'Event details are being provided by the organizer.';
         document.getElementById('ev-kicker').textContent = ev.organizerName || 'TickSecure Presents';
         
-        const d = ev.startDate ? new Date(ev.startDate) : null;
+        const d = ev.date ? new Date(`${ev.date}T${ev.time || '00:00'}`) : null;
         if(d) {
             document.getElementById('ev-date').innerHTML = `<strong>${esc(d.toLocaleDateString())}</strong><span>${esc(d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}))}</span>`;
         }
@@ -166,31 +140,38 @@ window.addEventListener('ts-auth-ready', async () => {
         document.getElementById('ev-venue').innerHTML = `<strong>${esc(ev.venueName || 'TBA')}</strong><span>${esc(ev.venueLocation || '')}</span>`;
         document.getElementById('ev-org').innerHTML = `<strong>${esc(ev.organizerName || 'TBA')}</strong><span>Approved organizer</span>`;
         
-        const priceStr = ev.lowestPrice ? `From RM${ev.lowestPrice}` : 'TBA';
-        document.getElementById('ev-price').innerHTML = `<strong>${esc(priceStr)}</strong><span>Tickets available</span>`;
+        const priceStr = ev.startingPrice ? `From ${ev.startingPrice}` : 'TBA';
+        document.getElementById('ev-price').innerHTML = `<strong>${esc(priceStr)}</strong><span>Availability confirmed during booking</span>`;
         
-        document.getElementById('book-btn').href = `../buyer/booking-category.php?eventId=${esc(eventId)}`;
+        document.getElementById('book-btn').href = `../buyer/booking-category.php?eventId=${encodeURIComponent(eventId)}`;
         
-        const policies = ev.policies || {};
-        if (policies.allowTransfer === false) {
-            document.getElementById('ev-transfer').innerHTML = '<span class="ts-chip ts-chip-neutral">Not allowed</span>';
-        }
-        if (policies.allowResale === false) {
-            document.getElementById('ev-resale').innerHTML = '<span class="ts-chip ts-chip-neutral">Not allowed</span>';
-        }
+        const transferEnabled = ev.transferEnabled !== false;
+        const resaleEnabled = ev.resaleEnabled !== false;
+        document.getElementById('ev-transfer').innerHTML = transferEnabled
+            ? '<span class="ts-chip ts-chip-info">Allowed</span>'
+            : '<span class="ts-chip ts-chip-neutral">Not allowed</span>';
+        document.getElementById('ev-resale').innerHTML = resaleEnabled
+            ? '<span class="ts-chip ts-chip-info">Allowed</span>'
+            : '<span class="ts-chip ts-chip-neutral">Not allowed</span>';
+        document.getElementById('transfer-policy').textContent = transferEnabled
+            ? 'Eligible tickets may be transferred through TickSecure. A valid wallet address is required.'
+            : 'Ticket transfer is not enabled for this event.';
+        document.getElementById('resale-policy').textContent = resaleEnabled
+            ? 'Official resale is subject to the organizer\'s configured timing and price limits.'
+            : 'Official resale is not enabled for this event.';
 
         // Render tickets categories
         const catList = document.getElementById('cat-list');
         if (ev.categories && Object.keys(ev.categories).length > 0) {
             catList.innerHTML = Object.entries(ev.categories).map(([k, c]) => {
-                const avail = c.capacity - (c.sold || 0);
-                const stat = avail > 0 ? 'Available' : 'Sold Out';
-                const tone = avail > 20 ? 'success' : (avail > 0 ? 'warning' : 'neutral');
+                const allocation = Number(c.quantity) || 0;
+                const stat = allocation > 0 ? 'Configured' : 'Not configured';
+                const tone = allocation > 0 ? 'info' : 'neutral';
                 return `
                 <div class="ts-category-card">
                     <div>
                         <div class="ts-category-name">${esc(c.name)}</div>
-                        <div class="ts-category-meta">Section ${esc(k)} · ${avail} remaining · automatic seat assignment</div>
+                        <div class="ts-category-meta">Section ${esc(k)} · ${allocation} allocated · availability confirmed during booking</div>
                     </div>
                     <div class="ts-category-price">
                         RM${esc(c.price)}<br><span class="ts-chip ts-chip-${tone}">${stat}</span>
@@ -201,19 +182,30 @@ window.addEventListener('ts-auth-ready', async () => {
             catList.innerHTML = '<div class="ts-category-card">No categories found.</div>';
         }
 
+        const venueTabName = ev.venueName || 'Venue TBA';
+        const venueTabLocation = ev.venueLocation || '';
+        document.getElementById('ven-name').textContent = venueTabName;
+        document.getElementById('ven-address').textContent = venueTabLocation || 'Detailed venue layout is unavailable for this event.';
+
         if (ev.venueId) {
+            // Event snapshots remain available even when a public visitor
+            // cannot read the detailed venue layout.
+            try {
             const ven = await window.tsVenues.getVenue(ev.venueId);
             if (ven) {
                 document.getElementById('ven-name').textContent = ven.name;
                 document.getElementById('ven-address').textContent = `${ven.address || ''} · Capacity ${ven.capacity || 0}`;
+                document.getElementById('ven-status').className = 'ts-chip ts-chip-success';
+                document.getElementById('ven-status').textContent = 'Approved venue layout';
                 // Render venue layout roughly (optional, using category info)
-                if (ven.sections) {
+                if (Array.isArray(ven.sections)) {
                     const board = document.getElementById('ven-board');
                     const panel = document.getElementById('ven-panel');
                     let boardHtml = '<div class="ts-venue-layout-stage">STAGE</div>';
                     let panelHtml = '';
-                    Object.entries(ven.sections).forEach(([secId, s], i) => {
-                        const evCat = Object.values(ev.categories || {}).find(c => c.sectionId === secId || c.name === s.name) || { price: '?' };
+                    ven.sections.forEach((s, i) => {
+                        const secId = s.sectionId;
+                        const evCat = (ev.categories || {})[secId] || { price: '?' };
                         boardHtml += `
                         <div class="ts-venue-zone" style="left:${10 + (i*20)}%; top:150px; width:18%; height:145px;">
                             <div class="ts-venue-zone-content">
@@ -232,6 +224,9 @@ window.addEventListener('ts-auth-ready', async () => {
                     panel.innerHTML = panelHtml;
                 }
             }
+            } catch (venueError) {
+                console.info('Venue layout is unavailable to this visitor.', venueError);
+            }
         }
 
     } catch (err) {
@@ -243,5 +238,5 @@ window.addEventListener('ts-auth-ready', async () => {
 
 <?php
 $content = ob_get_clean();
-render_public_page('Event Details', 'events', $content, '..', true);
+render_public_page('Event Details', 'events', $content, '..', false);
 ?>

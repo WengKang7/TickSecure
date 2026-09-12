@@ -24,7 +24,7 @@ window.addEventListener('ts-auth-ready', async () => {
         
         let html = '';
         for (const r of listings) {
-            let eventName = r.eventId;
+            let eventName = r.eventName || r.eventId || 'Untitled event';
             // Fetch event name if possible, or assume it's attached
             if (r.eventInfo) {
                 eventName = r.eventInfo.name;
@@ -35,9 +35,10 @@ window.addEventListener('ts-auth-ready', async () => {
                 } catch(e){}
             }
             
-            const sellerAbbr = r.sellerId ? (r.sellerId.substring(0,6) + '...' + r.sellerId.substring(r.sellerId.length-4)) : 'Unknown';
+            const seller = String(r.sellerWallet || r.sellerUid || '');
+            const sellerAbbr = seller ? (seller.substring(0, 6) + '...' + seller.substring(Math.max(6, seller.length - 4))) : 'Unknown';
             html += `
-            <a class="ts-card ts-card-pad" href="resale-detail.php?id=${esc(r.id)}">
+            <a class="ts-card ts-card-pad" href="resale-detail.php?id=${encodeURIComponent(String(r.id || ''))}">
                 <div class="flex justify-between items-center">
                     <div class="ts-card-title">${esc(eventName)}</div>
                     <span class="ts-chip ts-chip-success">Rule compliant</span>
@@ -46,7 +47,7 @@ window.addEventListener('ts-auth-ready', async () => {
                 <div class="ts-detail-grid">
                     <div class="ts-detail-item">
                         <div class="ts-detail-label">Category</div>
-                        <div class="ts-detail-value">${esc(r.ticketCategory || 'Any')}</div>
+                        <div class="ts-detail-value">${esc(r.categoryName || 'Any')}</div>
                     </div>
                     <div class="ts-detail-item">
                         <div class="ts-detail-label">Seat</div>
@@ -58,7 +59,7 @@ window.addEventListener('ts-auth-ready', async () => {
                     </div>
                     <div class="ts-detail-item">
                         <div class="ts-detail-label">Resale</div>
-                        <div class="ts-detail-value">RM${esc(r.askingPrice || 0)}</div>
+                        <div class="ts-detail-value">RM${esc(r.resalePrice || 0)}</div>
                     </div>
                 </div>
                 <div class="small secondary mt-16">Seller ${esc(sellerAbbr)}</div>
@@ -74,5 +75,5 @@ window.addEventListener('ts-auth-ready', async () => {
 
 <?php
 $content=ob_get_clean();
-render_public_page('Resale Marketplace','resale',$content,'..',true);
+render_public_page('Resale Marketplace','resale',$content,'..',false);
 ?>

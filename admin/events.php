@@ -52,18 +52,19 @@ window.addEventListener('ts-auth-ready', async () => {
         
         tbody.innerHTML = events.map(e => {
             let tone = 'neutral';
-            if (e.status === 'pending') tone = 'warning';
-            else if (e.status === 'published') tone = 'success';
-            else if (e.status === 'suspended') tone = 'error';
+            const status = (e.status || 'DRAFT').toUpperCase();
+            if (status === 'PENDING_REVIEW') tone = 'warning';
+            else if (status === 'PUBLISHED') tone = 'success';
+            else if (status === 'SUSPENDED' || status === 'CANCELLED' || status === 'REJECTED') tone = 'error';
 
             return `
                 <tr>
-                    <td class="cell-title">${esc(e.title)}</td>
+                    <td class="cell-title">${esc(e.name)}</td>
                     <td>${esc(e.organizerName || e.organizerId)}</td>
                     <td>${esc(e.venueName || e.venueId)}</td>
                     <td>${e.date ? new Date(e.date).toLocaleDateString() : 'N/A'}</td>
                     <td>${e.createdAt ? new Date(e.createdAt).toLocaleDateString() : 'N/A'}</td>
-                    <td><span class="ts-chip ts-chip-${tone}">${esc(e.status)}</span></td>
+                    <td><span class="ts-chip ts-chip-${tone}">${esc(status.replaceAll('_', ' '))}</span></td>
                     <td><a class="ts-btn ts-btn-primary ts-btn-sm" href="event-review.php?id=${e.id}">Review</a></td>
                 </tr>
             `;
