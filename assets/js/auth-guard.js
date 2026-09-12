@@ -30,6 +30,319 @@ function getSection() {
 const base = getBase();
 const section = getSection();
 
+// ============================================================
+// SESSION CLEANUP
+// ============================================================
+
+function clearTickSecureSession() {
+
+    // Remove current in-memory user
+    window.tsCurrentUser = null;
+
+
+    // Clear temporary session values
+    try {
+        sessionStorage.clear();
+    } catch (error) {
+        console.warn(
+            'Unable to clear sessionStorage:',
+            error
+        );
+    }
+
+
+    // Remove only TickSecure-specific local values.
+    // Do NOT clear the entire localStorage because other
+    // applications/extensions may also store information there.
+    try {
+
+        const keysToRemove = [];
+
+        for (let i = 0; i < localStorage.length; i++) {
+
+            const key = localStorage.key(i);
+
+            if (
+                key
+                && (
+                    key.startsWith('ticksecure.')
+                    || key.startsWith('ts.')
+                )
+            ) {
+                keysToRemove.push(key);
+            }
+        }
+
+
+        keysToRemove.forEach(
+            key => localStorage.removeItem(key)
+        );
+
+
+    } catch (error) {
+
+        console.warn(
+            'Unable to clear TickSecure localStorage:',
+            error
+        );
+
+    }
+
+}
+
+async function logoutTickSecure() {
+
+    const logoutButton =
+        document.getElementById(
+            'public-logout-btn'
+        );
+
+
+    if (logoutButton) {
+
+        logoutButton.disabled = true;
+
+        logoutButton.innerHTML =
+            '<span>Signing out...</span>';
+
+    }
+
+
+    try {
+
+        // Properly terminate Firebase Auth session
+        await signOut(auth);
+
+
+    } catch (error) {
+
+        console.error(
+            'Firebase logout error:',
+            error
+        );
+
+    } finally {
+
+        // Always remove local TickSecure session data
+        clearTickSecureSession();
+
+
+        // Replace prevents Back button from returning
+        // directly to the previous authenticated page.
+        window.location.replace(
+            base + '/auth/login.php'
+        );
+
+    }
+
+}
+
+const publicLogoutButton =
+    document.getElementById(
+        'public-logout-btn'
+    );
+
+
+if (publicLogoutButton) {
+
+    publicLogoutButton.addEventListener(
+        'click',
+        logoutTickSecure
+    );
+
+}
+
+function updatePublicHeader(user, profile = null) {
+
+    const guestActions =
+        document.getElementById('public-guest-actions');
+
+    const userActions =
+        document.getElementById('public-user-actions');
+
+
+    // ==========================================
+    // NOT LOGGED IN
+    // ==========================================
+
+    if (!user) {
+
+        if (guestActions) {
+            guestActions.style.display = 'flex';
+        }
+
+        if (userActions) {
+            userActions.style.display = 'none';
+        }
+
+        return;
+    }
+
+
+    // ==========================================
+    // LOGGED IN
+    // ==========================================
+
+    if (guestActions) {
+        guestActions.style.display = 'none';
+    }
+
+    if (userActions) {
+        userActions.style.display = 'flex';
+    }
+
+
+    // ------------------------------------------
+    // Display name
+    // ------------------------------------------
+
+    const displayName =
+        profile?.fullName ||
+        profile?.organizationName ||
+        user.displayName ||
+        user.email?.split('@')[0] ||
+        'User';
+
+
+    const nameEl =
+        document.getElementById('public-user-name');
+
+    if (nameEl) {
+        nameEl.textContent = displayName;
+    }
+
+
+    // ------------------------------------------
+    // Initials
+    // ------------------------------------------
+
+    const initials = displayName
+        .split(' ')
+        .filter(Boolean)
+        .map(part => part[0])
+        .join('')
+        .substring(0, 2)
+        .toUpperCase();
+
+
+    const initialsEl =
+        document.getElementById('header-avatar-initials');
+
+    if (initialsEl) {
+        initialsEl.textContent = initials || 'U';
+    }
+
+
+    // ------------------------------------------
+    // Profile picture
+    // ------------------------------------------
+
+    const photoUrl =
+        profile?.profilePhotoUrl ||
+        profile?.photoURL ||
+        user.photoURL ||
+        '';
+
+
+    const avatarImg =
+        document.getElementById('header-avatar-img');
+
+
+    if (avatarImg) {
+
+        if (photoUrl) {
+
+            avatarImg.src = photoUrl;
+            avatarImg.style.display = 'block';
+
+            if (initialsEl) {
+                initialsEl.style.display = 'none';
+            }
+
+        } else {
+
+            avatarImg.removeAttribute('src');
+            avatarImg.style.display = 'none';
+
+            if (initialsEl) {
+                initialsEl.style.display = '';
+            }
+
+        }
+
+    }
+
+
+    // ------------------------------------------
+    // Correct profile page based on role
+    // ------------------------------------------
+
+    const profileLink =
+        document.getElementById('public-user-link');
+
+
+    if (profileLink) {
+
+        if (profile?.role === 'admin') {
+
+            profileLink.href =
+                base + '/admin/profile.php';
+
+        } else if (profile?.role === 'organizer') {
+
+            profileLink.href =
+                base + '/organizer/profile.php';
+
+        } else {
+
+            profileLink.href =
+                base + '/buyer/profile.php';
+
+        }
+
+    }
+
+
+    // ------------------------------------------
+    // Wallet display
+    // ------------------------------------------
+
+    const walletMini =
+        document.getElementById('public-wallet-mini');
+
+    const walletText =
+        document.getElementById('public-wallet-text');
+
+
+    const walletAddress =
+        profile?.walletAddress || '';
+
+
+    if (walletMini) {
+
+        if (walletAddress) {
+
+            walletMini.style.display = 'flex';
+
+            if (walletText) {
+
+                walletText.textContent =
+                    walletAddress.substring(0, 6)
+                    + '…'
+                    + walletAddress.slice(-4);
+
+            }
+
+        } else {
+
+            walletMini.style.display = 'none';
+
+        }
+
+    }
+
+}
+
 // Public and auth sections have different rules
 const publicSections = ['public', 'auth'];
 const protectedSections = ['admin', 'organizer', 'buyer', 'verification'];
@@ -173,33 +486,108 @@ onAuthStateChanged(auth, async (user) => {
         }
     }
 
-    // -------------------------------------------------------
-    // 4. Public pages: set user info if logged in (optional)
-    // -------------------------------------------------------
-    if (!protectedSections.includes(section) && user) {
-        try {
-            const snap = await getDoc(doc(db, 'Users', user.uid));
-            if (snap.exists()) {
-                window.tsCurrentUser = {
-                    uid: user.uid,
-                    email: user.email,
-                    ...snap.data(),
-                    emailVerified: user.emailVerified === true
-                };
-                
-                const profile = snap.data();
-                const displayName = profile.organizationName || profile.fullName || user.email.split('@')[0];
-                const initials = displayName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-                
-                const headerAvatar = document.getElementById('header-avatar');
-                if (headerAvatar) headerAvatar.textContent = initials;
-                
-                window.dispatchEvent(new CustomEvent('ts-auth-ready', {
-                    detail: window.tsCurrentUser
-                }));
-            }
-        } catch (e) { /* non-critical for public pages */ }
+// -------------------------------------------------------
+// 4. Public pages
+// -------------------------------------------------------
+
+if (!protectedSections.includes(section) && user) {
+
+    try {
+
+        const snap = await getDoc(
+            doc(db, 'Users', user.uid)
+        );
+
+
+        if (snap.exists()) {
+
+            const profile = snap.data();
+
+
+            window.tsCurrentUser = {
+
+                uid: user.uid,
+
+                email: user.email,
+
+                ...profile,
+
+                emailVerified:
+                    user.emailVerified === true
+
+            };
+
+
+            updatePublicHeader(
+                user,
+                profile
+            );
+
+
+            window.dispatchEvent(
+                new CustomEvent(
+                    'ts-auth-ready',
+                    {
+                        detail:
+                            window.tsCurrentUser
+                    }
+                )
+            );
+
+        } else {
+
+            updatePublicHeader(
+                user,
+                {}
+            );
+
+        }
+
+
+    } catch (e) {
+
+        console.error(
+            'Public header profile error:',
+            e
+        );
+
+        updatePublicHeader(
+            user,
+            {}
+        );
+
     }
+
+}
+
+
+// -------------------------------------------------------
+// No logged-in user
+// -------------------------------------------------------
+
+if (
+    !protectedSections.includes(section)
+    && !user
+) {
+
+    window.tsCurrentUser = null;
+
+    updatePublicHeader(
+        null,
+        null
+    );
+
+
+    window.dispatchEvent(
+        new CustomEvent(
+            'ts-auth-ready',
+            {
+                detail: null
+            }
+        )
+    );
+
+}   
 
     // No user on public pages — that's fine
     if (!protectedSections.includes(section) && !user) {

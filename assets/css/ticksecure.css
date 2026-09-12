@@ -3576,3 +3576,110 @@ img {
     }
 
 }
+
+/* =========================================================
+   PUBLIC HEADER AUTH USER
+   ========================================================= */
+
+.ts-public-auth-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+
+.ts-public-user {
+    display: flex;
+    align-items: center;
+
+    gap: 10px;
+
+    padding: 4px 6px 4px 10px;
+
+    border-radius: 999px;
+
+    transition: background .15s ease;
+}
+
+
+.ts-public-user:hover {
+    background: var(--bg-hover);
+}
+
+
+.ts-public-user-name {
+    max-width: 160px;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    font-size: 13px;
+    font-weight: 650;
+
+    color: var(--text-primary);
+}
+
+
+.ts-header-avatar {
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+
+.ts-header-avatar-img {
+    width: 100%;
+    height: 100%;
+
+    object-fit: cover;
+
+    border-radius: 50%;
+}
+
+
+@media (max-width: 760px) {
+
+    .ts-public-user-name {
+        display: none;
+    }
+
+    .ts-wallet-mini {
+        display: none !important;
+    }
+
+}
+
+/* =========================================================
+   PUBLIC HEADER LOGOUT
+   ========================================================= */
+
+.ts-public-logout {
+    gap: 7px;
+}
+
+.ts-public-logout .ts-icon {
+    width: 15px;
+    height: 15px;
+}
+
+.ts-public-logout:hover {
+    color: var(--error);
+    border-color: #f0b4af;
+    background: var(--error-bg);
+}
+
+
+/* Mobile */
+
+@media (max-width: 760px) {
+
+    .ts-public-logout span {
+        display: none;
+    }
+
+    .ts-public-logout {
+        width: 38px;
+        padding: 0;
+    }
+
+}

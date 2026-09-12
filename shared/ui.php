@@ -63,19 +63,240 @@ function ts_modal_and_toast(): string
     return '<div class="ts-modal-backdrop" id="confirm-modal"><div class="ts-modal"><div class="ts-modal-head"><div><div class="ts-modal-title">UI preview action</div><div class="secondary mt-8">This codebase is UI-only. No backend action will be submitted yet.</div></div><button class="ts-icon-btn" data-modal-close aria-label="Close">'.ts_icon('x').'</button></div><div class="ts-modal-actions"><button class="ts-btn ts-btn-secondary" data-modal-close>Cancel</button><button class="ts-btn ts-btn-primary" data-modal-close data-toast="Action confirmed in UI preview">Confirm</button></div></div></div><div class="ts-toast">'.ts_icon('check').'<span>Saved</span></div>';
 }
 
-function render_public_page(string $title, string $active, string $content, string $base = '.', bool $buyerLogged = true): void
-{
+function render_public_page(
+    string $title,
+    string $active,
+    string $content,
+    string $base = '.',
+    bool $buyerLogged = false
+): void {
     $eventActive = $active === 'events' ? 'active' : '';
     $resaleActive = $active === 'resale' ? 'active' : '';
     $ticketsActive = $active === 'tickets' ? 'active' : '';
-    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'.htmlspecialchars($title).' · TickSecure</title><link rel="stylesheet" href="'.$base.'/assets/css/ticksecure.css"></head><body class="ts-body-public">';
-    echo '<header class="ts-public-header"><div class="ts-public-header-inner"><div class="flex items-center">'.ts_brand($base).'<nav class="ts-public-nav"><a class="'.$eventActive.'" href="'.$base.'/public/events.php">Events</a><a class="'.$resaleActive.'" href="'.$base.'/public/resale.php">Resale</a><a class="'.$ticketsActive.'" href="'.$base.'/buyer/tickets.php">My Tickets</a><a href="'.$base.'/buyer/complaints.php">Help</a></nav></div><div class="ts-public-actions"><button class="ts-icon-btn" aria-label="Search">'.ts_icon('search').'</button>';
-    if ($buyerLogged) {
-        echo '<a class="ts-wallet-mini" href="'.$base.'/buyer/wallet.php"><span class="ts-wallet-dot"></span>'.ts_icon('wallet').'0x12A4…8F92</a><a class="ts-icon-btn" href="'.$base.'/buyer/notifications.php" aria-label="Notifications">'.ts_icon('bell').'</a><a class="ts-avatar" href="'.$base.'/buyer/profile.php">GH</a>';
-    } else {
-        echo '<a class="ts-btn ts-btn-secondary ts-btn-sm" href="'.$base.'/auth/login.php">Sign in</a><a class="ts-btn ts-btn-primary ts-btn-sm" href="'.$base.'/auth/register.php">Create account</a>';
-    }
-    echo '<button class="ts-icon-btn ts-mobile-menu-btn">'.ts_icon('menu').'</button></div></div></header>'.$content.ts_modal_and_toast().'<script type="module" src="'.$base.'/assets/js/firebase-init.js?v='.time().'"></script><script type="module" src="'.$base.'/assets/js/firebase-services.js?v='.time().'"></script><script type="module" src="'.$base.'/assets/js/firestore-crud.js?v='.time().'"></script><script type="module" src="'.$base.'/assets/js/validation.js?v='.time().'"></script><script type="module" src="'.$base.'/assets/js/auth-guard.js?v='.time().'"></script><script src="'.$base.'/assets/js/ui.js?v='.time().'"></script></body></html>';
+
+    echo '<!doctype html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>'.htmlspecialchars($title).' · TickSecure</title>
+        <link rel="stylesheet" href="'.$base.'/assets/css/ticksecure.css">
+    </head>
+
+    <body class="ts-body-public">
+
+        <header class="ts-public-header">
+
+            <div class="ts-public-header-inner">
+
+                <div class="flex items-center">
+
+                    '.ts_brand($base).'
+
+                    <nav class="ts-public-nav">
+
+                        <a
+                            class="'.$eventActive.'"
+                            href="'.$base.'/public/events.php"
+                        >
+                            Events
+                        </a>
+
+                        <a
+                            class="'.$resaleActive.'"
+                            href="'.$base.'/public/resale.php"
+                        >
+                            Resale
+                        </a>
+
+                        <a
+                            class="'.$ticketsActive.'"
+                            href="'.$base.'/buyer/tickets.php"
+                        >
+                            My Tickets
+                        </a>
+
+                        <a href="'.$base.'/buyer/complaints.php">
+                            Help
+                        </a>
+
+                    </nav>
+
+                </div>
+
+
+                <div class="ts-public-actions">
+
+                    <!-- Search -->
+
+                    <button
+                        class="ts-icon-btn"
+                        aria-label="Search"
+                    >
+                        '.ts_icon('search').'
+                    </button>
+
+
+                    <!-- ==========================
+                         NOT LOGGED IN
+                         ========================== -->
+
+                    <div
+                        id="public-guest-actions"
+                        class="ts-public-auth-group"
+                    >
+
+                        <a
+                            class="ts-btn ts-btn-secondary ts-btn-sm"
+                            href="'.$base.'/auth/login.php"
+                        >
+                            Sign in
+                        </a>
+
+                        <a
+                            class="ts-btn ts-btn-primary ts-btn-sm"
+                            href="'.$base.'/auth/register.php"
+                        >
+                            Create account
+                        </a>
+
+                    </div>
+
+
+                    <!-- ==========================
+                         LOGGED IN
+                         ========================== -->
+
+                    <div
+                        id="public-user-actions"
+                        class="ts-public-auth-group"
+                        style="display:none"
+                    >
+
+                        <!-- Wallet -->
+
+                        <a
+                            id="public-wallet-mini"
+                            class="ts-wallet-mini"
+                            href="'.$base.'/buyer/wallet.php"
+                            style="display:none"
+                        >
+
+                            <span class="ts-wallet-dot"></span>
+
+                            '.ts_icon('wallet').'
+
+                            <span id="public-wallet-text">
+                                Wallet
+                            </span>
+
+                        </a>
+
+
+                        <!-- Notifications -->
+
+                        <a
+                            class="ts-icon-btn"
+                            href="'.$base.'/buyer/notifications.php"
+                            aria-label="Notifications"
+                        >
+                            '.ts_icon('bell').'
+                        </a>
+
+
+                        <!-- User Name + Profile Picture -->
+
+                        <a
+                            id="public-user-link"
+                            class="ts-public-user"
+                            href="'.$base.'/buyer/profile.php"
+                        >
+
+                            <span
+                                id="public-user-name"
+                                class="ts-public-user-name"
+                            >
+                                User
+                            </span>
+
+
+                            <span
+                                id="header-avatar"
+                                class="ts-avatar ts-header-avatar"
+                            >
+
+                                <img
+                                    id="header-avatar-img"
+                                    class="ts-header-avatar-img"
+                                    src=""
+                                    alt="Profile"
+                                    style="display:none"
+                                >
+
+                                <span id="header-avatar-initials">
+                                    U
+                                </span>
+
+                            </span>
+
+                        </a>
+                        <button
+    id="public-logout-btn"
+    class="ts-btn ts-btn-secondary ts-btn-sm ts-public-logout"
+    type="button"
+>
+    '.ts_icon('logout').'
+    <span>Logout</span>
+</button>FG
+
+                    </div>
+
+
+                    <button class="ts-icon-btn ts-mobile-menu-btn">
+                        '.ts_icon('menu').'
+                    </button>
+
+                </div>
+
+            </div>
+
+        </header>
+
+        '.$content.'
+
+        '.ts_modal_and_toast().'
+
+        <script
+            type="module"
+            src="'.$base.'/assets/js/firebase-init.js?v='.time().'"
+        ></script>
+
+        <script
+            type="module"
+            src="'.$base.'/assets/js/firebase-services.js?v='.time().'"
+        ></script>
+
+        <script
+            type="module"
+            src="'.$base.'/assets/js/firestore-crud.js?v='.time().'"
+        ></script>
+
+        <script
+            type="module"
+            src="'.$base.'/assets/js/validation.js?v='.time().'"
+        ></script>
+
+        <script
+            type="module"
+            src="'.$base.'/assets/js/auth-guard.js?v='.time().'"
+        ></script>
+
+        <script
+            src="'.$base.'/assets/js/ui.js?v='.time().'"
+        ></script>
+
+    </body>
+    </html>';
 }
 
 function ts_sidebar_links(string $role, string $active, string $base): string
@@ -311,116 +532,116 @@ function ts_render_venue_layout(
 
     ?>
 
-    <div class="ts-reusable-venue">
+<div class="ts-reusable-venue">
 
-        <div class="flex justify-between items-center mb-20">
+    <div class="flex justify-between items-center mb-20">
 
-            <div>
+        <div>
 
-                <div class="ts-card-title">
-                    <?= htmlspecialchars($venue['name']) ?>
-                </div>
-
-                <div class="ts-card-sub">
-                    <?= htmlspecialchars($venue['location']) ?>
-                    ·
-                    <?= $venue['capacity'] ?> seats
-                    ·
-                    <?= count($venue['sections']) ?> sections
-                </div>
-
+            <div class="ts-card-title">
+                <?= htmlspecialchars($venue['name']) ?>
             </div>
 
-            <?= ts_status('Layout Active', 'success') ?>
+            <div class="ts-card-sub">
+                <?= htmlspecialchars($venue['location']) ?>
+                ·
+                <?= $venue['capacity'] ?> seats
+                ·
+                <?= count($venue['sections']) ?>
+                sections
+            </div>
 
         </div>
 
-
-        <div class="ts-reusable-venue-plan">
-
-            <!-- STAGE -->
-
-            <div class="ts-reusable-stage">
-                STAGE
-            </div>
-
-
-            <?php foreach ($venue['sections'] as $section): ?>
-
-                <?php
-
-                $geometry = $section['geometry'];
-
-                $style = sprintf(
-                    'left:%s%%; top:%s%%; width:%s%%; height:%s%%;',
-                    $geometry['left'],
-                    $geometry['top'],
-                    $geometry['width'],
-                    $geometry['height']
-                );
-
-                $sectionId = $section['sectionId'];
-
-                ?>
-
-
-                <div
-                    class="ts-reusable-section"
-                    style="<?= $style ?>"
-                >
-
-                    <div class="ts-reusable-section-content">
-
-
-                        <?php if (
-                            $mode === 'buyer'
-                            && isset($categoryMap[$sectionId])
-                        ): ?>
-
-                            <?php
-                            $category = $categoryMap[$sectionId];
-                            ?>
-
-                            <strong>
-                                <?= htmlspecialchars($category['name']) ?>
-                            </strong>
-
-                            <span>
-                                <?= htmlspecialchars($section['name']) ?>
-                            </span>
-
-                            <span class="ts-layout-price">
-                                <?= htmlspecialchars($category['price']) ?>
-                            </span>
-
-
-                        <?php else: ?>
-
-
-                            <strong>
-                                <?= htmlspecialchars($section['name']) ?>
-                            </strong>
-
-                            <span>
-                                <?= $section['seatCount'] ?> seats
-                            </span>
-
-
-                        <?php endif; ?>
-
-
-                    </div>
-
-                </div>
-
-
-            <?php endforeach; ?>
-
-        </div>
+        <?= ts_status('Layout Active', 'success') ?>
 
     </div>
 
-    <?php
+
+    <div class="ts-reusable-venue-plan">
+
+        <!-- STAGE -->
+
+        <div class="ts-reusable-stage">
+            STAGE
+        </div>
+
+
+        <?php foreach ($venue['sections'] as $section): ?>
+
+        <?php
+
+                $geometry = $section['geometry'];
+
+            $style = sprintf(
+                'left:%s%%; top:%s%%; width:%s%%; height:%s%%;',
+                $geometry['left'],
+                $geometry['top'],
+                $geometry['width'],
+                $geometry['height']
+            );
+
+            $sectionId = $section['sectionId'];
+
+            ?>
+
+
+        <div class="ts-reusable-section" style="<?= $style ?>">
+
+            <div class="ts-reusable-section-content">
+
+
+                <?php if (
+                    $mode === 'buyer'
+                    && isset($categoryMap[$sectionId])
+                ): ?>
+
+                <?php
+                    $category = $categoryMap[$sectionId];
+                    ?>
+
+                <strong>
+                    <?= htmlspecialchars($category['name']) ?>
+                </strong>
+
+                <span>
+                    <?= htmlspecialchars($section['name']) ?>
+                </span>
+
+                <span class="ts-layout-price">
+                    <?= htmlspecialchars($category['price']) ?>
+                </span>
+
+
+                <?php else: ?>
+
+
+                <strong>
+                    <?= htmlspecialchars($section['name']) ?>
+                </strong>
+
+                <span>
+                    <?= $section['seatCount'] ?>
+                    seats
+                </span>
+
+
+                <?php endif; ?>
+
+
+            </div>
+
+        </div>
+
+
+        <?php endforeach; ?>
+
+    </div>
+
+</div>
+
+<?php
 
     return ob_get_clean();
 }
+?>
