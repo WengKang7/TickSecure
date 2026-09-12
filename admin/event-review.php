@@ -83,141 +83,701 @@ ob_start();
 </div>
 
 <script type="module">
+
+const esc = value => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+
 window.addEventListener('ts-auth-ready', async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const eventId = urlParams.get('id');
-    
+
+    const urlParams =
+        new URLSearchParams(window.location.search);
+
+    const eventId =
+        urlParams.get('id');
+
+
+    // =========================================================
+    // EVENT ID CHECK
+    // =========================================================
+
     if (!eventId) {
-        document.querySelector('.ts-page-title').textContent = 'Event not found';
+
+        document.querySelector(
+            '.ts-page-title'
+        ).textContent = 'Event not found';
+
+        document.querySelector(
+            '.ts-page-subtitle'
+        ).textContent =
+            'No event was selected for review.';
+
         return;
     }
 
+
+    // =========================================================
+    // LOAD EVENT
+    // =========================================================
+
     const loadEvent = async () => {
+
         try {
-            const ev = await window.tsEvents.getEvent(eventId);
-            if (!ev) throw new Error('Event not found');
-            
-            document.getElementById('event-detail-container').style.display = 'grid';
-            document.querySelector('.ts-page-title').textContent = ev.title;
-            document.querySelector('.ts-page-subtitle').textContent = `Submitted by ${ev.organizerName || ev.organizerId}`;
-            document.querySelector('.ts-page-title').textContent = ev.name || 'Event Review';
-            document.querySelector('.ts-page-subtitle').textContent = `Submitted by ${ev.organizerName || ev.organizerUid}`;
-            
+
+            const ev =
+                await window.tsEvents.getEvent(
+                    eventId
+                );
+
+
+            if (!ev) {
+                throw new Error(
+                    'Event not found.'
+                );
+            }
+
+
+            // -----------------------------------------
+            // Main container
+            // -----------------------------------------
+
+            const container =
+                document.getElementById(
+                    'event-detail-container'
+                );
+
+            if (container) {
+                container.style.display = 'grid';
+            }
+
+
+            // -----------------------------------------
+            // Page title
+            // -----------------------------------------
+
+            document.querySelector(
+                '.ts-page-title'
+            ).textContent =
+                ev.name || 'Event Review';
+
+
+            document.querySelector(
+                '.ts-page-subtitle'
+            ).textContent =
+                `Submitted by ${
+                    ev.organizerName ||
+                    ev.organizerUid ||
+                    'Unknown organizer'
+                }`;
+
+
+            // =================================================
+            // POSTER
+            // =================================================
+
+            const posterImg =
+                document.getElementById(
+                    'val-poster'
+                );
+
+            const posterCopy =
+                document.querySelector(
+                    '.ts-poster-copy'
+                );
+
+
             if (ev.posterUrl) {
-                const img = document.getElementById('val-poster');
-                img.src = ev.posterUrl;
-                img.style.display = 'block';
-                document.querySelector('.ts-poster-copy').style.display = 'none';
+
+                posterImg.src =
+                    ev.posterUrl;
+
+                posterImg.style.display =
+                    'block';
+
+                if (posterCopy) {
+                    posterCopy.style.display =
+                        'none';
+                }
+
             } else {
-                document.getElementById('poster-org').textContent = ev.organizerName;
-                document.getElementById('poster-title').textContent = ev.title;
-                document.getElementById('poster-org').textContent = ev.organizerName || 'Organizer';
-                document.getElementById('poster-title').textContent = ev.name || 'Event';
+
+                posterImg.style.display =
+                    'none';
+
+                if (posterCopy) {
+                    posterCopy.style.display =
+                        '';
+                }
+
+                document.getElementById(
+                    'poster-org'
+                ).textContent =
+                    ev.organizerName ||
+                    'Organizer';
+
+
+                document.getElementById(
+                    'poster-title'
+                ).textContent =
+                    ev.name ||
+                    'Event';
             }
 
-            document.getElementById('val-title').textContent = ev.title;
-            document.getElementById('val-subtitle').textContent = `${new Date(ev.date).toLocaleDateString()} · ${ev.venueName || ev.venueId}`;
-            document.getElementById('val-desc').textContent = ev.description;
-            document.getElementById('val-title').textContent = ev.name || 'Untitled Event';
-            document.getElementById('val-subtitle').textContent = `${ev.date ? new Date(ev.date).toLocaleDateString() : 'No date'} · ${ev.venueName || ev.venueId}`;
-            document.getElementById('val-desc').textContent = ev.description || 'No description provided.';
-            
-            let tone = ev.status === 'pending' ? 'warning' : (ev.status === 'published' ? 'success' : 'error');
-            let badges = `<span class="ts-chip ts-chip-${tone}">${ev.status}</span>`;
-            if (ev.tags) {
-                badges += ev.tags.map(t => `<span class="ts-chip ts-chip-neutral">${t}</span>`).join('');
-            const statusStr = (ev.status || 'DRAFT').toUpperCase();
-            const toneMap = { 'PUBLISHED': 'success', 'APPROVED': 'info', 'REJECTED': 'error', 'DRAFT': 'neutral', 'PENDING_REVIEW': 'warning' };
-            const tone = toneMap[statusStr] || 'neutral';
-            
-            let badges = `<span class="ts-chip ts-chip-${tone}">${statusStr}</span>`;
+
+            // =================================================
+            // EVENT DETAILS
+            // =================================================
+
+            document.getElementById(
+                'val-title'
+            ).textContent =
+                ev.name ||
+                'Untitled Event';
+
+
+            const eventDate =
+                ev.date
+                    ? new Date(
+                        `${ev.date}T00:00:00`
+                    ).toLocaleDateString()
+                    : 'No date';
+
+
+            document.getElementById(
+                'val-subtitle'
+            ).textContent =
+                `${eventDate} · ${
+                    ev.venueName ||
+                    ev.venueId ||
+                    'No venue'
+                }`;
+
+
+            document.getElementById(
+                'val-desc'
+            ).textContent =
+                ev.description ||
+                'No description provided.';
+
+
+            // =================================================
+            // STATUS BADGES
+            // =================================================
+
+            const statusStr =
+                String(
+                    ev.status || 'DRAFT'
+                ).toUpperCase();
+
+
+            const toneMap = {
+
+                PUBLISHED: 'success',
+
+                APPROVED: 'info',
+
+                REJECTED: 'error',
+
+                SUSPENDED: 'warning',
+
+                CANCELLED: 'error',
+
+                DRAFT: 'neutral',
+
+                PENDING_REVIEW: 'warning'
+
+            };
+
+
+            const tone =
+                toneMap[statusStr] ||
+                'neutral';
+
+
+            let badges = `
+                <span class="ts-chip ts-chip-${tone}">
+                    ${esc(
+                        statusStr.replaceAll(
+                            '_',
+                            ' '
+                        )
+                    )}
+                </span>
+            `;
+
+
             if (ev.eventCategory) {
-                badges += `<span class="ts-chip ts-chip-neutral">${ev.eventCategory}</span>`;
-            }
-            document.getElementById('val-badges').innerHTML = badges;
-            
-            if (ev.categories && ev.categories.length > 0) {
-                document.getElementById('ticket-table-body').innerHTML = ev.categories.map(c => `
-                    <tr>
-                        <td>${c.name}</td>
-                        <td>${c.sectionId}</td>
-                        <td>${c.section}</td>
-                        <td>RM${c.price}</td>
-                        <td>${c.quantity}</td>
-                    </tr>
-                `).join('');
-            }
-            
-            document.getElementById('val-org-name').textContent = ev.organizerName || ev.organizerId;
-            document.getElementById('val-org-name').textContent = ev.organizerName || ev.organizerUid;
-            document.getElementById('val-venue-name').textContent = ev.venueName || ev.venueId;
-            document.getElementById('val-sales').textContent = `${new Date(ev.salesStart).toLocaleDateString()} - ${new Date(ev.salesEnd).toLocaleDateString()}`;
-            document.getElementById('val-max-tickets').textContent = `${ev.maxTicketsPerUser} tickets`;
-            document.getElementById('val-resale').textContent = ev.allowResale ? `Enabled · max RM${ev.maxResalePrice}` : 'Disabled';
-            
-            const salesPeriodStr = ev.salesStartDate ? `${new Date(ev.salesStartDate).toLocaleDateString()} - ${new Date(ev.salesEndDate).toLocaleDateString()}` : 'Not configured';
-            document.getElementById('val-sales').textContent = salesPeriodStr;
-            
-            document.getElementById('val-max-tickets').textContent = ev.maxTicketsPerBuyer ? `${ev.maxTicketsPerBuyer} tickets` : 'Not configured';
-            
-            let resaleStr = 'Not configured';
-            if (ev.resaleEnabled !== undefined) {
-                resaleStr = ev.resaleEnabled ? `Enabled · Max ${ev.maxResaleMarkup}% markup` : 'Disabled';
-            }
-            document.getElementById('val-resale').textContent = resaleStr;
-            
-            const btnGroup = document.getElementById('action-buttons');
-            const btnApprove = document.getElementById('btn-approve');
-            const btnReject = document.getElementById('btn-reject');
-            const btnSuspend = document.getElementById('btn-suspend');
 
-            btnGroup.style.display = 'flex';
-            if (ev.status === 'pending') {
-            if (statusStr === 'PENDING_REVIEW') {
-                btnApprove.style.display = 'block';
-                btnReject.style.display = 'block';
-                btnSuspend.style.display = 'none';
-            } else if (ev.status === 'published') {
-            } else if (statusStr === 'PUBLISHED' || statusStr === 'APPROVED') {
-                btnApprove.style.display = 'none';
-                btnReject.style.display = 'none';
-                btnSuspend.style.display = 'block';
+                badges += `
+                    <span class="ts-chip ts-chip-neutral">
+                        ${esc(ev.eventCategory)}
+                    </span>
+                `;
+
+            }
+
+
+            document.getElementById(
+                'val-badges'
+            ).innerHTML =
+                badges;
+
+
+            // =================================================
+            // TICKET CATEGORIES
+            // =================================================
+
+            const categories =
+                Array.isArray(ev.categories)
+
+                    ? ev.categories
+
+                    : Object.entries(
+                        ev.categories || {}
+                    ).map(
+                        ([sectionId, category]) => ({
+                            ...category,
+                            sectionId
+                        })
+                    );
+
+
+            const ticketBody =
+                document.getElementById(
+                    'ticket-table-body'
+                );
+
+
+            if (categories.length > 0) {
+
+                ticketBody.innerHTML =
+                    categories.map(
+                        category => `
+
+                            <tr>
+
+                                <td>
+                                    ${esc(
+                                        category.name ||
+                                        'Unnamed'
+                                    )}
+                                </td>
+
+                                <td>
+                                    ${esc(
+                                        category.sectionId ||
+                                        ''
+                                    )}
+                                </td>
+
+                                <td>
+                                    RM${Number(
+                                        category.price || 0
+                                    ).toFixed(2)}
+                                </td>
+
+                                <td>
+                                    ${Number(
+                                        category.quantity || 0
+                                    )}
+                                </td>
+
+                            </tr>
+
+                        `
+                    ).join('');
+
             } else {
-                btnGroup.style.display = 'none';
-            }
-            
-            btnApprove.onclick = async () => {
-                if (confirm('Approve this event?')) {
-                    await window.tsEvents.approveEvent(eventId);
-                    await loadEvent();
-                }
-            };
-            
-            btnReject.onclick = async () => {
-                const reason = prompt('Reason for rejection:');
-                if (reason) {
-                    await window.tsEvents.rejectEvent(eventId, reason);
-                    await loadEvent();
-                }
-            };
 
-            btnSuspend.onclick = async () => {
-                const reason = prompt('Reason for suspension:');
-                if (reason) {
-                    await window.tsEvents.suspendEvent(eventId, reason);
-                    await loadEvent();
+                ticketBody.innerHTML = `
+                    <tr>
+                        <td
+                            colspan="4"
+                            class="text-center secondary"
+                        >
+                            No ticket categories configured.
+                        </td>
+                    </tr>
+                `;
+
+            }
+
+
+            // =================================================
+            // SUBMISSION SUMMARY
+            // =================================================
+
+            document.getElementById(
+                'val-org-name'
+            ).textContent =
+                ev.organizerName ||
+                ev.organizerUid ||
+                'Unknown';
+
+
+            document.getElementById(
+                'val-venue-name'
+            ).textContent =
+                ev.venueName ||
+                ev.venueId ||
+                'Not configured';
+
+
+            // Sales period
+
+            let salesPeriod =
+                'Not configured';
+
+
+            if (
+                ev.salesStartDate &&
+                ev.salesEndDate
+            ) {
+
+                salesPeriod =
+                    `${new Date(
+                        ev.salesStartDate
+                    ).toLocaleString()}
+                    -
+                    ${new Date(
+                        ev.salesEndDate
+                    ).toLocaleString()}`;
+
+            }
+
+
+            document.getElementById(
+                'val-sales'
+            ).textContent =
+                salesPeriod;
+
+
+            // Maximum tickets per buyer
+
+            document.getElementById(
+                'val-max-tickets'
+            ).textContent =
+                ev.maxTicketsPerBuyer
+
+                    ? `${ev.maxTicketsPerBuyer} tickets`
+
+                    : 'Not configured';
+
+
+            // Resale settings
+
+            let resaleText =
+                'Not configured';
+
+
+            if (
+                ev.resaleEnabled !==
+                undefined
+            ) {
+
+                if (ev.resaleEnabled) {
+
+                    resaleText =
+                        `Enabled · Max ${
+                            Number(
+                                ev.maxResaleMarkup || 0
+                            )
+                        }% markup`;
+
+                } else {
+
+                    resaleText =
+                        'Disabled';
+
                 }
-            };
+
+            }
+
+
+            document.getElementById(
+                'val-resale'
+            ).textContent =
+                resaleText;
+
+
+            // =================================================
+            // ACTION BUTTONS
+            // =================================================
+
+            const btnGroup =
+                document.getElementById(
+                    'action-buttons'
+                );
+
+            const btnApprove =
+                document.getElementById(
+                    'btn-approve'
+                );
+
+            const btnReject =
+                document.getElementById(
+                    'btn-reject'
+                );
+
+            const btnSuspend =
+                document.getElementById(
+                    'btn-suspend'
+                );
+
+
+            if (
+                statusStr ===
+                'PENDING_REVIEW'
+            ) {
+
+                btnGroup.style.display =
+                    'flex';
+
+                btnApprove.style.display =
+                    'inline-flex';
+
+                btnReject.style.display =
+                    'inline-flex';
+
+                btnSuspend.style.display =
+                    'none';
+
+            }
+
+            else if (
+                statusStr ===
+                    'PUBLISHED'
+                ||
+                statusStr ===
+                    'APPROVED'
+            ) {
+
+                btnGroup.style.display =
+                    'flex';
+
+                btnApprove.style.display =
+                    'none';
+
+                btnReject.style.display =
+                    'none';
+
+                btnSuspend.style.display =
+                    'inline-flex';
+
+            }
+
+            else {
+
+                btnGroup.style.display =
+                    'none';
+
+            }
+
+
+            // =================================================
+            // APPROVE
+            // =================================================
+
+            btnApprove.onclick =
+                async () => {
+
+                    if (
+                        !confirm(
+                            'Approve and publish this event?'
+                        )
+                    ) {
+                        return;
+                    }
+
+
+                    btnApprove.disabled =
+                        true;
+
+                    btnApprove.textContent =
+                        'Approving...';
+
+
+                    try {
+
+                        await window.tsEvents
+                            .approveEvent(
+                                eventId
+                            );
+
+                        await loadEvent();
+
+                    } catch (error) {
+
+                        console.error(
+                            'Approve event error:',
+                            error
+                        );
+
+                        alert(
+                            error?.message ||
+                            'Unable to approve event.'
+                        );
+
+                    } finally {
+
+                        btnApprove.disabled =
+                            false;
+
+                        btnApprove.textContent =
+                            'Approve';
+
+                    }
+
+                };
+
+
+            // =================================================
+            // REJECT
+            // =================================================
+
+            btnReject.onclick =
+                async () => {
+
+                    const reason =
+                        prompt(
+                            'Reason for rejection:'
+                        );
+
+
+                    if (!reason?.trim()) {
+                        return;
+                    }
+
+
+                    btnReject.disabled =
+                        true;
+
+
+                    try {
+
+                        await window.tsEvents
+                            .rejectEvent(
+                                eventId,
+                                reason.trim()
+                            );
+
+                        await loadEvent();
+
+                    } catch (error) {
+
+                        console.error(
+                            'Reject event error:',
+                            error
+                        );
+
+                        alert(
+                            error?.message ||
+                            'Unable to reject event.'
+                        );
+
+                    } finally {
+
+                        btnReject.disabled =
+                            false;
+
+                    }
+
+                };
+
+
+            // =================================================
+            // SUSPEND
+            // =================================================
+
+            btnSuspend.onclick =
+                async () => {
+
+                    const reason =
+                        prompt(
+                            'Reason for suspension:'
+                        );
+
+
+                    if (!reason?.trim()) {
+                        return;
+                    }
+
+
+                    btnSuspend.disabled =
+                        true;
+
+
+                    try {
+
+                        await window.tsEvents
+                            .suspendEvent(
+                                eventId,
+                                reason.trim()
+                            );
+
+                        await loadEvent();
+
+                    } catch (error) {
+
+                        console.error(
+                            'Suspend event error:',
+                            error
+                        );
+
+                        alert(
+                            error?.message ||
+                            'Unable to suspend event.'
+                        );
+
+                    } finally {
+
+                        btnSuspend.disabled =
+                            false;
+
+                    }
+
+                };
+
 
         } catch (err) {
-            console.error(err);
-            document.getElementById('page-event-name').textContent = 'Error loading event';
-            document.querySelector('.ts-page-title').textContent = 'Error loading event';
+
+            console.error(
+                'Event review load error:',
+                err
+            );
+
+
+            document.querySelector(
+                '.ts-page-title'
+            ).textContent =
+                'Error loading event';
+
+
+            document.querySelector(
+                '.ts-page-subtitle'
+            ).textContent =
+                err?.message ||
+                'Unable to load event information.';
+
+
+            document.getElementById(
+                'event-detail-container'
+            ).style.display =
+                'none';
+
         }
+
     };
-    
+
+
     await loadEvent();
+
 });
+
 </script>
 
 <?php
