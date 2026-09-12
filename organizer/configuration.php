@@ -432,13 +432,24 @@ window.addEventListener('ts-auth-ready', async () => {
             }
 
             // Validation 2: Prevent exceeding physical capacity
-            const vSec = venueSections.find(vs => vs.sectionId === newCat.sectionId);
-            const capacity = vSec ? parseInt(vSec.seatCount) || 0 : 0;
-            if (newCat.quantity > capacity) {
-                V.showFieldError(V.el(form, 'catQuantity'), `The quantity cannot exceed ${capacity} seats in this physical section.`);
-                V.showGlobalError(form, 'Check the ticket category', `The selected section has a capacity of ${capacity} seats.`);
-                return;
-            }
+            // Validation 2: Prevent exceeding physical capacity
+// "capacity" was already calculated above using categoryCapacity().
+
+if (newCat.quantity > capacity) {
+
+    V.showFieldError(
+        V.el(form, 'catQuantity'),
+        `The quantity cannot exceed ${capacity} seats in this physical section.`
+    );
+
+    V.showGlobalError(
+        form,
+        'Check the ticket category',
+        `The selected section has a capacity of ${capacity} seats.`
+    );
+
+    return;
+}
 
             const updatedCats = [...existingCats, newCat];
             const addBtn = document.getElementById('add-cat-btn');
