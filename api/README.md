@@ -11,7 +11,34 @@ verifies the Firebase ID token and uses a service account stored **outside**
 `htdocs` to run Firestore REST transactions. `upload.php` stores uploads under
 this local project instead of Firebase Storage.
 
-## Configure the PHP bridge
+## Current local checkout
+
+The project `.htaccess` enables `TICKSECURE_PHP_CHECKOUT=1` alongside the
+separate password-recovery flag. On localhost, `reserveSeats`,
+`releaseSeatReservation`, and `checkout` automatically use the PHP bridge,
+unless Firebase Emulator mode is enabled. These actions require a verified
+Firebase ID token and an active, verified buyer profile. Other mutations and
+uploads retain their separate enablement requirements.
+
+The flow is event category/quantity, seat reservation, wallet, simulated
+payment, then booking confirmation/My Tickets. MetaMask provides the wallet
+address; payment does not request a blockchain transaction. No card details
+are collected, no money is charged, and bookings have `SIMULATED_PAID` status.
+Prices and the RM20 service charge are calculated on the server. Repeating
+checkout for the same purchased seats returns the original booking.
+
+Local reservation queries use an event-scoped single-field query and filter
+inside the transaction, so they work without the callable backend's composite
+seat index. Physical seats are never sold directly: `EventSeats` stores each
+event's reservations and sales. Local date/time sales boundaries use +08:00;
+date-only end dates include the entire day.
+
+With Apache running and the private Firebase configuration available, run
+`node scripts/test-local-checkout.cjs` manually to test real HTTP requests and
+Firebase client permissions. It creates temporary test users and fixtures and
+removes them afterward; it never purchases an existing event's tickets.
+
+## Configure the full PHP bridge
 
 1. Ensure Firebase Authentication (Email/Password) and Cloud Firestore are
    enabled for `tick-c12a1`. Both can be used on the Spark plan.
@@ -40,7 +67,7 @@ this local project instead of Firebase Storage.
    SetEnv TICKSECURE_LOCAL_UPLOAD_TOKEN replace-with-a-random-32-character-or-longer-token
    ```
 
-5. Restart Apache. Both endpoints otherwise return `410 Gone`.
+5. Restart Apache. Actions outside the checkout/recovery subset remain disabled unless the full backend flag is enabled. Uploads have their own flags.
 6. In DevTools on the same `http://localhost` origin, set the matching local
    upload token and open the PHP-mode URL:
 
@@ -50,8 +77,8 @@ this local project instead of Firebase Storage.
    ```
 
 The selection is remembered only in that browser. Open
-`?firebaseBackend=firebase` to return to the normal Firebase callable/Storage
-path. Do **not** combine PHP mode with `?firebaseEmulator=1`: PHP mode validates
+`?firebaseBackend=firebase` to return other workflows to the normal callable/Storage
+path. Localhost checkout still uses its dedicated PHP route. Do **not** combine PHP mode with `?firebaseEmulator=1`: PHP mode validates
 real Firebase Auth tokens and writes to the real Firestore project, while the
 emulator uses local tokens and local data.
 
@@ -62,6 +89,16 @@ closes active resale listings when the admin UI suspends or cancels an event.
 Do not change an event to `SUSPENDED`/`CANCELLED` directly in the Firebase
 Console while using PHP mode; there is no deployed Cloud Function trigger to
 sweep listings in that case.
+
+## Password recovery
+
+`checkPasswordResetEmail` is the signed-out account check accepted by `backend.php`. It uses the private service account to look up the Firebase Auth email, then reads only the matching `Users/{uid}` profile. It returns `{registered: true|false}`; it never returns user IDs, profile fields, credentials, or reset links. The other public read is `getEventAvailability`, enabled with the checkout flag: it returns only category allocations and remaining counts for published events. Ticket/profile mutations still require a verified Firebase ID token, and the endpoint remains opt-in and loopback-only.
+
+For local password recovery, the project `.htaccess` enables `TICKSECURE_PHP_PASSWORD_RESET=1`. This flag permits only the loopback recovery lookup; checkout is enabled independently as described above. The local Forgot Password page selects PHP just for this lookup, so you can open `http://localhost/ticksecure-ui/auth/forgot-password.php` without changing the backend mode for other pages.
+
+The ignored `api/firebase-config.local.php` specifies project `tick-c12a1` and the actual service-account file path outside `htdocs`. The key itself is not provided by this repository. If that private file is unavailable, the lookup returns `backend_not_configured` and sends no reset email.
+
+ The service account also needs Firebase Authentication user-read permission (`firebaseauth.users.get`). The REST helper requests both the existing Datastore scope and the Identity Toolkit scope for the Auth lookup. Keep the service account outside the web root. The browser requests Firebase's reset email only after a positive result; configuration errors and lookup failures block that request.
 
 ## Local uploads
 

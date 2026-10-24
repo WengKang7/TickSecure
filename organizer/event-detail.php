@@ -3,7 +3,7 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<?=ts_page_head('Loading...', ' ', '<a class="ts-btn ts-btn-secondary" href="../public/event-detail.php" id="preview-link">'.ts_icon('eye').' Preview Public Page</a> <button class="ts-btn ts-btn-primary" data-toast="Edit event UI opened">Edit Event</button>')?>
+<?=ts_page_head('Loading...', ' ', '<a class="ts-btn ts-btn-secondary" href="../public/event-detail.php" id="preview-link">'.ts_icon('eye').' Preview Public Page</a> <button class="ts-btn ts-btn-primary" id="edit-event-btn">Edit Event</button>')?>
 <div class="flex gap-8 wrap mb-24" id="status-chips">
     <?=ts_status('Loading', 'neutral')?>
 </div>
@@ -102,6 +102,14 @@ window.addEventListener('ts-auth-ready', async () => {
         document.getElementById('preview-link').href = `../public/event-detail.php?id=${eventId}`;
 
         const normalizedStatus = String(event.status || 'DRAFT').toUpperCase();
+        const editButton = document.getElementById('edit-event-btn');
+        if (normalizedStatus === 'DRAFT') {
+            editButton.addEventListener('click', () => {
+                window.location.href = `event-new.php?id=${encodeURIComponent(eventId)}`;
+            });
+        } else {
+            editButton.style.display = 'none';
+        }
         const toneMap = {
             PUBLISHED: 'success',
             PENDING_REVIEW: 'warning',

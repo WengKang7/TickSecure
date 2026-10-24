@@ -4,7 +4,7 @@ import { getFirestore, connectFirestoreEmulator } from "https://www.gstatic.com/
 import { getStorage, connectStorageEmulator } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js";
 import { getFunctions, connectFunctionsEmulator } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-functions.js";
 
-// TODO: Replace this object with your actual Firebase project configuration
+// Public web configuration for the TickSecure Firebase project.
 const firebaseConfig = {
   apiKey: "AIzaSyDFKJ4FxXqBNtuTCbZ1ayhuidZYwVMGdJU",
   authDomain: "tick-c12a1.firebaseapp.com",

@@ -4,11 +4,11 @@
  * Exposed globally as window.ts<ServiceName> for use by page scripts.
  */
 import { db, auth, storage } from './firebase-init.js';
-import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js';
+import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261023-availability';
 import {
     collection, doc, addDoc, setDoc, getDoc, getDocs,
     updateDoc, deleteDoc, query, where, orderBy, limit,
-    writeBatch, runTransaction, increment, arrayUnion, getCountFromServer
+    writeBatch, runTransaction, increment, arrayUnion, arrayRemove, getCountFromServer
 } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 import {
     ref, uploadBytes, getDownloadURL
@@ -350,6 +350,11 @@ export const UserService = {
 
     async updateProfile(userId, data) {
         await updateDoc(doc(db, 'Users', userId), { ...data, updatedAt: iso() });
+        if (auth.currentUser?.uid === userId) {
+            _profileCache = null;
+            if (window.tsCurrentUser) Object.assign(window.tsCurrentUser, data);
+            window.dispatchEvent(new CustomEvent('ts-profile-updated', { detail: window.tsCurrentUser }));
+        }
         await AuditService.log('profile_updated', 'user', userId, data);
     },
 
@@ -389,6 +394,21 @@ export const UserService = {
 
     async getCurrentProfile() {
         return profile();
+    },
+
+    async getFavoriteEventIds() {
+        const user = await profile();
+        return Array.isArray(user.favoriteEventIds) ? user.favoriteEventIds : [];
+    },
+
+    async setFavoriteEvent(eventId, saved) {
+        const id = String(eventId || '').trim();
+        if (!/^[A-Za-z0-9_-]{1,160}$/.test(id)) throw new Error('Event ID is invalid.');
+        await updateDoc(doc(db, 'Users', uid()), {
+            favoriteEventIds: saved ? arrayUnion(id) : arrayRemove(id),
+            updatedAt: iso()
+        });
+        _profileCache = null;
     }
 };
 
@@ -436,6 +456,17 @@ export const VenueService = {
     },
 
     async deleteVenue(venueId) {
+        const venue = await this.getVenue(venueId);
+        if (!venue) throw new Error('Venue not found.');
+        if (venue.layoutStatus !== 'DRAFT') {
+            throw new Error('Only draft venues can be deleted. Active layouts may be in use by events.');
+        }
+        const linkedEvents = await getDocs(query(
+            collection(db, 'Events'), where('venueId', '==', venueId), limit(1)
+        ));
+        if (!linkedEvents.empty) {
+            throw new Error('This venue is linked to an event and cannot be deleted.');
+        }
         await deleteDoc(doc(db, 'Venues', venueId));
         await AuditService.log('venue_deleted', 'venue', venueId);
     },
@@ -568,6 +599,10 @@ export const EventService = {
     async getEvent(eventId) {
         const snap = await getDoc(doc(db, 'Events', eventId));
         return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    },
+
+    async getEventAvailability(eventId) {
+        return invokeCallable({ eventId }, { name: 'getEventAvailability', region: DEFAULT_FUNCTION_REGION });
     },
 
     async updateEvent(eventId, data) {

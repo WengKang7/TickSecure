@@ -57,7 +57,7 @@ ob_start();
     '
         <button
             class="ts-btn ts-btn-secondary"
-            data-toast="Layout draft saved"
+            id="save-layout-draft"
         >
             Save Draft
         </button>
@@ -1172,6 +1172,38 @@ window.addEventListener('ts-auth-ready', async () => {
         
         renderDynamicUI(sectionData, venue.name);
 
+        const saveDraftButton = document.getElementById('save-layout-draft');
+        if (step !== 3 || venue.layoutStatus === 'ACTIVE') {
+            saveDraftButton.style.display = 'none';
+        } else {
+            saveDraftButton.addEventListener('click', async () => {
+                if (window._tsSyncActiveInputs) window._tsSyncActiveInputs();
+                const payload = (window._tsDetectedSections || sectionData).map(section => ({
+                    sectionId: section.letter,
+                    name: section.name,
+                    seatCount: Number(section.seats) || 0
+                }));
+                const total = payload.reduce((sum, section) => sum + section.seatCount, 0);
+                if (!payload.length || payload.some(section => !section.sectionId || section.seatCount < 1)) {
+                    alert('Add at least one section with a positive seat count before saving.');
+                    return;
+                }
+                if (Number(venue.capacity) > 0 && total > Number(venue.capacity)) {
+                    alert(`Total seats (${total}) exceeds the venue capacity (${venue.capacity}).`);
+                    return;
+                }
+                saveDraftButton.disabled = true;
+                try {
+                    await window.tsVenues.updateSections(venueId, payload);
+                    window.tsShowToast('Layout draft saved');
+                } catch (error) {
+                    alert(error.message);
+                } finally {
+                    saveDraftButton.disabled = false;
+                }
+            });
+        }
+
         // Wire Upload (Step 1)
         const realFileInput = document.getElementById('real-blueprint-file');
         if (realFileInput) {
@@ -1184,8 +1216,19 @@ window.addEventListener('ts-auth-ready', async () => {
                     if (file.type !== 'application/pdf') { errEl.innerHTML='<strong>Error</strong><div class="small mt-8">Invalid format. Only PDF files are supported.</div>'; errEl.style.display='block'; e.target.value=''; return; }
                     const reader = new FileReader();
                     reader.onload = async (ev) => {
-                        try { sessionStorage.clear(); sessionStorage.setItem('mock_pdf_'+venueId, ev.target.result); sessionStorage.setItem('mock_pdf_name_'+venueId, file.name); sessionStorage.setItem('mock_pdf_size_'+venueId, file.size); const c=await countSectionsInPDF(file); sessionStorage.setItem('mock_pdf_count_'+venueId, c); } catch(e){ console.warn('Storage err',e); }
-                        try { statusEl.style.display='block'; window.tsVenues.uploadBlueprint(venueId,file).catch(e=>console.warn('Upload warning:',e)); statusEl.textContent='Blueprint uploaded. Proceeding to processing...'; setTimeout(()=>{window.location.href=`venue-layout.php?id=${venueId}&step=2`;},500); } catch(err){ errEl.innerHTML=`<strong>Error</strong><div class="small mt-8">${err.message}</div>`; errEl.style.display='block'; statusEl.style.display='none'; }
+                        try { sessionStorage.setItem('mock_pdf_'+venueId, ev.target.result); sessionStorage.setItem('mock_pdf_name_'+venueId, file.name); sessionStorage.setItem('mock_pdf_size_'+venueId, file.size); const c=await countSectionsInPDF(file); sessionStorage.setItem('mock_pdf_count_'+venueId, c); } catch(e){ console.warn('Storage err',e); }
+                        try {
+                            statusEl.style.display = 'block';
+                            statusEl.textContent = 'Uploading blueprint...';
+                            await window.tsVenues.uploadBlueprint(venueId, file);
+                            statusEl.textContent = 'Blueprint uploaded. Proceeding to processing...';
+                            window.location.href = `venue-layout.php?id=${venueId}&step=2`;
+                        } catch (err) {
+                            errEl.innerHTML = '<strong>Error</strong><div class="small mt-8"></div>';
+                            errEl.querySelector('div').textContent = err.message;
+                            errEl.style.display = 'block';
+                            statusEl.style.display = 'none';
+                        }
                     };
                     reader.readAsDataURL(file);
                 }
@@ -1203,8 +1246,11 @@ window.addEventListener('ts-auth-ready', async () => {
                     if (file.type !== 'application/pdf') { alert('Only PDF files are supported.'); e.target.value=''; return; }
                     const reader = new FileReader();
                     reader.onload = async (ev) => {
-                        try { sessionStorage.clear(); sessionStorage.setItem('mock_pdf_'+venueId, ev.target.result); sessionStorage.setItem('mock_pdf_name_'+venueId, file.name); sessionStorage.setItem('mock_pdf_size_'+venueId, file.size); const c=await countSectionsInPDF(file); sessionStorage.setItem('mock_pdf_count_'+venueId, c); } catch(e){ console.warn('Storage err',e); }
-                        try { window.tsVenues.uploadBlueprint(venueId,file).catch(e=>console.warn('Upload warning:',e)); window.location.href=`venue-layout.php?id=${venueId}&step=2`; } catch(err){ alert(err.message); }
+                        try { sessionStorage.setItem('mock_pdf_'+venueId, ev.target.result); sessionStorage.setItem('mock_pdf_name_'+venueId, file.name); sessionStorage.setItem('mock_pdf_size_'+venueId, file.size); const c=await countSectionsInPDF(file); sessionStorage.setItem('mock_pdf_count_'+venueId, c); } catch(e){ console.warn('Storage err',e); }
+                        try {
+                            await window.tsVenues.uploadBlueprint(venueId, file);
+                            window.location.href = `venue-layout.php?id=${venueId}&step=2`;
+                        } catch (err) { alert(err.message); }
                     };
                     reader.readAsDataURL(file);
                 }

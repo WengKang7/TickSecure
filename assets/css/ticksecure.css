@@ -598,7 +598,16 @@ img {
 .ts-sidebar-nav {
   padding: 18px 12px 24px;
   overflow: auto;
-  flex: 1
+  min-height: 0;
+  flex: 1;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.ts-sidebar-nav::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .ts-nav-group {
@@ -3683,3 +3692,1190 @@ img {
     }
 
 }
+
+/* Refined shared finish; the existing page layouts and components stay intact. */
+:root {
+    --bg-page: #f6f4f0;
+    --bg-surface: #fffefa;
+    --bg-subtle: #f3efe8;
+    --bg-hover: #f8f5ee;
+    --border-default: #e6e1d8;
+    --border-strong: #ccc3b5;
+    --text-primary: #1c2527;
+    --text-secondary: #515b5d;
+    --text-tertiary: #6b7474;
+    --brand-900: #263033;
+    --brand-600: #926b39;
+    --brand-100: #f2e9da;
+    --shadow-card: 0 2px 5px rgba(31, 37, 36, .025), 0 16px 38px rgba(31, 37, 36, .035);
+    --shadow-modal: 0 26px 72px rgba(20, 28, 29, .2);
+}
+
+body {
+    letter-spacing: .002em;
+}
+
+::selection {
+    background: #e6d4b8;
+    color: var(--text-primary);
+}
+
+:where(a, button, input, select, textarea):focus-visible {
+    outline: 2px solid var(--brand-600);
+    outline-offset: 3px;
+}
+
+.ts-body-public {
+    background: #fffefa;
+}
+
+.ts-public-header,
+.ts-dashboard-header {
+    background: rgba(255, 254, 250, .94);
+    border-color: var(--border-default);
+    backdrop-filter: saturate(140%) blur(16px);
+}
+
+.ts-brand {
+    color: var(--brand-900);
+    letter-spacing: -.045em;
+}
+
+.ts-brand-mark {
+    background: linear-gradient(145deg, #fffaf0, #ead8b6);
+    border-color: #b89a6a;
+    box-shadow: inset 0 1px rgba(255, 255, 255, .8), 0 3px 10px rgba(114, 79, 36, .12);
+}
+
+.ts-public-nav a,
+.ts-side-link {
+    transition: background-color .2s ease, color .2s ease, border-color .2s ease;
+}
+
+.ts-public-nav a.active:after {
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+}
+
+.ts-sidebar {
+    background: #253033;
+    border-right: 1px solid #374346;
+    color: #e9e8e2;
+}
+
+.ts-sidebar-head,
+.ts-sidebar-foot {
+    border-color: rgba(255, 255, 255, .1);
+}
+
+.ts-sidebar .ts-brand,
+.ts-sidebar .ts-profile-name {
+    color: #fffaf0;
+}
+
+.ts-sidebar .ts-brand-mark {
+    background: #f6ead4;
+}
+
+.ts-sidebar .ts-nav-label,
+.ts-sidebar .ts-profile-role {
+    color: #b9c3c1;
+}
+
+.ts-sidebar .ts-side-link {
+    color: #d5dcda;
+}
+
+.ts-sidebar .ts-side-link:hover {
+    background: rgba(255, 255, 255, .09);
+    color: #fff;
+}
+
+.ts-sidebar .ts-side-link.active {
+    background: #f0e4cf;
+    color: #253033;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, .12);
+}
+
+.ts-sidebar .ts-profile-card {
+    background: rgba(255, 255, 255, .055);
+}
+
+.ts-page {
+    padding-top: 36px;
+}
+
+.ts-page-title,
+.ts-section-title,
+.ts-auth-title {
+    color: var(--brand-900);
+    letter-spacing: -.04em;
+}
+
+.ts-hero-title,
+.ts-auth-copy h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 500;
+    letter-spacing: -.045em;
+}
+
+.ts-hero-title {
+    font-size: clamp(42px, 4.6vw, 64px);
+    line-height: 1.08;
+}
+
+.ts-section-eyebrow,
+.ts-event-date {
+    letter-spacing: .14em;
+}
+
+.ts-card,
+.ts-event-card,
+.ts-trust-strip {
+    background: var(--bg-surface);
+    border-color: var(--border-default);
+    box-shadow: var(--shadow-card);
+}
+
+.ts-card-head {
+    border-color: var(--border-default);
+}
+
+.ts-kpi {
+    border-top: 3px solid #b58d57;
+}
+
+.ts-kpi-icon,
+.ts-trust-icon {
+    background: var(--brand-100);
+    color: var(--brand-900);
+}
+
+.ts-btn,
+.ts-icon-btn,
+.ts-input,
+.ts-select,
+.ts-textarea {
+    transition: background-color .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+
+.ts-btn-primary,
+.ts-btn-brand {
+    background: var(--brand-900);
+    border-color: var(--brand-900);
+    box-shadow: 0 4px 12px rgba(33, 44, 46, .12);
+}
+
+.ts-btn-primary:hover,
+.ts-btn-brand:hover {
+    background: #39474a;
+    border-color: #39474a;
+    box-shadow: 0 8px 20px rgba(33, 44, 46, .18);
+}
+
+.ts-btn-secondary,
+.ts-icon-btn,
+.ts-input,
+.ts-select,
+.ts-textarea {
+    background: var(--bg-surface);
+    border-color: var(--border-default);
+}
+
+.ts-input:focus,
+.ts-select:focus,
+.ts-textarea:focus {
+    border-color: var(--brand-600);
+    box-shadow: 0 0 0 4px rgba(146, 107, 57, .13);
+}
+
+.ts-table th {
+    background: #f6f1e8;
+    color: #5b615e;
+    border-color: var(--border-default);
+    letter-spacing: .1em;
+}
+
+.ts-table td {
+    border-color: #eee9e0;
+    color: var(--text-secondary);
+}
+
+.ts-table tbody tr:hover td {
+    background: #faf7f0;
+}
+
+.ts-auth-art,
+.ts-hero-art {
+    background: radial-gradient(circle at 80% 20%, #455553 0, #293435 34%, #172122 100%);
+}
+
+.ts-event-art {
+    background-image: linear-gradient(145deg, rgba(28, 37, 39, .04), rgba(28, 37, 39, .32));
+}
+
+.ts-modal {
+    box-shadow: var(--shadow-modal);
+}
+
+@media (max-width: 767px) {
+    .ts-page {
+        padding-top: 24px;
+    }
+    .ts-hero-title {
+        font-size: clamp(36px, 9vw, 48px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ts-btn,
+    .ts-icon-btn,
+    .ts-input,
+    .ts-select,
+    .ts-textarea,
+    .ts-event-card {
+        transition: none;
+    }
+}
+
+
+.ts-user-filters .ts-select {
+    width: auto;
+    flex: 1 1 160px;
+    min-width: 150px;
+}
+/* Buyer booking and ticket records. */
+.ts-record-page {
+    padding: 32px 0 56px;
+}
+.ts-record-page > .ts-container {
+    max-width: 1160px;
+}
+.ts-record-page [hidden] {
+    display: none !important;
+}
+.ts-record-back {
+    display: inline-block;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+.ts-record-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+.ts-record-heading > div {
+    min-width: 0;
+}
+.ts-record-heading h1 {
+    font-size: clamp(26px, 3vw, 34px);
+    line-height: 1.2;
+    margin: 7px 0 8px;
+    overflow-wrap: anywhere;
+}
+.ts-record-heading p {
+    font-size: 14px;
+    margin: 0;
+    line-height: 1.6;
+}
+.ts-record-heading .ts-section-eyebrow {
+    overflow-wrap: anywhere;
+}
+.ts-record-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+.ts-ticket-detail-layout,
+.ts-booking-detail-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+.ts-record-main {
+    display: grid;
+    gap: 24px;
+    min-width: 0;
+}
+.ts-record-card {
+    padding: 24px;
+    min-width: 0;
+}
+.ts-record-card h2 {
+    font-size: 18px;
+    line-height: 1.4;
+    margin: 0;
+}
+.ts-record-card-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.ts-record-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 24px;
+    margin: 8px 0 0;
+}
+.ts-record-facts > div {
+    min-width: 0;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border-default);
+}
+.ts-record-facts dt {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    line-height: 1.5;
+    margin-bottom: 6px;
+}
+.ts-record-facts dd {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+.ts-record-facts-stack {
+    grid-template-columns: minmax(0, 1fr);
+}
+.ts-record-page .ts-record-code {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+.ts-record-ticket-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 20px;
+}
+.ts-record-ticket-actions .ts-btn {
+    padding: 12px;
+    font-size: 13px;
+}
+.ts-record-policy-note {
+    margin: 14px 0 0;
+    line-height: 1.6;
+}
+.ts-record-history-link {
+    display: inline-block;
+    margin-top: 18px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.ts-record-technical {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-default);
+}
+.ts-record-technical summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 650;
+    list-style: none;
+    padding: 4px 0;
+}
+.ts-record-technical summary::-webkit-details-marker {
+    display: none;
+}
+.ts-record-technical[open] summary .ts-icon {
+    transform: rotate(180deg);
+}
+.ts-ticket-detail-page .ts-ticket-head {
+    padding: 24px;
+    gap: 20px;
+}
+.ts-ticket-heading-copy {
+    min-width: 0;
+}
+.ts-ticket-detail-page .ts-ticket-event {
+    font-size: 28px;
+    margin: 10px 0 0;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+.ts-ticket-event-facts {
+    display: grid;
+    gap: 6px;
+    margin-top: 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #d0d5dd;
+}
+.ts-ticket-detail-page .ts-ticket-body {
+    padding: 24px;
+}
+.ts-ticket-detail-page .ts-ticket-grid {
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-default);
+}
+.ts-ticket-detail-page .ts-ticket-value {
+    overflow-wrap: anywhere;
+}
+.ts-ticket-entry {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-top: 24px;
+}
+.ts-ticket-qr {
+    flex: 0 0 216px;
+    width: 216px;
+    max-width: 100%;
+    background: #fff;
+    border: 1px solid var(--border-default);
+    border-radius: 10px;
+    overflow: hidden;
+}
+.ts-ticket-qr:empty {
+    display: none;
+}
+.ts-ticket-qr svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+}
+.ts-ticket-entry-copy {
+    flex: 1;
+    min-width: 0;
+}
+.ts-ticket-entry-copy h3 {
+    font-size: 16px;
+    margin: 0 0 10px;
+}
+.ts-ticket-entry-copy p {
+    font-size: 13px;
+    line-height: 1.65;
+    margin: 10px 0 0;
+}
+.ts-ticket-reference {
+    display: grid;
+    gap: 5px;
+    padding-top: 16px;
+    margin-top: 24px;
+    border-top: 1px solid var(--border-default);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    overflow-wrap: anywhere;
+}
+.ts-record-history {
+    margin-top: 24px;
+    scroll-margin-top: 110px;
+}
+.ts-record-history .ts-timeline {
+    margin-top: 24px;
+}
+.ts-record-history .ts-timeline-meta {
+    overflow-wrap: anywhere;
+    line-height: 1.7;
+}
+.ts-booking-ticket-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 18px;
+}
+.ts-booking-ticket-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--border-default);
+    border-radius: 12px;
+}
+.ts-booking-ticket-row:hover {
+    border-color: #9a7445;
+    background: var(--bg-hover);
+}
+.ts-booking-ticket-row > span:first-child {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.ts-booking-ticket-open {
+    font-size: 12px;
+    font-weight: 700;
+}
+.ts-record-payment-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    font-size: 14px;
+    padding: 12px 0;
+}
+.ts-booking-payment h2 {
+    margin-bottom: 14px;
+}
+.ts-record-payment-total {
+    margin-top: 10px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-default);
+    font-size: 17px;
+    font-weight: 700;
+}
+.ts-record-payment-status {
+    display: grid;
+    gap: 10px;
+    padding: 18px 0;
+}
+.ts-record-payment-status p {
+    margin: 0;
+    line-height: 1.6;
+}
+@media (max-width: 1000px) {
+    .ts-ticket-detail-layout,
+    .ts-booking-detail-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+@media (max-width: 600px) {
+    .ts-record-page {
+        padding-top: 24px;
+    }
+    .ts-record-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .ts-record-card,
+    .ts-ticket-detail-page .ts-ticket-head,
+    .ts-ticket-detail-page .ts-ticket-body {
+        padding: 20px;
+    }
+    .ts-ticket-detail-page .ts-ticket-head {
+        flex-wrap: wrap;
+    }
+    .ts-record-facts {
+        column-gap: 16px;
+    }
+    .ts-ticket-entry {
+        flex-direction: column;
+        text-align: center;
+    }
+    .ts-ticket-qr {
+        flex-basis: auto;
+        width: 240px;
+    }
+    .ts-booking-ticket-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .ts-booking-ticket-open {
+        grid-column: 1 / -1;
+    }
+}
+/* Public event details: compact summary and the shared admin seating layout. */
+.ts-seat-page [hidden],
+.ts-wallet-page [hidden],
+.ts-checkout-page [hidden],
+.ts-confirmation-page [hidden] {
+    display: none !important;
+}
+.ts-event-demo-consent {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    line-height: 1.5;
+}
+.ts-event-demo-consent input {
+    margin-top: 4px;
+}
+.ts-event-save {
+    width: 54px;
+    height: 54px;
+    flex: 0 0 54px;
+}
+.ts-event-save .ts-icon {
+    width: 24px;
+    height: 24px;
+}
+.ts-event-save[aria-pressed="true"] {
+    color: #b42349;
+    background: #fff1f4;
+    border-color: #e7adba;
+}
+.ts-event-save[aria-pressed="true"] .ts-icon {
+    fill: currentColor;
+}
+.ts-event-save:disabled {
+    opacity: .5;
+    cursor: wait;
+}
+.ts-event-heading-actions .ts-event-save {
+    flex: 0 0 54px;
+}
+.ts-event-view-switch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.ts-event-view-switch [aria-pressed="true"] {
+    background: var(--bg-hover);
+    border-color: #9a7445;
+}
+.ts-events-empty {
+    grid-column: 1 / -1;
+    padding: 40px;
+}
+.ts-events-empty .ts-btn {
+    display: flex;
+    width: fit-content;
+    margin: 16px auto 0;
+}
+.ts-event-detail-page {
+    padding: 24px 0 40px;
+}
+.ts-event-detail-page [hidden] {
+    display: none !important;
+}
+.ts-event-back {
+    display: inline-block;
+    margin-bottom: 16px;
+}
+.ts-event-heading {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 20px;
+}
+.ts-event-heading-copy {
+    flex: 1;
+    min-width: 0;
+}
+.ts-event-heading h1 {
+    font-size: clamp(26px, 2.6vw, 36px);
+    line-height: 1.15;
+    letter-spacing: -.035em;
+    margin: 5px 0 8px;
+    overflow-wrap: anywhere;
+}
+.ts-event-heading-copy p {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    margin: 0;
+    max-width: 76ch;
+    font-size: 14px;
+    line-height: 1.55;
+}
+.ts-event-poster-thumb {
+    flex: none;
+    width: 82px;
+    height: 106px;
+    object-fit: cover;
+    border-radius: 12px;
+    border: 1px solid var(--border-default);
+}
+.ts-event-heading-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+}
+.ts-event-facts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.ts-event-facts .ts-info-pill {
+    min-width: 0;
+    padding: 14px;
+}
+.ts-event-facts .ts-info-pill > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.ts-event-facts .ts-event-fact-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin: 0 0 6px;
+    font-weight: 700;
+}
+.ts-event-facts .ts-icon {
+    margin-top: 2px;
+    flex: none;
+}
+.ts-event-workspace {
+    align-items: start;
+}
+.ts-event-detail-page .ts-card-title {
+    margin: 0;
+}
+.ts-event-layout-body {
+    padding: 16px;
+}
+.ts-event-layout-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--text-tertiary);
+    padding: 60px 24px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+.ts-event-layout-caption {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-top: 12px;
+    color: var(--text-tertiary);
+    font-size: 12px;
+}
+.ts-event-detail-page .ts-generated-section.is-selected {
+    border: 2px solid #8b673e;
+    background: #f1e2ca;
+    box-shadow: 0 0 0 3px rgba(154, 116, 69, .14);
+}
+.ts-event-detail-page .ts-generated-section:focus-visible,
+.ts-event-category:focus-visible {
+    outline: 3px solid var(--brand-600);
+    outline-offset: 3px;
+}
+.ts-event-booking-body {
+    padding: 20px;
+}
+.ts-event-price-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.ts-event-booking-price {
+    font-size: 30px;
+    font-weight: 750;
+    letter-spacing: -.035em;
+    line-height: 1.2;
+    margin: 4px 0 16px;
+}
+.ts-event-booking-note {
+    line-height: 1.5;
+    margin: 12px 0 16px;
+}
+.ts-event-order {
+    margin: 18px 0;
+    padding-top: 18px;
+    border-top: 1px solid var(--border-default);
+}
+.ts-event-quantity-row,
+.ts-event-quantity-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.ts-event-quantity-row {
+    justify-content: space-between;
+    font-weight: 700;
+}
+.ts-event-quantity-controls output {
+    min-width: 24px;
+    text-align: center;
+}
+.ts-event-quantity-controls button {
+    font-size: 20px;
+}
+.ts-event-quantity-controls button:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+}
+.ts-event-category:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+}
+.ts-event-booking-body > [data-book-event] {
+    margin-top: 16px;
+}
+.ts-event-category-list {
+    display: grid;
+    gap: 10px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 3px;
+    margin: -3px;
+}
+.ts-event-category {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px;
+    text-align: left;
+    border: 1px solid var(--border-default);
+    border-radius: 11px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+}
+.ts-event-category > span {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.4;
+}
+.ts-event-category:hover {
+    border-color: #b99a72;
+}
+.ts-event-category.is-selected {
+    border-color: #9a7445;
+    background: #f8f0e4;
+}
+.ts-event-category-price {
+    white-space: nowrap;
+    font-size: 14px;
+}
+#category-selection-note {
+    line-height: 1.5;
+    margin: 14px 0 0;
+}
+.ts-event-more {
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(300px, .85fr);
+    gap: 20px;
+    margin-top: 20px;
+    align-items: start;
+}
+.ts-event-about {
+    white-space: pre-line;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+    margin-bottom: 0;
+}
+.ts-event-detail-page [data-book-event][aria-disabled="true"] {
+    pointer-events: none;
+    opacity: .6;
+}
+@media (max-width: 1100px) {
+    .ts-event-facts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .ts-event-heading {
+        flex-wrap: wrap;
+    }
+    .ts-event-heading-actions {
+        justify-content: flex-start;
+    }
+}
+@media (max-width: 900px) {
+    .ts-event-workspace,
+    .ts-event-more {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .ts-event-booking {
+        order: -1;
+    }
+}
+@media (max-width: 540px) {
+    .ts-event-detail-page {
+        padding-top: 18px;
+    }
+    .ts-event-detail-page .ts-container {
+        width: calc(100% - 28px);
+    }
+    .ts-event-heading {
+        gap: 12px;
+    }
+    .ts-event-heading-actions {
+        width: 100%;
+    }
+    .ts-event-heading-actions .ts-btn {
+        flex: 1;
+    }
+    .ts-event-poster-thumb {
+        width: 64px;
+        height: 84px;
+    }
+    .ts-event-facts {
+        gap: 8px;
+    }
+    .ts-event-facts .ts-info-pill {
+        padding: 11px;
+        gap: 8px;
+    }
+    .ts-event-facts .ts-icon {
+        width: 16px;
+        height: 16px;
+    }
+    .ts-event-layout-body {
+        padding: 10px;
+    }
+}
+/* Public navigation: aligned desktop actions and an accessible compact menu. */
+.ts-public-header [hidden] {
+    display: none !important;
+}
+.ts-public-header-inner {
+    gap: 20px;
+}
+.ts-public-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    min-width: 0;
+}
+.ts-public-header .ts-brand {
+    flex-shrink: 0;
+}
+.ts-public-nav {
+    margin-left: 0;
+    gap: 22px;
+    white-space: nowrap;
+}
+.ts-public-nav a {
+    font-size: 14px;
+}
+.ts-public-actions,
+.ts-public-auth-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.ts-public-user-name {
+    max-width: 110px;
+}
+.ts-public-header .ts-wallet-mini {
+    height: 42px;
+    max-width: 240px;
+    white-space: nowrap;
+}
+.ts-wallet-label {
+    font-weight: 650;
+    color: var(--text-primary);
+}
+#public-wallet-text {
+    font-size: 12px;
+}
+.ts-public-header .ts-wallet-dot {
+    background: var(--text-tertiary);
+    flex-shrink: 0;
+}
+.ts-public-header [data-saved="true"] .ts-wallet-dot {
+    background: var(--success);
+}
+.ts-public-header .ts-wallet-mini.active,
+.ts-public-header .ts-public-user.active,
+.ts-public-header .ts-header-notifications.active {
+    border: 1px solid #9a7445;
+    background: #f8f0e4;
+}
+.ts-public-header .ts-mobile-menu-btn {
+    display: none;
+}
+.ts-public-mobile-panel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    padding: 20px 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-default);
+    box-shadow: 0 16px 24px rgba(25, 32, 34, .08);
+    max-height: calc(100dvh - 72px);
+    overflow-y: auto;
+}
+.ts-mobile-nav-main,
+.ts-mobile-nav-account {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    align-content: start;
+}
+.ts-mobile-nav-account {
+    padding-left: 20px;
+    border-left: 1px solid var(--border-default);
+}
+.ts-public-mobile-panel a,
+.ts-public-mobile-panel button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    min-height: 44px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    text-align: left;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 550;
+    cursor: pointer;
+}
+.ts-public-mobile-panel a:hover,
+.ts-public-mobile-panel button:hover {
+    background: var(--bg-hover);
+}
+.ts-public-mobile-panel a.active {
+    background: #f8f0e4;
+    border-color: #e1cba9;
+}
+.ts-mobile-wallet-link {
+    grid-column: 1 / -1;
+}
+#mobile-wallet-text {
+    margin-left: auto;
+    font-size: 12px;
+}
+#event-search {
+    scroll-margin-top: 110px;
+}
+@media (max-width: 1280px) {
+    .ts-public-header .ts-public-nav {
+        display: none;
+    }
+    .ts-public-header .ts-mobile-menu-btn {
+        display: grid;
+    }
+}
+@media (max-width: 600px) {
+    .ts-public-header-inner {
+        gap: 10px;
+    }
+    .ts-public-header .ts-brand {
+        font-size: 20px;
+        gap: 8px;
+    }
+    .ts-public-actions,
+    .ts-public-auth-group {
+        gap: 6px;
+    }
+    .ts-public-header .ts-header-search,
+    .ts-public-header .ts-header-register,
+    .ts-public-header .ts-header-notifications,
+    .ts-public-header .ts-public-logout {
+        display: none;
+    }
+    .ts-public-user {
+        padding: 0;
+    }
+    .ts-public-mobile-panel {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+        padding: 16px;
+    }
+    .ts-mobile-nav-account {
+        padding: 16px 0 0;
+        border-left: 0;
+        border-top: 1px solid var(--border-default);
+    }
+}
+
+/* Remaining event inventory; physical venue capacity stays separate. */
+.ts-event-availability { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px; margin:0 0 16px; border:1px solid var(--border-default); border-radius:12px; background:#f9f7f2; }
+.ts-event-availability > div { display:grid; gap:5px; min-width:0; }
+.ts-event-availability .ts-btn { flex-shrink:0; padding:8px 12px; min-height:40px; }
+.ts-event-remaining { display:block; margin-top:6px; font-size:13px; font-weight:700; color:#08764e; }
+.ts-event-remaining.is-sold-out { color:#8a4343; }
+.ts-generated-section .ts-event-map-remaining { color:#08764e; font-weight:700; margin-top:4px; }
+.ts-event-category:disabled { opacity:.65; cursor:not-allowed; }
+@media(max-width:480px) { .ts-event-availability { padding:12px; align-items:flex-start; } }
+
+/* Event discovery: editorial spacing and warm, understated cards. */
+.ts-events-page { padding:48px 0 32px; }
+.ts-events-page > .ts-container { width:min(1280px, calc(100% - 64px)); }
+.ts-events-intro { display:grid; grid-template-columns:1.4fr 1fr; align-items:end; gap:48px; padding-bottom:36px; }
+.ts-events-intro .ts-section-eyebrow { margin-bottom:18px; font-size:11px; letter-spacing:.18em; }
+.ts-events-intro h1 { margin:0; color:var(--text-primary); font-size:clamp(34px, 3.8vw, 54px); line-height:1.08; letter-spacing:-.045em; font-weight:650; }
+.ts-events-intro h1 em { font-family:Georgia, 'Times New Roman', serif; color:#98703f; font-weight:400; letter-spacing:-.035em; }
+.ts-events-intro-copy { max-width:370px; justify-self:end; padding-bottom:4px; }
+.ts-events-intro-copy p { margin:0 0 18px; color:var(--text-secondary); font-size:15px; line-height:1.75; }
+.ts-events-intro-copy > span { display:flex; align-items:center; gap:9px; color:#88663e; font-size:12px; }
+.ts-events-intro-copy .ts-icon { width:17px; height:17px; }
+.ts-events-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; border:1px solid var(--border-default); border-radius:14px; background:var(--bg-surface); padding:9px 10px 9px 16px; margin-bottom:30px; box-shadow:0 6px 22px rgba(36,45,47,.025); }
+.ts-events-toolbar .ts-search { flex:1; max-width:640px; margin:0; }
+.ts-events-toolbar .ts-input { background:transparent; border:0; box-shadow:none; min-height:44px; }
+.ts-events-toolbar .ts-input:focus { box-shadow:inset 0 -2px #aa8453; border-radius:0; }
+.ts-events-toolbar .ts-event-view-switch { display:flex; gap:4px; flex-shrink:0; padding:4px; background:#f5f2ed; border-radius:10px; }
+.ts-events-toolbar .ts-event-view-switch .ts-btn { min-height:40px; padding:9px 17px; border:1px solid transparent; background:transparent; color:var(--text-secondary); box-shadow:none; border-radius:7px; font-size:13px; }
+.ts-events-toolbar .ts-event-view-switch .ts-btn[aria-pressed="true"] { background:var(--bg-surface); border-color:#e5dacb; color:#6f502b; box-shadow:0 2px 5px rgba(36,45,47,.04); }
+.ts-events-toolbar .ts-event-view-switch .ts-icon { width:16px; height:16px; }
+.ts-events-toolbar [hidden] { display:none !important; }
+.ts-events-results-head { display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:18px; }
+.ts-events-results-head h2 { margin:0; font-size:19px; font-weight:650; letter-spacing:-.025em; }
+.ts-events-results-head #events-count { font-size:12px; color:var(--text-tertiary); }
+.ts-events-page .ts-event-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%, 320px),1fr)); gap:24px; }
+.ts-events-page .ts-event-card { display:flex; flex-direction:column; min-width:0; text-decoration:none; border-radius:16px; box-shadow:0 7px 26px rgba(36,45,47,.035); }
+.ts-events-page .ts-event-card:hover { transform:translateY(-3px); border-color:#bda17b; box-shadow:0 12px 32px rgba(36,45,47,.075); }
+.ts-events-page .ts-event-card:focus-visible { outline:3px solid #aa8453; outline-offset:5px; }
+.ts-events-page .ts-event-art { height:250px; padding:0; background:#202b2b; flex-shrink:0; isolation:isolate; }
+.ts-events-page .ts-event-art:after { inset:16px; border-color:#dbc49e; opacity:.3; border-radius:3px; pointer-events:none; z-index:2; }
+.ts-events-cover { position:absolute; inset:0; padding:32px; display:flex; flex-direction:column; justify-content:space-between; background:radial-gradient(ellipse at 90% 15%, #41534b 0%, transparent 65%), #202b2b; overflow:hidden; }
+.ts-events-cover:after { content:""; position:absolute; width:240px; height:340px; border:1px solid rgba(216,189,145,.23); border-radius:50%; right:-60px; top:18px; transform:rotate(35deg); box-shadow:0 0 0 24px rgba(216,189,145,.045),0 0 0 48px rgba(216,189,145,.025); }
+.ts-events-cover-brand,.ts-events-cover-line { color:#c8b691; font-size:9px; letter-spacing:.22em; line-height:1.6; z-index:1; }
+.ts-events-cover-type { font-family:Georgia, 'Times New Roman', serif; font-size:40px; letter-spacing:-.045em; line-height:1.04; color:#fff7e9; z-index:1; }
+.ts-events-cover-type i { color:#dcc7a2; font-weight:400; }
+.ts-events-page .ts-events-poster { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:1; }
+.ts-events-page .ts-events-poster[hidden] { display:none; }
+.ts-events-date-stamp { position:absolute; top:26px; right:26px; display:flex; flex-direction:column; align-items:center; justify-content:center; width:58px; min-height:66px; border:1px solid rgba(255,255,255,.7); border-radius:8px; color:#26302f; background:#fffcf5; box-shadow:0 3px 14px rgba(0,0,0,.08); z-index:3; }
+.ts-events-page .ts-events-date-stamp strong { font-size:25px; font-weight:650; max-width:none; letter-spacing:-.05em; line-height:1.1; }
+.ts-events-date-stamp > span { margin-top:3px; font-size:10px; letter-spacing:.12em; text-transform:uppercase; }
+.ts-events-saved-mark { position:absolute; bottom:25px; right:26px; padding:5px 9px; border-radius:20px; background:#fffcf5; color:#88663e; font-size:11px; z-index:3; }
+.ts-events-page .ts-event-body { display:flex; flex-direction:column; flex:1; min-width:0; padding:25px; }
+.ts-events-card-type { color:#99703c; font-size:10px; letter-spacing:.16em; line-height:1.5; text-transform:uppercase; font-weight:700; }
+.ts-events-page .ts-event-name { margin:10px 0 15px; font-size:23px; line-height:1.3; letter-spacing:-.035em; overflow-wrap:anywhere; font-weight:650; }
+.ts-events-page .ts-event-date { display:flex; flex-wrap:wrap; gap:6px 12px; color:var(--text-secondary); font-size:13px; font-weight:400; text-transform:none; letter-spacing:0; }
+.ts-events-page .ts-event-date > span { color:var(--text-tertiary); }
+.ts-events-page .ts-event-meta { display:flex; align-items:flex-start; gap:7px; margin-top:11px; color:var(--text-secondary); font-size:13px; overflow-wrap:anywhere; }
+.ts-events-page .ts-event-meta svg { width:16px; height:16px; flex-shrink:0; margin-top:1px; color:#9c805b; }
+.ts-events-page .ts-event-foot { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; padding-top:20px; margin-top:auto; border-top:1px solid var(--border-default); }
+.ts-events-page .ts-event-meta + .ts-event-foot { margin-top:24px; }
+.ts-events-card-price { display:grid; gap:3px; }
+.ts-events-card-price > span { font-size:11px; color:var(--text-tertiary); }
+.ts-events-card-price strong { font-size:20px; letter-spacing:-.035em; color:var(--text-primary); }
+.ts-events-card-action { display:flex; align-items:center; gap:10px; font-size:12px; font-weight:600; color:#846139; }
+.ts-events-card-action > span { display:flex; align-items:center; justify-content:center; width:34px; height:34px; border:1px solid #e5d6bf; border-radius:50%; background:#fbf6ed; transition:background .2s; }
+.ts-events-card-action svg { width:17px; height:17px; }
+.ts-event-card:hover .ts-events-card-action > span { background:#efe1ca; }
+.ts-events-page .ts-event-grid[data-single="true"] { grid-template-columns:minmax(0,1fr); }
+.ts-events-page .ts-event-grid[data-single="true"] .ts-event-card { display:grid; grid-template-columns:1fr 1.25fr; }
+.ts-events-page .ts-event-grid[data-single="true"] .ts-event-art { height:100%; min-height:340px; }
+.ts-events-page .ts-event-grid[data-single="true"] .ts-events-cover { padding:36px; }
+.ts-events-page .ts-event-grid[data-single="true"] .ts-events-cover-type { font-size:clamp(38px, 4.4vw, 60px); }
+.ts-events-page .ts-event-grid[data-single="true"] .ts-event-body { padding:34px 40px; }
+.ts-events-page .ts-event-grid[data-single="true"] .ts-event-name { font-size:clamp(25px, 2.6vw, 34px); margin-bottom:20px; }
+.ts-events-page .ts-event-grid[data-single="true"] .ts-event-foot { margin-top:auto; }
+.ts-events-page .ts-events-empty { grid-column:1/-1; padding:54px 24px; border:1px dashed var(--border-default); border-radius:16px; background:var(--bg-surface); text-align:center; line-height:1.7; }
+.ts-events-page .ts-events-empty .ts-btn { margin:18px auto 0; display:table; }
+.ts-events-signoff { display:flex; justify-content:space-between; gap:16px; margin-top:32px; padding-top:20px; border-top:1px solid var(--border-default); color:var(--text-tertiary); font-size:11px; }
+.ts-events-signoff > span:first-child { letter-spacing:.14em; text-transform:uppercase; color:#9c805b; }
+@media(max-width:760px) {
+  .ts-events-page { padding:30px 0 24px; }
+  .ts-events-page > .ts-container { width:calc(100% - 36px); }
+  .ts-events-intro { grid-template-columns:1fr; gap:20px; padding-bottom:24px; }
+  .ts-events-intro-copy { justify-self:start; max-width:450px; }
+  .ts-events-intro-copy p { margin-bottom:0; font-size:14px; }
+  .ts-events-intro-copy > span { display:none; }
+  .ts-events-toolbar { align-items:stretch; flex-direction:column; padding:9px; gap:8px; margin-bottom:25px; }
+  .ts-events-toolbar .ts-event-view-switch { align-self:stretch; }
+  .ts-events-toolbar .ts-event-view-switch .ts-btn { flex:1; }
+  .ts-events-results-head { flex-wrap:wrap; gap:8px; }
+  .ts-events-page .ts-event-grid[data-single="true"] .ts-event-card { display:flex; }
+  .ts-events-page .ts-event-grid[data-single="true"] .ts-event-art { height:260px; min-height:0; }
+  .ts-events-page .ts-event-grid[data-single="true"] .ts-event-body { padding:24px; }
+  .ts-events-page .ts-event-grid[data-single="true"] .ts-event-name { font-size:25px; }
+  .ts-events-page .ts-event-grid[data-single="true"] .ts-event-foot { margin-top:24px; }
+}
+@media(prefers-reduced-motion:reduce) { .ts-events-page .ts-event-card { transition:none; } .ts-events-page .ts-event-card:hover { transform:none; } }

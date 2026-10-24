@@ -92,7 +92,7 @@ ob_start();
     </div>
 </div>
 
-<script src="../assets/js/venue-renderer.js"></script>
+<script src="<?=ts_asset_url('assets/js/venue-renderer.js', '..')?>"></script>
 <script type="module">
 window.addEventListener('ts-auth-ready', async () => {
     const urlParams = new URLSearchParams(window.location.search);

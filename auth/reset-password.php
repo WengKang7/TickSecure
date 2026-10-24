@@ -8,8 +8,8 @@ ob_start();
 <div class="ts-auth-fields" id="reset-form">
     <div class="ts-field">
         <label class="ts-label" for="new-password">New Password</label>
-        <input class="ts-input" id="new-password" type="password" name="newPassword" autocomplete="new-password" maxlength="4096" placeholder="New password" required>
-        <div class="ts-help">Use at least 8 characters with upper/lowercase, number and symbol.</div>
+        <input class="ts-input" id="new-password" type="password" minlength="8" aria-describedby="new-password-help" name="newPassword" autocomplete="new-password" maxlength="4096" placeholder="New password" required>
+        <div class="ts-help" id="new-password-help">Use at least 8 characters with uppercase, lowercase, a number and a special character.</div>
     </div>
     <div class="ts-field">
         <label class="ts-label" for="confirm-password">Confirm Password</label>
@@ -44,9 +44,10 @@ document.addEventListener('DOMContentLoaded', () => {
         V.clearFieldErrors(form);
 
         const pwEl = V.el(form, 'newPassword');
-        const pw = V.val(form, 'newPassword');
-        const cpw = V.val(form, 'confirmPassword');
         const cpwEl = V.el(form, 'confirmPassword');
+        // Preserve the password exactly, as registration and Firebase do.
+        const pw = pwEl?.value || '';
+        const cpw = cpwEl?.value || '';
 
         const ok = V.runAll([
             { check: () => V.validateRequired(pw, 'New Password'), el: pwEl },

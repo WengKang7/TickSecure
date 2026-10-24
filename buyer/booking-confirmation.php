@@ -3,16 +3,16 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<main class="ts-section-tight">
+<main class="ts-section-tight ts-confirmation-page">
     <div class="ts-container" style="max-width:880px">
         <div class="ts-card">
             <div class="ts-success-state">
-                <div class="ts-success-icon">
+                <div class="ts-success-icon" id="booking-success-icon" hidden>
                     <?=ts_icon('check', 'ts-icon-xl')?>
                 </div>
-                <div class="ts-success-title">Booking confirmed</div>
+                <div class="ts-success-title" id="confirmation-title">Loading booking...</div>
                 <p class="ts-success-copy" id="success-copy">Your booking is being loaded.</p>
-                <div class="ts-card ts-card-pad mt-24 text-left">
+                <div class="ts-card ts-card-pad mt-24 text-left" id="confirmation-details" hidden>
                     <div class="ts-detail-grid">
                         <div class="ts-detail-item">
                             <div class="ts-detail-label">Event</div>
@@ -43,7 +43,7 @@ ob_start();
                     </div>
                 </div>
                 <div class="flex justify-center gap-12 wrap mt-24"><a class="ts-btn ts-btn-primary"
-                        href="booking-detail.php" id="btn-view-booking">View Booking</a><a class="ts-btn ts-btn-secondary"
+                        href="bookings.php" id="btn-view-booking" hidden>View Booking</a><a class="ts-btn ts-btn-secondary"
                         href="tickets.php">View My Tickets</a><a class="ts-btn ts-btn-tertiary"
                         href="../public/events.php">Back to Events</a></div>
             </div>
@@ -69,46 +69,7 @@ ob_start();
     </div>
 </main>
 
-<script type="module">
-window.addEventListener('ts-auth-ready', async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const bookingId = urlParams.get('bookingId');
-    if (!bookingId) return;
-
-    try {
-        const booking = await window.tsBookings.getBooking(bookingId);
-        
-        const simulatedPayment = String(booking.paymentStatus || '').toUpperCase() === 'SIMULATED_PAID';
-        document.getElementById('success-copy').textContent = simulatedPayment
-            ? `Your simulated payment was successful and booking ${booking.id} has been created. NFT ticket issuance is now being initiated.`
-            : `Your payment has been confirmed and booking ${booking.id} has been created. NFT ticket issuance is now being initiated.`;
-        
-        document.getElementById('val-event').textContent = booking.eventName || 'Event';
-        document.getElementById('val-booking-id').textContent = booking.bookingNumber || booking.id;
-        document.getElementById('val-category').textContent = booking.categoryName || 'Category';
-        document.getElementById('val-seat').textContent = (booking.seats || []).join(', ') || 'Auto';
-        document.getElementById('val-paid').textContent = `RM${parseFloat(booking.totalAmount || 0).toFixed(2)}`;
-        
-        document.getElementById('btn-view-booking').href = `booking-detail.php?id=${booking.id}`;
-        
-        const bookingTickets = await window.tsTickets.getTickets({ bookingId: booking.id });
-        const ticket = bookingTickets[0];
-        if (ticket) {
-            const minted = (ticket.mintingStatus || '').toUpperCase() === 'MINTED';
-            document.getElementById('val-tx').textContent = ticket.transactionHash || 'Pending mint...';
-            document.getElementById('val-tx-status').innerHTML = minted
-                ? '<span class="ts-chip ts-chip-success">Confirmed</span>'
-                : '<span class="ts-chip ts-chip-warning">Pending</span>';
-            document.getElementById('val-nft-status').innerHTML = minted
-                ? '<span class="ts-chip ts-chip-success">Minted</span>'
-                : '<span class="ts-chip ts-chip-warning">Pending</span>';
-        }
-        
-    } catch (err) {
-        console.error('Load error:', err);
-    }
-});
-</script>
+<script type="module" src="<?=ts_asset_url('assets/js/booking-confirmation.js', '..')?>"></script>
 
 <?php
 $content = ob_get_clean();

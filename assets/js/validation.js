@@ -32,9 +32,14 @@ export function validateEmail(email) {
     return { valid: true, error: null };
 }
 
+// Matches Firebase's configured 8-4096 character policy and supported symbols.
+const passwordSymbols = "^$*.[]{}()?\"!@#%&/\\,><':;|_~`-";
 export function validatePassword(password) {
-    if (!password || !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(password))
-        return { valid: false, error: 'Password must be 8+ characters with uppercase, lowercase, number, and special character.' };
+    if (typeof password !== 'string' || password.length < 8 || password.length > 4096
+        || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)
+        || !Array.from(password).some(character => passwordSymbols.includes(character))) {
+        return { valid: false, error: 'Password must contain 8 to 4096 characters, including uppercase, lowercase, a number, and a special character.' };
+    }
     return { valid: true, error: null };
 }
 

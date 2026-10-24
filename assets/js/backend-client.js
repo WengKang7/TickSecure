@@ -22,28 +22,29 @@ function backendError(payload, fallbackMessage, status) {
 
 async function invokeLocalPhpBackend(request, config) {
     const backend = window.tsFirebase?.backend;
-    if (!backend?.compatible) {
+    if (!backend?.compatible || window.tsFirebase?.emulator?.enabled === true) {
         throw new Error(
             'PHP backend mode cannot be used with Firebase Emulator mode. Use either ?firebaseEmulator=1 or ?firebaseBackend=php, not both.'
         );
     }
-    if (!auth.currentUser) {
+    const publicRead = ['checkPasswordResetEmail', 'getEventAvailability'].includes(config.name);
+    if (!auth.currentUser && !publicRead) {
         throw new Error('You must be signed in.');
     }
     if (!backend.endpoint) {
         throw new Error('The local PHP backend endpoint is not configured.');
     }
 
-    const idToken = await auth.currentUser.getIdToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if (!publicRead) {
+        headers.Authorization = `Bearer ${await auth.currentUser.getIdToken()}`;
+    }
     let response;
     try {
         response = await fetch(backend.endpoint, {
             method: 'POST',
             credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${idToken}`
-            },
+            headers,
             body: JSON.stringify({ action: config.name, data: request })
         });
     } catch (_) {
@@ -62,12 +63,15 @@ async function invokeLocalPhpBackend(request, config) {
     return payload?.data || {};
 }
 
-/** @param {{name: string, region?: string}} config */
+/** @param {{name: string, region?: string, backend?: 'php'}} config */
 export async function invokeTrustedBackend(request, config) {
     if (!config?.name) {
         throw new Error('The secure backend action is not configured.');
     }
-    if (usingLocalPhpBackend()) {
+    const localDemoCheckout = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
+        && window.tsFirebase?.emulator?.enabled !== true
+        && ['getEventAvailability', 'reserveSeats', 'releaseSeatReservation', 'checkout'].includes(config.name);
+    if (config.backend === 'php' || usingLocalPhpBackend() || localDemoCheckout) {
         return invokeLocalPhpBackend(request, config);
     }
 

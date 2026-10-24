@@ -6,13 +6,16 @@ declare(strict_types=1);
  * ticketing workflows. It is intentionally opt-in and loopback-only. The
  * browser authenticates with a Firebase ID token; this endpoint verifies that
  * token and then uses a service account kept outside htdocs for atomic
- * Firestore transactions.
+ * Firestore transactions. Signed-out reads are limited to password-recovery
+ * eligibility and aggregate seat counts for published events.
  *
  * This is suitable for an FYP/local demonstration, not an internet-facing
  * production server. Use the deployed Functions or Emulator Suite there.
  */
 
 require_once __DIR__ . '/firebase-admin.php';
+require_once __DIR__ . '/password-reset.php';
+require_once __DIR__ . '/event-availability.php';
 
 const BACKEND_SERVICE_CHARGE = 20;
 const BACKEND_MAX_REQUEST_BYTES = 131072;
@@ -43,6 +46,16 @@ function backend_is_loopback_request(): bool
 function backend_is_enabled(): bool
 {
     return getenv('TICKSECURE_PHP_BACKEND') === '1' && backend_is_loopback_request();
+}
+
+function backend_password_reset_is_enabled(): bool
+{
+    return getenv('TICKSECURE_PHP_PASSWORD_RESET') === '1' && backend_is_loopback_request();
+}
+
+function backend_checkout_is_enabled(): bool
+{
+    return getenv('TICKSECURE_PHP_CHECKOUT') === '1' && backend_is_loopback_request();
 }
 
 function backend_fail(int $status, string $message, string $code): never
@@ -178,7 +191,7 @@ function backend_policy_date_timestamp(mixed $value, bool $endOfDay = false): ?f
     try {
         $date = preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $raw)
             ? new DateTimeImmutable($raw . ($endOfDay ? 'T23:59:59.999+08:00' : 'T00:00:00+08:00'))
-            : new DateTimeImmutable($raw);
+            : new DateTimeImmutable($raw, new DateTimeZone('Asia/Singapore'));
         return (float)$date->format('U.u');
     } catch (Throwable) {
         return null;
@@ -293,7 +306,16 @@ function backend_assert_active_account(array $actor): void
 
 function backend_owned_ticket_count(FirebaseFirestoreTransaction $transaction, string $eventId, string $ownerUid): int
 {
-    return count($transaction->query('NFTTickets', ['eventId' => $eventId, 'ownerUid' => $ownerUid]));
+    return count(array_filter($transaction->query('NFTTickets', ['ownerUid' => $ownerUid]),
+        static fn (array $ticket): bool => ($ticket['eventId'] ?? '') === $eventId));
+}
+
+/** Local-demo queries use a single indexed field, with filtering inside the transaction. */
+function backend_event_seats(FirebaseFirestoreTransaction $transaction, string $eventId): array
+{
+    $seats = $transaction->query('EventSeats', ['eventId' => $eventId]);
+    usort($seats, static fn (array $left, array $right): int => strcmp((string)($left['seatLabel'] ?? ''), (string)($right['seatLabel'] ?? '')));
+    return $seats;
 }
 
 /** @param array<string,mixed> $actor @param array<string,mixed> $details @return array<string,mixed> */
@@ -522,12 +544,32 @@ function backend_checkout(FirebaseAdminRest $firebase, string $uid, array $data)
         $category = backend_category_for_section($event['categories'] ?? [], $sectionId);
         if ($category === null
             || !is_string($category['name'] ?? null)
-            || !is_finite(backend_number($category['price'] ?? null, NAN))) {
+            || !is_finite(backend_number($category['price'] ?? null, NAN))
+            || backend_number($category['price'] ?? 0) <= 0
+            || $quantity > backend_number($category['quantity'] ?? $category['available'] ?? 0)) {
             backend_fail(412, 'This ticket category is not available.', 'failed-precondition');
         }
         $maxPerBuyer = backend_max_tickets_per_buyer($event);
         if ($quantity > $maxPerBuyer) {
             backend_fail(400, "A maximum of {$maxPerBuyer} tickets is allowed.", 'invalid-argument');
+        }
+        $seatMap = $requestedSeatIds !== [] ? $transaction->getMany('EventSeats', $requestedSeatIds) : [];
+        // A retried response for the same sold seats returns the original booking.
+        // It never creates another booking or sells the seats twice.
+        $firstSeat = $seatMap[$requestedSeatIds[0] ?? ''] ?? null;
+        if (($firstSeat['status'] ?? '') === 'SOLD' && !empty($firstSeat['bookingId'])) {
+            $existing = $transaction->get('Bookings', (string)$firstSeat['bookingId']);
+            $existingIds = $existing['seatDocIds'] ?? [];
+            sort($existingIds);
+            $requestIds = $requestedSeatIds;
+            sort($requestIds);
+            if ($existing !== null && ($existing['buyerUid'] ?? '') === $uid
+                && ($existing['eventId'] ?? '') === $eventId && ($existing['sectionId'] ?? '') === $sectionId
+                && ($existing['status'] ?? '') === 'CONFIRMED' && $existingIds === $requestIds) {
+                return ['id' => $existing['id'], 'bookingNumber' => $existing['bookingNumber'],
+                    'seatLabels' => $existing['seats'], 'totalAmount' => $existing['totalAmount'],
+                    'paymentStatus' => $existing['paymentStatus']];
+            }
         }
         $alreadyHeld = backend_owned_ticket_count($transaction, $eventId, $uid);
         if ($alreadyHeld + $quantity > $maxPerBuyer) {
@@ -536,7 +578,6 @@ function backend_checkout(FirebaseAdminRest $firebase, string $uid, array $data)
         }
 
         if ($requestedSeatIds !== []) {
-            $seatMap = $transaction->getMany('EventSeats', $requestedSeatIds);
             $selectedSeats = [];
             foreach ($requestedSeatIds as $seatId) {
                 $seat = $seatMap[$seatId] ?? null;
@@ -553,17 +594,9 @@ function backend_checkout(FirebaseAdminRest $firebase, string $uid, array $data)
                 $selectedSeats[] = $seat;
             }
         } else {
-            $selectedSeats = $transaction->query(
-                'EventSeats',
-                [
-                    'eventId' => $eventId,
-                    'venueId' => (string)($event['venueId'] ?? ''),
-                    'sectionId' => $sectionId,
-                    'status' => 'AVAILABLE',
-                ],
-                [['field' => 'seatLabel', 'direction' => 'ASCENDING']],
-                $quantity
-            );
+            $selectedSeats = array_slice(array_values(array_filter(backend_event_seats($transaction, $eventId),
+                static fn (array $seat): bool => ($seat['venueId'] ?? '') === ($event['venueId'] ?? '')
+                    && ($seat['sectionId'] ?? '') === $sectionId && ($seat['status'] ?? '') === 'AVAILABLE')), 0, $quantity);
             if (count($selectedSeats) !== $quantity) {
                 backend_fail(412, 'The requested number of seats is no longer available.', 'failed-precondition');
             }
@@ -594,6 +627,7 @@ function backend_checkout(FirebaseAdminRest $firebase, string $uid, array $data)
             'totalAmount' => $totalAmount,
             'status' => 'CONFIRMED',
             'paymentStatus' => 'SIMULATED_PAID',
+            'paymentMethod' => 'simulated',
             'walletAddress' => $walletAddress,
             'createdAt' => $timestamp,
             'updatedAt' => $timestamp,
@@ -704,24 +738,13 @@ function backend_reserve_seats(FirebaseAdminRest $firebase, string $uid, array $
             backend_fail(400, 'The reservation exceeds the per-buyer ticket limit.', 'invalid-argument');
         }
 
-        $reservations = $transaction->query(
-            'EventSeats',
-            ['eventId' => $eventId, 'venueId' => $venueId, 'sectionId' => $sectionId, 'status' => 'RESERVED'],
-            [['field' => 'seatLabel', 'direction' => 'ASCENDING']],
-            100
-        );
-        $available = $transaction->query(
-            'EventSeats',
-            ['eventId' => $eventId, 'venueId' => $venueId, 'sectionId' => $sectionId, 'status' => 'AVAILABLE'],
-            [['field' => 'seatLabel', 'direction' => 'ASCENDING']],
-            $quantity
-        );
-        $ownedReservations = $transaction->query(
-            'EventSeats',
-            ['eventId' => $eventId, 'reservedBy' => $uid, 'status' => 'RESERVED'],
-            [],
-            100
-        );
+        $eventSeats = backend_event_seats($transaction, $eventId);
+        $sectionSeats = array_values(array_filter($eventSeats,
+            static fn (array $seat): bool => ($seat['venueId'] ?? '') === $venueId && ($seat['sectionId'] ?? '') === $sectionId));
+        $reservations = array_values(array_filter($sectionSeats, static fn (array $seat): bool => ($seat['status'] ?? '') === 'RESERVED'));
+        $available = array_values(array_filter($sectionSeats, static fn (array $seat): bool => ($seat['status'] ?? '') === 'AVAILABLE'));
+        $ownedReservations = array_values(array_filter($eventSeats,
+            static fn (array $seat): bool => ($seat['reservedBy'] ?? '') === $uid && ($seat['status'] ?? '') === 'RESERVED'));
 
         $activeOwnedReservations = array_values(array_filter(
             $ownedReservations,
@@ -733,7 +756,7 @@ function backend_reserve_seats(FirebaseAdminRest $firebase, string $uid, array $
                 && ($seat['sectionId'] ?? '') === $sectionId
         ));
         $otherActiveReservationCount = count($activeOwnedReservations) - count($ownedInSection);
-        if ($otherActiveReservationCount + $quantity > $maxPerBuyer) {
+        if (backend_owned_ticket_count($transaction, $eventId, $uid) + $otherActiveReservationCount + $quantity > $maxPerBuyer) {
             backend_fail(
                 412,
                 'Your active seat reservations already reach the per-buyer ticket limit for this event.',
@@ -1531,7 +1554,7 @@ function backend_authorization_header(): string
     return '';
 }
 
-if (!backend_is_enabled()) {
+if (!backend_is_enabled() && !backend_password_reset_is_enabled() && !backend_checkout_is_enabled()) {
     backend_respond(410, [
         'error' => [
             'code' => 'php_backend_disabled',
@@ -1558,6 +1581,44 @@ try {
     $data = $request['data'] ?? [];
     if (!is_array($data)) {
         backend_fail(400, 'The backend request data is invalid.', 'invalid-argument');
+    }
+
+    // Public aggregate only; do not create inventory or expose individual seats.
+    if ($action === 'getEventAvailability') {
+        if (!backend_is_enabled() && !backend_checkout_is_enabled()) {
+            backend_fail(410, 'Event availability is not enabled.', 'php_backend_disabled');
+        }
+        $eventId = backend_require_id($data['eventId'] ?? null, 'Event ID');
+        $firebase = new FirebaseAdminRest(firebase_backend_config());
+        $result = $firebase->transaction(static function (FirebaseFirestoreTransaction $tx) use ($eventId): array {
+            $event = $tx->get('Events', $eventId);
+            if ($event === null || ($event['status'] ?? '') !== 'PUBLISHED') {
+                backend_fail(404, 'Published event not found.', 'not-found');
+            }
+            $event['id'] = $eventId;
+            $physical = empty($event['venueId']) ? [] : $tx->query('Seats', ['venueId' => $event['venueId']]);
+            return backend_event_availability($event, $physical, $tx->query('EventSeats', ['eventId' => $eventId]));
+        });
+        backend_respond(200, ['data' => $result]);
+    }
+
+    // This read-only recovery check is intentionally available while
+    // signed out. Every ticket/profile mutation below still requires a token.
+    if ($action === 'checkPasswordResetEmail') {
+        if (!backend_is_enabled() && !backend_password_reset_is_enabled()) {
+            backend_fail(410, 'Password recovery is not enabled.', 'php_backend_disabled');
+        }
+        $firebase = new FirebaseAdminRest(firebase_backend_config());
+        $result = backend_check_password_reset_email($data,
+            static fn (string $email): ?array => $firebase->getAuthUserByEmail($email),
+            static fn (string $uid): ?array => $firebase->getDocument('Users', $uid)
+        );
+        backend_respond(200, ['data' => $result]);
+    }
+
+    if (!backend_is_enabled() && !(backend_checkout_is_enabled()
+        && in_array($action, ['reserveSeats', 'releaseSeatReservation', 'checkout'], true))) {
+        backend_fail(410, 'This action is not enabled for this local PHP endpoint.', 'php_backend_disabled');
     }
 
     $authorization = backend_authorization_header();

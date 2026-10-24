@@ -126,6 +126,21 @@ final class FirebaseAdminRest
             . rawurlencode($this->projectId) . '/databases/(default)';
     }
 
+    /** @return array{uid:string,email:string}|null */
+    public function getAuthUserByEmail(string $email): ?array
+    {
+        $response = $this->adminJsonRequest('POST',
+            'https://identitytoolkit.googleapis.com/v1/projects/'
+            . rawurlencode($this->projectId) . '/accounts:lookup',
+            ['email' => [$email]]
+        );
+        $user = $response['users'][0] ?? null;
+        if (!is_array($user) || empty($user['localId'])) {
+            return null;
+        }
+        return ['uid' => (string)$user['localId'], 'email' => (string)($user['email'] ?? '')];
+    }
+
     public function projectId(): string
     {
         return $this->projectId;
@@ -236,7 +251,7 @@ final class FirebaseAdminRest
         $headers = ['Authorization: Bearer ' . $this->accessToken()];
         $body = null;
         if ($payload !== null) {
-            $encoded = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+            $encoded = json_encode($payload === [] ? new stdClass() : $payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
             $body = $encoded;
             $headers[] = 'Content-Type: application/json';
         }
@@ -268,7 +283,7 @@ final class FirebaseAdminRest
         $assertionHeader = firebase_base64url_encode(json_encode(['alg' => 'RS256', 'typ' => 'JWT'], JSON_THROW_ON_ERROR));
         $assertionPayload = firebase_base64url_encode(json_encode([
             'iss' => $this->serviceAccount['client_email'],
-            'scope' => 'https://www.googleapis.com/auth/datastore',
+            'scope' => 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/identitytoolkit',
             'aud' => $this->serviceAccount['token_uri'],
             'iat' => $issuedAt,
             'exp' => $issuedAt + 3600,
@@ -301,13 +316,13 @@ final class FirebaseAdminRest
 
     private function documentName(string $collection, string $id): string
     {
-        return $this->databaseUrl . '/documents/' . rawurlencode($collection) . '/' . rawurlencode($id);
+        return 'projects/' . $this->projectId . '/databases/(default)/documents/' . rawurlencode($collection) . '/' . rawurlencode($id);
     }
 
     /** @return array<string,mixed>|null */
     public function getDocument(string $collection, string $id, ?string $transaction = null): ?array
     {
-        $url = $this->documentName($collection, $id);
+        $url = 'https://firestore.googleapis.com/v1/' . $this->documentName($collection, $id);
         if ($transaction !== null) {
             $url .= '?transaction=' . rawurlencode($transaction);
         }
@@ -361,10 +376,11 @@ final class FirebaseAdminRest
         );
         if ($status < 200 || $status >= 300) {
             $error = json_decode($response, true);
+            $details = $error['error'] ?? $error[0]['error'] ?? [];
             throw new FirebaseBackendException(
                 $status ?: 503,
-                (string)($error['error']['message'] ?? 'Firestore batch read failed.'),
-                strtolower((string)($error['error']['status'] ?? 'firebase_batch_read_failed'))
+                (string)($details['message'] ?? 'Firestore batch read failed.'),
+                strtolower((string)($details['status'] ?? 'firebase_batch_read_failed'))
             );
         }
 
@@ -443,10 +459,11 @@ final class FirebaseAdminRest
         [$status, $response] = $this->httpRequest('POST', $url, json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), $headers);
         if ($status < 200 || $status >= 300) {
             $error = json_decode($response, true);
+            $details = $error['error'] ?? $error[0]['error'] ?? [];
             throw new FirebaseBackendException(
                 $status ?: 503,
-                (string)($error['error']['message'] ?? 'Firestore query failed.'),
-                strtolower((string)($error['error']['status'] ?? 'firebase_query_failed'))
+                (string)($details['message'] ?? 'Firestore query failed.'),
+                strtolower((string)($details['status'] ?? 'firebase_query_failed'))
             );
         }
 
@@ -492,11 +509,16 @@ final class FirebaseAdminRest
                     'writes' => $context->writes(),
                 ]);
                 return $result;
-            } catch (FirebaseBackendException $error) {
-                $lastError = $error;
-                if ($error->httpStatus !== 409 && $error->errorCode !== 'aborted') {
+            } catch (Throwable $error) {
+                try {
+                    $this->adminJsonRequest('POST', $this->databaseUrl . '/documents:rollback', ['transaction' => $transaction]);
+                } catch (Throwable) { /* The server may already have aborted it. */ }
+                if (!$error instanceof FirebaseBackendException
+                    || ($error->httpStatus !== 409 && $error->errorCode !== 'aborted')) {
                     throw $error;
                 }
+                $lastError = $error;
+                usleep(100000 * ($attempt + 1));
             }
         }
 

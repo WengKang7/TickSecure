@@ -140,7 +140,7 @@ service cloud.firestore {
         || (
           isOwner(userId)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'fullName', 'walletAddress', 'emailVerified', 'updatedAt'
+            'fullName', 'walletAddress', 'favoriteEventIds', 'emailVerified', 'updatedAt'
           ])
           && request.resource.data.fullName is string
           && (
@@ -154,6 +154,9 @@ service cloud.firestore {
             || (request.resource.data.walletAddress is string
               && (request.resource.data.walletAddress == ''
                 || request.resource.data.walletAddress.matches('^0x[a-fA-F0-9]{40}$'))))
+          && (!('favoriteEventIds' in request.resource.data)
+            || (request.resource.data.favoriteEventIds is list
+              && request.resource.data.favoriteEventIds.size() <= 100))
           && (!('updatedAt' in request.resource.data)
             || request.resource.data.updatedAt is string)
         );
@@ -310,9 +313,9 @@ service cloud.firestore {
     }
 
     match /ResaleListings/{listingId} {
-      // Marketplace views may show active listings. Sellers can see their own
+      // Active, authenticated accounts may browse listings. Sellers can see their own
       // completed/cancelled records and admins retain oversight.
-      allow get, list: if resource.data.status == 'ACTIVE'
+      allow get, list: if (isActiveAccount() && resource.data.status == 'ACTIVE')
         || isAdmin()
         || (isActiveAccount() && resource.data.sellerUid == request.auth.uid)
         || isOrganizerRecord();

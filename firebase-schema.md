@@ -38,6 +38,7 @@ The base authenticated-user profile.
 | `role` | string | `buyer`, `organizer`, or trusted-backend-only `admin`. |
 | `status` | string | `active`, `pending`, `suspended`, or `rejected`. |
 | `walletAddress` | string | Optional connected wallet address; checkout and resale purchase require one. |
+| `favoriteEventIds` | string[] | Optional event IDs saved by this user. |
 | `suspendReason`, `rejectReason` | string | Optional administrator-only moderation data. |
 | `createdAt`, `updatedAt` | ISO 8601 string | Creation and modification times. |
 

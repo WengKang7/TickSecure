@@ -3,7 +3,7 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<?=ts_page_head('Create Event', 'Build an event in clear steps, then preview and submit it for administrator approval.', '<button class="ts-btn ts-btn-secondary" data-toast="Draft saved in UI preview">Save Draft</button>')?>
+<?=ts_page_head('Create Event', 'Build an event in clear steps, then preview and submit it for administrator approval.', '<button class="ts-btn ts-btn-secondary" id="save-event-draft">Save Draft</button>')?>
 <div class="ts-steps">
     <div class="ts-step active" id="step-nav-1"><span class="ts-step-num">1</span>Basic Info</div><span class="ts-step-line"></span>
     <div class="ts-step" id="step-nav-2"><span class="ts-step-num">2</span>Venue</div><span class="ts-step-line"></span>
@@ -89,6 +89,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const organizerNameInput = document.getElementById('organizerName');
     
     let venuesData = [];
+    let currentEventId = new URLSearchParams(window.location.search).get('id');
+    let originalVenueId = '';
 
     // Step Navigation
     const step1 = document.getElementById('step-content-1');
@@ -267,64 +269,107 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (venueSelect) {
                 venueSelect.innerHTML = '<option value="">No active venues available</option>';
             }
+            if (currentEventId) {
+                const existingEvent = await window.tsEvents.getEvent(currentEventId);
+                if (!existingEvent || existingEvent.status !== 'DRAFT') {
+                    throw new Error('Only your draft events can be edited.');
+                }
+                originalVenueId = existingEvent.venueId || '';
+                document.querySelector('.ts-page-title').textContent = 'Edit Event';
+                document.querySelector('.ts-page-subtitle').textContent = 'Update the draft before configuring tickets and rules.';
+                document.getElementById('eventName').value = existingEvent.name || '';
+                document.getElementById('eventDescription').value = existingEvent.description || '';
+                document.getElementById('eventCategory').value = existingEvent.eventCategory || '';
+                document.getElementById('eventDate').value = existingEvent.date || '';
+                document.getElementById('eventTime').value = existingEvent.time || '';
+                venueSelect.value = existingEvent.venueId || '';
+                venueSelect.dispatchEvent(new Event('change'));
+                if (existingEvent.posterUrl) posterName.textContent = 'Current poster saved';
+            }
         } catch(e) {
             console.error('Failed to load initial data', e);
+            window.tsValidation.showGlobalError(step1, 'Event could not be loaded', e.message);
+            submitBtn.disabled = true;
+            document.getElementById('save-event-draft').disabled = true;
+        }
+    });
+
+    const persistDraft = async () => {
+        const V = window.tsValidation;
+        if (!validateBasicInfo()) {
+            showStep(1);
+            return null;
+        }
+        if (!validateVenue()) {
+            showStep(2);
+            return null;
+        }
+        if (!validatePoster()) {
+            showStep(3);
+            return null;
+        }
+        const selectedVenue = venuesData.find(v => v.id === venueSelect.value);
+        const venueChanged = currentEventId && originalVenueId && originalVenueId !== venueSelect.value;
+        if (venueChanged && !window.confirm('Changing the venue removes its existing ticket categories. Continue?')) {
+            return null;
+        }
+        const eventData = {
+            name: V.val(document.getElementById('event-form'), 'eventName'),
+            description: V.val(document.getElementById('event-form'), 'eventDescription'),
+            eventCategory: V.val(document.getElementById('event-form'), 'eventCategory'),
+            date: V.val(document.getElementById('event-form'), 'eventDate'),
+            time: V.val(document.getElementById('event-form'), 'eventTime'),
+            venueId: venueSelect.value,
+            venueName: selectedVenue?.name || '',
+            venueLocation: selectedVenue?.address || ''
+        };
+        if (venueChanged) {
+            eventData.categories = {};
+            eventData.startingPrice = '';
+        }
+        if (currentEventId) {
+            await window.tsEvents.updateEvent(currentEventId, eventData);
+        } else {
+            currentEventId = await window.tsEvents.createEvent(eventData);
+            const url = new URL(window.location.href);
+            url.searchParams.set('id', currentEventId);
+            window.history.replaceState(null, '', url);
+        }
+        originalVenueId = venueSelect.value;
+        if (posterInput?.files?.length) {
+            await window.tsEvents.uploadPoster(currentEventId, posterInput.files[0]);
+            posterName.textContent = posterInput.files[0].name;
+            posterInput.value = '';
+        }
+        return currentEventId;
+    };
+
+    document.getElementById('save-event-draft').addEventListener('click', async (e) => {
+        e.preventDefault();
+        const saveButton = e.currentTarget;
+        saveButton.disabled = true;
+        try {
+            const eventId = await persistDraft();
+            if (eventId) window.tsShowToast('Event draft saved');
+        } catch (err) {
+            window.tsValidation.showGlobalError(step3, 'Draft could not be saved', err.message);
+            showStep(3);
+        } finally {
+            saveButton.disabled = false;
         }
     });
 
     submitBtn.addEventListener('click', async (e) => {
         e.preventDefault();
-        const V = window.tsValidation;
-
-        // Re-check every step so the create action cannot bypass validation.
-        if (!validateBasicInfo()) {
-            showStep(1);
-            return;
-        }
-        if (!validateVenue()) {
-            showStep(2);
-            return;
-        }
-        if (!validatePoster()) {
-            showStep(3);
-            return;
-        }
-
         submitBtn.disabled = true;
         submitBtn.textContent = 'Saving...';
-        
         try {
-            const selectedVenue = venuesData.find(v => v.id === venueSelect.value);
-            const newEventId = await window.tsEvents.createEvent({
-                name: V.val(document.getElementById('event-form'), 'eventName'),
-                description: V.val(document.getElementById('event-form'), 'eventDescription'),
-                eventCategory: V.val(document.getElementById('event-form'), 'eventCategory'),
-                date: V.val(document.getElementById('event-form'), 'eventDate'),
-                time: V.val(document.getElementById('event-form'), 'eventTime'),
-                venueId: venueSelect.value,
-                venueName: selectedVenue ? selectedVenue.name : ''
-            });
-
-            if (posterInput && posterInput.files && posterInput.files.length > 0) {
-                submitBtn.textContent = 'Uploading media (Please wait up to 10s)...';
-                console.log('Starting upload for event ID:', newEventId);
-                try {
-                    await Promise.race([
-                        window.tsEvents.uploadPoster(newEventId, posterInput.files[0]),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('Upload timed out after 10 seconds. Firebase Storage may be blocking the request.')), 10000))
-                    ]);
-                    console.log('Upload successful!');
-                } catch (uploadErr) {
-                    console.error('Poster upload failed:', uploadErr);
-                    alert('Event created successfully, but poster upload failed: ' + uploadErr.message + '\n\nYou can upload it later. Proceeding to Ticket Configuration...');
-                }
-            }
-
-            console.log('Redirecting to configuration.php?id=' + newEventId);
-            window.location.href = `configuration.php?id=${newEventId}`;
+            const eventId = await persistDraft();
+            if (eventId) window.location.href = `configuration.php?id=${encodeURIComponent(eventId)}`;
         } catch (err) {
-            console.error('Outer create event catch:', err);
-            V.showGlobalError(document.getElementById('step-content-3'), 'Creation Failed', err.message);
+            window.tsValidation.showGlobalError(step3, 'Event could not be saved', err.message);
+            showStep(3);
+        } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = 'Submit & Continue to Ticket Configuration';
         }

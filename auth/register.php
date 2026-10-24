@@ -19,8 +19,8 @@ ob_start();
     <div class="ts-field"><label class="ts-label" for="registration-email">Email</label><input class="ts-input" id="registration-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="254"
             placeholder="you@example.com" required></div>
     <div class="ts-form-grid">
-        <div class="ts-field"><label class="ts-label" for="registration-password">Password</label><input class="ts-input" id="registration-password" name="password" type="password" autocomplete="new-password" maxlength="4096"
-                placeholder="Create password" required></div>
+        <div class="ts-field"><label class="ts-label" for="registration-password">Password</label><input class="ts-input" id="registration-password" name="password" type="password" minlength="8" aria-describedby="registration-password-help" autocomplete="new-password" maxlength="4096"
+                placeholder="Create password" required><div class="ts-help" id="registration-password-help">Use at least 8 characters with uppercase, lowercase, a number and a special character.</div></div>
         <div class="ts-field"><label class="ts-label" for="registration-password-confirmation">Confirm Password</label><input class="ts-input" id="registration-password-confirmation" name="confirmPassword" type="password" autocomplete="new-password" maxlength="4096"
                 placeholder="Repeat password" required></div>
     </div>

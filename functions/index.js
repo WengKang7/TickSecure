@@ -10,6 +10,9 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { initializeApp, getApps } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
+const { checkPasswordResetEmail } = require('./password-reset');
+const { eventAvailability } = require('./event-availability');
 
 if (!getApps().length) initializeApp();
 
@@ -433,6 +436,21 @@ function simulatedBlockchainRecord(transactionType, ticketId, walletAddress, rel
  * issue ticket records. Replace the simulated payment state with a verified
  * payment-provider webhook before using this in production.
  */
+// Guests can see counts for published events. Raw inventory remains private.
+exports.getEventAvailability = onCall({ region, enforceAppCheck: false }, async request => {
+    const eventId = requireId(requireDataObject(request).eventId, 'Event ID');
+    return db.runTransaction(async tx => {
+        const snapshot = await tx.get(db.collection('Events').doc(eventId));
+        if (!snapshot.exists || snapshot.data().status !== 'PUBLISHED') {
+            throw new HttpsError('not-found', 'Published event not found.');
+        }
+        const event = { ...snapshot.data(), id: eventId };
+        const physical = event.venueId ? await tx.get(db.collection('Seats').where('venueId', '==', event.venueId)) : null;
+        const inventory = await tx.get(db.collection('EventSeats').where('eventId', '==', eventId));
+        return eventAvailability(event, physical ? physical.docs.map(doc => doc.data()) : [], inventory.docs.map(doc => doc.data()));
+    }, { readOnly: true });
+});
+
 exports.checkout = onCall({ region, enforceAppCheck: false }, async (request) => {
     const uid = requireAuth(request);
     const data = requireDataObject(request);
@@ -1148,6 +1166,18 @@ exports.scanTicket = onCall({ region, enforceAppCheck: false }, async (request) 
             reason: 'ENTRY ALLOWED',
             ticket: { id: ticketId, ...ticket, status: 'USED', usedAt: timestamp },
         };
+    });
+});
+
+// Password recovery must work while signed out. This is the only public
+// account check; ordinary Users reads still require authentication/authorization.
+exports.checkPasswordResetEmail = onCall({ region, enforceAppCheck: false }, async request => {
+    return checkPasswordResetEmail(requireDataObject(request), {
+        findAuthUser: email => getAuth().getUserByEmail(email),
+        findProfile: async uid => {
+            const snapshot = await db.collection('Users').doc(uid).get();
+            return snapshot.exists ? snapshot.data() : null;
+        }
     });
 });
 

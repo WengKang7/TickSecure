@@ -9,10 +9,27 @@ ob_start();
 <div class="ts-alert ts-alert-info mt-24"><?=ts_icon('shield')?><div><strong>Role-based access</strong><div class="small mt-8">After sign in, TickSecure routes Buyer, Event Organizer and Administrator accounts to the correct interface.</div></div></div>
 
 <script type="module">
+function withSignInTimeout(operation) {
+    let timeout;
+    return Promise.race([
+        operation,
+        new Promise((_, reject) => {
+            timeout = setTimeout(() => reject(new Error('Sign-in timed out. Check your connection and try again.')), 15000);
+        })
+    ]).finally(() => clearTimeout(timeout));
+}
 document.addEventListener('DOMContentLoaded', () => {
     const submitBtn = document.getElementById('login-submit');
     const form = document.getElementById('login-form');
     if(!submitBtn || !form) return;
+    const resetSubmit = () => {
+        submitBtn.textContent = 'Sign In';
+        submitBtn.disabled = false;
+        window.tsLoginInProgress = false;
+    };
+    window.addEventListener('pageshow', event => {
+        if (event.persisted) resetSubmit();
+    });
 
     if (new URLSearchParams(window.location.search).get('verified') === '1') {
         window.tsValidation?.showGlobalSuccess(
@@ -28,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     submitBtn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (submitBtn.disabled) return;
         const V = window.tsValidation;
         if (!V) return;
         V.clearFieldErrors(form);
@@ -46,10 +64,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         submitBtn.textContent = "Signing In...";
         submitBtn.disabled = true;
+        window.tsLoginInProgress = true;
         
         try {
-            const cred = await window.tsAuth.login(email, password);
-            const profile = await window.tsDb.getUserProfile(cred.user.uid);
+            const cred = await withSignInTimeout(window.tsAuth.login(email, password));
+            const profile = await withSignInTimeout(window.tsDb.getUserProfile(cred.user.uid));
             
             if(!profile) throw new Error("Profile not found in database. Please contact support.");
 
@@ -74,8 +93,7 @@ if (profile.role !== 'admin') {
 
     // Firebase says the email is verified.
     // Synchronise the status into Firestore.
-    await window.tsAuth
-        .syncEmailVerification()
+    await withSignInTimeout(window.tsAuth.syncEmailVerification())
         .catch(error => {
 
             console.warn(
@@ -102,8 +120,8 @@ if (profile.role !== 'admin') {
             else if(err.code === 'auth/too-many-requests') errorMsg = "Too many failed attempts. Try again later.";
             V.showGlobalError(form, 'Sign In Failed', errorMsg);
             
-            submitBtn.textContent = "Sign In";
-            submitBtn.disabled = false;
+        } finally {
+            resetSubmit();
         }
     });
 });

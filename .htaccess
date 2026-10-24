@@ -1,0 +1,8 @@
+DirectoryIndex index.php
+Options -Indexes
+
+# Local recovery and authenticated demo checkout; uploads and other actions stay opt-in.
+<IfModule mod_env.c>
+    SetEnv TICKSECURE_PHP_PASSWORD_RESET 1
+    SetEnv TICKSECURE_PHP_CHECKOUT 1
+</IfModule>

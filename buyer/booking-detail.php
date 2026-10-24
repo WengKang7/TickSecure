@@ -2,137 +2,38 @@
 require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
-
-<main class="ts-section-tight">
-    <div class="ts-container" style="max-width:1100px">
-        <div class="ts-section-title-row">
-            <div>
-                <div class="ts-section-eyebrow" id="val-eyebrow">Loading...</div>
-                <h1 class="ts-section-title" id="val-event">Loading...</h1>
-                <p class="ts-section-copy" id="val-date">Loading...</p>
-            </div>
-            <div id="val-status-head"></div>
+<main class="ts-record-page ts-booking-detail-page">
+  <div class="ts-container">
+    <a class="ts-record-back" href="bookings.php">&larr; Back to My Bookings</a>
+    <header class="ts-record-heading"><div><div class="ts-section-eyebrow" id="val-eyebrow">Booking details</div><h1 id="val-event">Loading your booking...</h1><p class="secondary" id="val-date"></p></div><div id="val-status-head"></div></header>
+    <div class="ts-alert ts-alert-error" id="booking-error" role="alert" hidden></div>
+    <div id="booking-content" hidden>
+      <div class="ts-booking-detail-layout">
+        <div class="ts-record-main">
+          <section class="ts-card ts-record-card" aria-labelledby="details-heading"><h2 id="details-heading">Booking details</h2>
+            <dl class="ts-record-facts">
+              <div><dt>Event date &amp; time</dt><dd id="val-event-date"></dd></div><div><dt>Venue</dt><dd id="val-venue"></dd></div>
+              <div><dt>Category</dt><dd id="val-cat"></dd></div><div><dt>Section</dt><dd id="val-section"></dd></div>
+              <div><dt>Assigned seats</dt><dd id="val-seat"></dd></div><div><dt>Quantity</dt><dd id="val-qty"></dd></div>
+            </dl>
+          </section>
+          <section class="ts-card ts-record-card" aria-labelledby="tickets-heading"><div class="ts-record-card-heading"><h2 id="tickets-heading">Your tickets</h2><span class="small secondary" id="ticket-count"></span></div><div class="ts-alert ts-alert-error" id="tickets-error" role="alert" hidden></div><div class="ts-booking-ticket-list" id="booking-ticket-list"><p class="secondary">Loading your tickets...</p></div><p class="small secondary ts-record-policy-note">Showing tickets currently in your account. Open a ticket to view its entry QR code.</p></section>
         </div>
-        <div class="ts-grid-2">
-            <div class="ts-card ts-card-pad">
-                <div class="ts-card-title">Booking details</div>
-                <div class="ts-detail-grid mt-8">
-                    <div class="ts-detail-item">
-                        <div class="ts-detail-label">Category</div>
-                        <div class="ts-detail-value" id="val-cat">...</div>
-                    </div>
-                    <div class="ts-detail-item">
-                        <div class="ts-detail-label">Assigned Seat</div>
-                        <div class="ts-detail-value" id="val-seat">...</div>
-                    </div>
-                    <div class="ts-detail-item">
-                        <div class="ts-detail-label">Quantity</div>
-                        <div class="ts-detail-value" id="val-qty">...</div>
-                    </div>
-                    <div class="ts-detail-item">
-                        <div class="ts-detail-label">Booking Status</div>
-                        <div class="ts-detail-value" id="val-status">...</div>
-                    </div>
-                </div><a class="ts-btn ts-btn-primary w-full mt-20" href="#" id="btn-ticket" style="display:none">Open NFT Ticket</a>
-            </div>
-            <div class="ts-card ts-card-pad">
-                <div class="ts-card-title">Payment summary</div>
-                <div class="ts-summary-row"><span>Subtotal</span><strong id="val-subtotal">...</strong></div>
-                <div class="ts-summary-row"><span>Service charge</span><strong>RM20.00</strong></div>
-                <div class="ts-summary-row total"><span>Total Paid</span><span id="val-total">...</span></div>
-                <div class="ts-detail-item">
-                    <div class="ts-detail-label">Payment status</div>
-                    <div class="ts-detail-value" id="val-payment-status">
-                        ...
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="ts-accordion mt-24"><button class="ts-accordion-trigger">Blockchain transaction associated with this
-                booking <span
-                    class="chev"><?=ts_icon('chevron-down')?></span></button>
-            <div class="ts-accordion-panel">
-                <div class="ts-detail-grid">
-                    <div class="ts-detail-item">
-                        <div class="ts-detail-label">Minting Status</div>
-                        <div class="ts-detail-value" id="val-mint-status">
-                            ...
-                        </div>
-                    </div>
-                    <div class="ts-detail-item">
-                        <div class="ts-detail-label">Transaction Hash</div>
-                        <div class="ts-detail-value ts-copy-code" id="val-tx">...</div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <aside class="ts-card ts-record-card ts-booking-payment" aria-labelledby="payment-heading">
+          <h2 id="payment-heading">Payment summary</h2>
+          <div class="ts-record-payment-row"><span>Ticket subtotal</span><strong id="val-subtotal"></strong></div>
+          <div class="ts-record-payment-row"><span>Service charge</span><strong id="val-fee"></strong></div>
+          <div class="ts-record-payment-row ts-record-payment-total"><span id="payment-total-label">Total</span><strong id="val-total"></strong></div>
+          <div class="ts-record-payment-status"><span class="small secondary">Payment status</span><div id="val-payment-status"></div><p class="small secondary" id="payment-note"></p></div>
+          <a class="ts-btn ts-btn-secondary w-full" href="tickets.php">View My Tickets <?=ts_icon('arrow-right')?></a>
+          <details class="ts-record-technical"><summary>Blockchain details <?=ts_icon('chevron-down')?></summary><dl class="ts-record-facts ts-record-facts-stack"><div><dt>Minting status</dt><dd id="val-mint-status"></dd></div><div><dt>Transaction</dt><dd class="ts-record-code" id="val-tx"></dd></div></dl></details>
+        </aside>
+      </div>
     </div>
+  </div>
 </main>
-
-<script type="module">
-window.addEventListener('ts-auth-ready', async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const bookingId = urlParams.get('id');
-    if (!bookingId) return;
-
-    try {
-        const booking = await window.tsBookings.getBooking(bookingId);
-        
-        document.getElementById('val-eyebrow').textContent = `Booking ${booking.bookingNumber || booking.id}`;
-        document.getElementById('val-event').textContent = booking.eventName || 'Event';
-        
-        const dateStr = booking.createdAt ? (typeof booking.createdAt.toDate === 'function' ? booking.createdAt.toDate().toLocaleString() : booking.createdAt) : '';
-        document.getElementById('val-date').textContent = `Confirmed ${dateStr}`;
-        
-        let tone = 'success';
-        let status = 'Confirmed';
-        const bookingStatus = (booking.status || '').toUpperCase();
-        if (bookingStatus === 'COMPLETED') { tone = 'neutral'; status = 'Completed'; }
-        else if (bookingStatus === 'CANCELLED') { tone = 'error'; status = 'Cancelled'; }
-        
-        const statusHtml = `<span class="ts-chip ts-chip-${tone}">${status}</span>`;
-        document.getElementById('val-status-head').innerHTML = statusHtml;
-        document.getElementById('val-status').innerHTML = statusHtml;
-        
-        document.getElementById('val-cat').textContent = booking.categoryName || 'N/A';
-        document.getElementById('val-seat').textContent = (booking.seats || []).join(', ') || 'N/A';
-        document.getElementById('val-qty').textContent = booking.quantity || 1;
-        
-        const total = parseFloat(booking.totalAmount || 0);
-        document.getElementById('val-subtotal').textContent = `RM${(total - 20).toFixed(2)}`;
-        document.getElementById('val-total').textContent = `RM${total.toFixed(2)}`;
-        const paymentStatus = (booking.paymentStatus || '').toUpperCase();
-        const paid = paymentStatus === 'PAID' || paymentStatus === 'SIMULATED_PAID';
-        const paymentLabel = paymentStatus === 'SIMULATED_PAID'
-            ? 'Simulated payment successful'
-            : (paymentStatus === 'PAID' ? 'Successful' : (booking.paymentStatus || 'Pending'));
-        document.getElementById('val-payment-status').innerHTML = paid
-            ? `<span class="ts-chip ts-chip-success">${paymentLabel}</span>`
-            : `<span class="ts-chip ts-chip-warning">${paymentLabel}</span>`;
-
-        const bookingTickets = await window.tsTickets.getTickets({ bookingId });
-        const ticket = bookingTickets[0];
-        if (ticket) {
-            const minted = (ticket.mintingStatus || '').toUpperCase() === 'MINTED';
-            document.getElementById('val-mint-status').innerHTML = minted
-                ? '<span class="ts-chip ts-chip-success">Confirmed</span>'
-                : '<span class="ts-chip ts-chip-warning">Pending</span>';
-            document.getElementById('val-tx').textContent = ticket.transactionHash || 'Pending mint...';
-
-            const btn = document.getElementById('btn-ticket');
-            btn.href = `ticket-detail.php?id=${ticket.id}`;
-            btn.style.display = 'block';
-        } else {
-            document.getElementById('val-mint-status').innerHTML = '<span class="ts-chip ts-chip-warning">Pending</span>';
-            document.getElementById('val-tx').textContent = 'Pending mint...';
-        }
-        
-    } catch (err) {
-        console.error('Load error:', err);
-    }
-});
-</script>
-
+<script src="<?=ts_asset_url('assets/js/ticket-display.js', '..')?>"></script>
+<script type="module" src="<?=ts_asset_url('assets/js/booking-detail.js', '..')?>"></script>
 <?php
 $content = ob_get_clean();
 render_public_page('Booking Details', 'tickets', $content, '..', true);

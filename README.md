@@ -4,7 +4,7 @@ TickSecure is a PHP-rendered ticketing application backed by Firebase. PHP suppl
 
 ## Architecture at a glance
 
-- Browser-side Firebase services handle allowed CRUD for profiles, organizer drafts, administrator-managed venues, complaints, and notification read state.
+- Browser-side Firebase services handle allowed CRUD for profiles and saved events, organizer drafts, administrator-managed venues, complaints, and notification read state.
 - `firestore.rules` restricts every browser request by role and ownership.
 - Firebase Functions uses the Admin SDK for security-sensitive state changes: inventory reservations, checkout, ticket transfer, resale, and entry scanning. The Emulator Suite runs that same backend free on localhost; an explicit local XAMPP/PHP bridge is also available for a Spark-plan FYP demo.
 - `Seats` contains reusable physical venue layout. `EventSeats` is the separate event-scoped copy that holds reservations and sales, preventing one event from consuming another event's inventory.
@@ -37,13 +37,17 @@ From the project directory:
 php -S localhost:8000
 ```
 
-Open <http://localhost:8000/preview.php>.
+Open <http://localhost:8000/>.
 
 For XAMPP, place the project in `htdocs`, start Apache, then open:
 
 ```text
-http://localhost/ticksecure-ui/preview.php
+http://localhost/ticksecure-ui/
 ```
+
+The application opens on `index.php`. Guests can browse published events and event details. Booking, saved events, resale, tickets, wallet, support, dashboards, and entry verification require sign-in; organizer and administrator screens also require the matching role. Old `preview.php` links redirect to the home page. Apache uses the project's `.htaccess` to select `index.php` and disable directory listings.
+
+Deploy the guest-access policy after updating: `firebase deploy --only firestore:rules`. Published events remain publicly readable; resale listings require an active, verified account. UI redirects do not replace Firebase rules or backend authorization.
 
 The PHP server renders the UI, but protected ticket workflows need a configured Firebase project, an authenticated user, deployed Firestore rules/indexes, required Firestore data, and one of: deployed Functions, the Emulator Suite, or the explicit local PHP bridge below.
 
@@ -53,7 +57,7 @@ For an FYP demonstration, run Auth, Firestore, Storage, and callable Functions l
 
 The checked-in `.firebaserc` keeps the emulator project ID aligned with the browser configuration (`tick-c12a1`). If you change Firebase projects later, update both that file and `assets/js/firebase-init.js`.
 
-1. Install the Firebase CLI and ensure the Firestore emulator can use a supported Java runtime. Then install the checked-in Functions dependencies:
+1. Install the Firebase CLI and Java 21 or newer for the current Firestore emulator ([Firebase emulator requirements](https://firebase.google.com/docs/emulator-suite/connect_firestore)). Then install the checked-in Functions dependencies:
 
    ```bash
    cd functions
@@ -72,7 +76,7 @@ The checked-in `.firebaserc` keeps the emulator project ID aligned with the brow
 3. With XAMPP/Apache serving the PHP app, open it once with the explicit opt-in switch:
 
    ```text
-   http://localhost/ticksecure-ui/preview.php?firebaseEmulator=1&firebaseBackend=firebase
+   http://localhost/ticksecure-ui/?firebaseEmulator=1&firebaseBackend=firebase
    ```
 
 The switches are remembered only in that browser's local storage. Use `?firebaseEmulator=0` to return to the real Firebase project. If the emulator is running on another machine, add `&firebaseEmulatorHost=HOSTNAME_OR_IP` to the opt-in URL.
@@ -94,7 +98,7 @@ for `localhost`; normal direct CRUD continues through Firestore Rules.
 3. Set the same upload token in browser local storage and open:
 
    ```text
-   http://localhost/ticksecure-ui/preview.php?firebaseBackend=php
+   http://localhost/ticksecure-ui/?firebaseBackend=php
    ```
 
 Full Apache settings, safety restrictions, and the browser command are in
@@ -161,6 +165,23 @@ Firebase Authentication owns credentials, while `Users/{uid}` holds the applicat
 - Firebase Authentication is the source of truth for email verification. After Firebase Auth verifies an email, the app refreshes the ID token and uses `syncEmailVerification` when a trusted backend is available. For a Spark-plan demo without callable Functions, the deployed Firestore policy permits only the verified account itself to project `Users.emailVerified: true` from that refreshed claim. This is not a client-controlled verification bypass.
 - Do not restore browser seed data, demo administrator credentials, or service-account material. The checked-in browser seeder is deliberately disabled.
 
+### Registration and reset password policy
+
+Firebase Authentication for `tick-c12a1` enforces 8 to 4096 characters, including uppercase, lowercase, a number, and a supported special character. This applies to registration and Firebase's hosted reset page, including links opened on a phone. The local registration and reset forms share `validatePassword` and accept Firebase's supported symbols. Existing passwords are not forcibly upgraded at sign-in.
+
+The desired policy is tracked in [config/password-policy.json](config/password-policy.json). Using the configured private service account, inspect it with `node scripts/configure-password-policy.cjs`, or apply it with `node scripts/configure-password-policy.cjs --apply`. The script reads back the admin and public policies, preserves the existing sign-in upgrade setting, refuses to reduce stricter length requirements, and saves the previous policy under ignored `tmp/` before applying. It does not reset any user's password.
+
+### Password recovery account checks
+
+The Forgot Password form checks `checkPasswordResetEmail` before requesting a Firebase reset email. The backend requires both a Firebase Authentication account and a matching `Users/{uid}` profile with a buyer, organizer, or administrator role. Unknown emails and orphaned Auth accounts cannot request reset instructions through this form. Only a boolean eligibility result reaches the browser; the `Users` collection remains private.
+
+Enable the check before testing live password recovery:
+
+- **Firebase mode:** deploy the new callable with `firebase deploy --only functions:checkPasswordResetEmail`, or restart the Functions emulator when using the Emulator Suite.
+- **Local XAMPP:** the recovery-only PHP route is enabled in `.htaccess` and selected automatically for the localhost Forgot Password page. Supply the private key at the path configured in ignored `api/firebase-config.local.php`; see [local password recovery setup](api/README.md#password-recovery). Other workflows retain their existing backend selection. Its service account needs permission to read Firebase Authentication users as well as Firestore. The new Auth lookup requests the Identity Toolkit OAuth scope. No browser credential or public profile-read rule is needed.
+
+If the backend is missing, unavailable, or times out, the form shows an error and does not request a reset email. Firebase reset-link verification and delivery still use Firebase Authentication. The database check applies to this application's recovery form; it does not replace Firebase's own account-recovery policy.
+
 ## CRUD and trusted workflows
 
 Normal page CRUD uses the service objects in `assets/js/firestore-crud.js` (for example, `window.tsUsers`, `window.tsEvents`, and `window.tsComplaints`). Firestore Rules remain the authority for which direct browser operations are allowed.
@@ -177,6 +198,14 @@ The following mutations must be invoked through a trusted backend rather than di
 In normal Firebase and Emulator Suite mode, these are callable Functions. In explicit PHP mode, the same browser requests go to a loopback-only endpoint that verifies the Firebase ID token and executes matching Firestore REST transactions with a service account outside `htdocs`. In either mode, checkout derives security-sensitive values from trusted Firestore records and validates the verified buyer, sales window, category allocation, price, current ticket-holding limit, wallet, and `EventSeats` reservation before it sells seats, creates booking/tickets, and records notifications, audit activity, and simulated blockchain work. Date-only sales and resale windows are evaluated in the product's +08:00 business timezone, with an end date inclusive through the end of that day.
 
 The Functions backend also has an event-update trigger that suspends active resale listings if an administrator changes an event to `SUSPENDED` or `CANCELLED`. The PHP-mode admin UI calls its matching moderation action, which performs the same sweep. Resale purchase independently checks the event state, so it remains blocked while a sweep is processing.
+
+Local XAMPP checkout is enabled separately through `TICKSECURE_PHP_CHECKOUT=1` in `.htaccess`. On localhost (outside Emulator mode), reservation, release and checkout automatically use the authenticated PHP bridge. Choose a category/quantity on the event page, reserve seats, connect MetaMask, then confirm a simulated payment. The demo collects no card details and submits no blockchain transaction. The confirmation page and My Tickets show the resulting booking/tickets. Retries for the same purchased seats return the original booking. See [local checkout setup](api/README.md#current-local-checkout) for configuration and live test instructions.
+
+### Remaining seats on event details
+
+Event details display total and per-category remaining seats, plus remaining counts on the venue sections. Counts subtract sold seats and active reservations from the event allocation; expired reservations are reusable. Physical venue capacity stays separate. The read-only `getEventAvailability` action returns aggregate counts for published events only, without exposing seat IDs or reservation owners. It does not create inventory. Counts refresh every 30 seconds while the page is visible, on returning to the tab, or using Refresh; reservation still checks availability again.
+
+Local XAMPP uses the existing checkout-enabled PHP route automatically, including for guests. Firebase/Emulator mode uses the matching callable; deploy `firebase deploy --only functions:getEventAvailability` or restart the Functions emulator after this update. Firestore inventory rules stay private.
 
 ## Production-readiness requirements
 
@@ -200,6 +229,7 @@ php -l api/firebase-admin.php
 node --check assets/js/firebase-init.js
 node --check assets/js/backend-client.js
 node --check assets/js/firestore-crud.js
+node --test tests/auth-guard.test.cjs tests/auth-loading.test.cjs tests/admin-users.test.cjs tests/password-reset.test.cjs tests/password-policy.test.cjs tests/event-detail.test.cjs tests/saved-events.test.cjs tests/checkout-flow.test.cjs tests/firebase-admin.test.cjs tests/ticket-pages.test.cjs tests/public-navigation.test.cjs tests/event-availability.test.cjs
 cd functions && npm run check
 ```
 

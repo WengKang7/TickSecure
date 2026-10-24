@@ -129,6 +129,13 @@ async function initialize() {
     initialized = true;
     try {
         await loadComplaints();
+        const listingId = new URLSearchParams(window.location.search).get('listingId');
+        if (listingId && /^[A-Za-z0-9_-]{1,160}$/.test(listingId)) {
+            document.getElementById('comp-category').value = 'Sales or payout';
+            document.getElementById('comp-desc').value =
+                `Please review resale listing ${listingId} for a possible price or rule violation.`;
+            openModal();
+        }
     } catch (error) {
         console.error('Failed to load complaints', error);
         document.getElementById('complaints-tbody').innerHTML = '<tr><td colspan="5" class="text-center">Unable to load complaints. Please refresh and try again.</td></tr>';

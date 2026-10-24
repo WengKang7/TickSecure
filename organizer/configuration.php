@@ -3,7 +3,7 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<?=ts_page_head('Ticket Configuration', 'Map event-specific ticket categories to physical venue sections, then define price and quantity.', '<button class="ts-btn ts-btn-secondary" data-toast="Configuration saved as draft">Save Draft</button> <button class="ts-btn ts-btn-primary" data-modal-open="confirm-modal">Confirm Configuration</button>')?>
+<?=ts_page_head('Ticket Configuration', 'Map event-specific ticket categories to physical venue sections, then define price and quantity.', '<button class="ts-btn ts-btn-secondary" id="save-config-draft">Save Draft</button> <button class="ts-btn ts-btn-primary" id="review-config-btn">Confirm Configuration</button>')?>
 <div class="ts-alert ts-alert-info mb-24">
     <?=ts_icon('layout')?>
     <div><strong>Physical sections come from the Administrator-managed venue layout.</strong>
@@ -108,7 +108,7 @@ ob_start();
     </div>
 </div>
 
-<script src="../assets/js/venue-renderer.js"></script>
+<script src="<?=ts_asset_url('assets/js/venue-renderer.js', '..')?>"></script>
 <script type="module">
 const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
 window.addEventListener('ts-auth-ready', async () => {
@@ -359,6 +359,35 @@ window.addEventListener('ts-auth-ready', async () => {
             if(event.transferEnabled !== undefined) document.getElementById('transferEnabled').checked = event.transferEnabled;
             if(event.resaleEnabled !== undefined) document.getElementById('resaleEnabled').checked = event.resaleEnabled;
         }
+
+        const rulesData = () => ({
+            salesStartDate: V.val(rulesForm, 'salesStart'),
+            salesEndDate: V.val(rulesForm, 'salesEnd'),
+            maxTicketsPerBuyer: parseInt(V.val(rulesForm, 'maxTickets'), 10) || 4,
+            maxResaleMarkup: parseFloat(V.val(rulesForm, 'maxResaleMarkup')) || 0,
+            resaleStartDate: V.val(rulesForm, 'resaleStart'),
+            resaleDeadline: V.val(rulesForm, 'resaleEnd'),
+            transferEnabled: document.getElementById('transferEnabled').checked,
+            resaleEnabled: document.getElementById('resaleEnabled').checked
+        });
+
+        document.getElementById('save-config-draft')?.addEventListener('click', async (e) => {
+            const button = e.currentTarget;
+            button.disabled = true;
+            try {
+                await window.tsEvents.updateEvent(eventId, rulesData());
+                window.tsShowToast('Configuration draft saved');
+            } catch (error) {
+                V.showGlobalError(rulesForm, 'Draft could not be saved', error.message);
+            } finally {
+                button.disabled = false;
+            }
+        });
+
+        document.getElementById('review-config-btn')?.addEventListener('click', () => {
+            rulesForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            document.getElementById('confirm-btn')?.click();
+        });
         
         document.getElementById('add-cat-btn')?.addEventListener('click', async (e) => {
             e.preventDefault();
@@ -494,16 +523,7 @@ if (newCat.quantity > capacity) {
 
             try {
                 // Save rules
-                await window.tsEvents.updateEvent(eventId, {
-                    salesStartDate: V.val(rulesForm, 'salesStart'),
-                    salesEndDate: V.val(rulesForm, 'salesEnd'),
-                    maxTicketsPerBuyer: parseInt(V.val(rulesForm, 'maxTickets')) || 4,
-                    maxResaleMarkup: parseFloat(V.val(rulesForm, 'maxResaleMarkup')) || 0,
-                    resaleStartDate: V.val(rulesForm, 'resaleStart'),
-                    resaleDeadline: V.val(rulesForm, 'resaleEnd'),
-                    transferEnabled: document.getElementById('transferEnabled').checked,
-                    resaleEnabled: document.getElementById('resaleEnabled').checked
-                });
+                await window.tsEvents.updateEvent(eventId, rulesData());
                 
                 // Submit for approval (changes status to PENDING)
                 await window.tsEvents.submitForApproval(eventId);

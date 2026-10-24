@@ -1,62 +1,5 @@
 (function () {
 
-  // ============================================================
-// UI PREVIEW MODE
-// true  = design review only, no validation / backend submit
-// false = normal system behaviour later
-// ============================================================
-
-const UI_PREVIEW_MODE = true;
-
-if (UI_PREVIEW_MODE) {
-
-    // Disable HTML form validation
-    document.querySelectorAll('form').forEach(function (form) {
-
-        form.setAttribute('novalidate', 'novalidate');
-
-        form.addEventListener('submit', function (event) {
-
-            // Prevent actual backend submission
-            event.preventDefault();
-
-        });
-
-    });
-
-
-    // Remove required validation temporarily
-    document.querySelectorAll('[required]').forEach(function (field) {
-
-        field.removeAttribute('required');
-
-    });
-
-
-    // Remove custom validation attributes if you add them later
-    document.querySelectorAll('[pattern]').forEach(function (field) {
-
-        field.removeAttribute('pattern');
-
-    });
-
-
-    document.querySelectorAll('[minlength]').forEach(function (field) {
-
-        field.removeAttribute('minlength');
-
-    });
-
-
-    document.querySelectorAll('[maxlength]').forEach(function (field) {
-
-        field.removeAttribute('maxlength');
-
-    });
-
-}
-
-  
   const $ = (s, c = document) => c.querySelector(s); const $$ = (s, c = document) => [...c.querySelectorAll(s)];
   // sidebar
   $$('.ts-sidebar-toggle').forEach(b => b.addEventListener('click', () => $('.ts-sidebar')?.classList.toggle('open')));
@@ -95,8 +38,17 @@ if (UI_PREVIEW_MODE) {
   }));
   // role selection
   $$('.ts-role-card').forEach(card => card.addEventListener('click', () => { $$('.ts-role-card').forEach(x => x.classList.remove('active')); card.classList.add('active'); const hidden = $('[name="role"]'); if (hidden) hidden.value = card.dataset.role || ''; }));
-  // toasts
-  $$('[data-toast]').forEach(b => b.addEventListener('click', () => { const t = $('.ts-toast'); if (!t) return; t.querySelector('span').textContent = b.dataset.toast || 'UI preview action'; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2200) }));
+  // toasts are shown after successful actions, or by explicitly informational controls.
+  let toastTimer;
+  window.tsShowToast = message => {
+    const t = $('.ts-toast');
+    if (!t) return;
+    t.querySelector('span').textContent = message || 'Saved';
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  };
+  $$('[data-toast]').forEach(b => b.addEventListener('click', () => window.tsShowToast(b.dataset.toast)));
   // fake upload display
   /*$$('input[type=file][data-file-name]').forEach(input=>input.addEventListener('change',()=>{const out=document.getElementById(input.dataset.fileName);if(out&&input.files[0])out.textContent=input.files[0].name;}));*/
   // simple filter card selection
