@@ -247,15 +247,12 @@ function renderEvent(event) {
     el('ven-address').textContent = event.venueLocation || 'Detailed venue information is not available.';
     renderCategories(event);
     const transferEnabled = event.transferEnabled !== false;
-    const resaleEnabled = event.resaleEnabled !== false;
+    const resaleEnabled = event.resaleEnabled === true;
     ['ev-transfer', 'ev-resale'].forEach((id, index) => {
         const allowed = index === 0 ? transferEnabled : resaleEnabled;
         el(id).innerHTML = `<span class="ts-chip ts-chip-${allowed ? 'info' : 'neutral'}">${allowed ? 'Allowed' : 'Not allowed'}</span>`;
     });
-    el('transfer-policy').textContent = transferEnabled
-        ? 'Eligible tickets can be transferred to a valid wallet through TickSecure.' : 'Ticket transfer is not enabled for this event.';
-    el('resale-policy').textContent = resaleEnabled
-        ? 'Official resale follows the organizer\'s timing and price limits.' : 'Official resale is not enabled for this event.';
+    window.tsEventPolicy.render(el('buyer-rules-summary'), event);
 }
 
 async function loadVenue(event, version) {

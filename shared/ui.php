@@ -227,14 +227,45 @@ function ts_sidebar_links(string $role, string $active, string $base): string
     return $html;
 }
 
+function ts_admin_confirmation_dialog(): string
+{
+    return '<dialog id="admin-confirm-dialog" class="ts-admin-confirm-dialog" aria-labelledby="admin-confirm-title" aria-describedby="admin-confirm-message">
+        <form id="admin-confirm-form" novalidate>
+            <div class="ts-admin-confirm-head"><h2 id="admin-confirm-title">Confirm action</h2><button id="admin-confirm-close" type="button" class="ts-icon-btn" aria-label="Cancel action">'.ts_icon('x').'</button></div>
+            <p id="admin-confirm-message" class="secondary"></p>
+            <div id="admin-confirm-subject" class="ts-admin-confirm-subject"></div>
+            <dl id="admin-confirm-details" class="ts-admin-confirm-details" hidden></dl>
+            <div id="admin-confirm-fields"></div>
+            <div class="ts-admin-confirm-actions"><button id="admin-confirm-cancel" type="button" class="ts-btn ts-btn-secondary">Cancel</button><button id="admin-confirm-submit" type="submit" class="ts-btn ts-btn-primary">Confirm</button></div>
+        </form>
+    </dialog>';
+}
+
+function ts_dashboard_notifications(string $role, string $base): string
+{
+    if ($role !== 'admin') {
+        return '<a class="ts-icon-btn" href="'.$base.'/organizer/notifications.php" aria-label="Notifications">'.ts_icon('bell').'</a>';
+    }
+    return '<div class="ts-admin-attention" id="admin-attention" data-review-base="'.htmlspecialchars($base.'/admin/', ENT_QUOTES).'">
+        <button type="button" class="ts-icon-btn ts-attention-toggle" id="admin-attention-toggle" aria-label="Notifications" aria-expanded="false" aria-controls="admin-attention-panel">'.ts_icon('bell').'<span class="ts-attention-dot" id="admin-attention-dot" aria-hidden="true" hidden></span></button>
+        <section class="ts-attention-panel" id="admin-attention-panel" aria-labelledby="admin-attention-heading" hidden>
+            <div class="ts-attention-head"><h2 id="admin-attention-heading">Needs your attention</h2><button type="button" class="ts-icon-btn" id="admin-attention-close" aria-label="Close notifications">'.ts_icon('x').'</button></div>
+            <p class="ts-attention-status" id="admin-attention-status" role="status" aria-live="polite">Loading pending actions...</p>
+            <ul class="ts-attention-list" id="admin-attention-list"></ul>
+            <button type="button" class="ts-btn ts-btn-secondary ts-btn-sm ts-attention-retry" id="admin-attention-retry" hidden>Try again</button>
+        </section>
+    </div>';
+}
+
 function render_dashboard_page(string $role, string $title, string $active, string $content, string $base = '..', string $breadcrumb = ''): void
 {
+    $notificationScript = $role === 'admin' ? ts_admin_confirmation_dialog().'<script src="'.ts_asset_url('assets/js/admin-confirmations.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/admin-notifications.js', $base).'"></script>' : '';
     $roleName = $role === 'admin' ? 'Administrator' : 'Event Organizer';
     $initial = $role === 'admin' ? 'AD' : 'NS';
     $person = $role === 'admin' ? 'Admin Account' : 'Nova Stage';
     echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'.htmlspecialchars($title).' · TickSecure</title><link rel="stylesheet" href="'.ts_asset_url('assets/css/ticksecure.css', $base).'">'.ts_access_head($base).'</head><body class="ts-body-dashboard"><div class="ts-shell">';
     echo '<aside class="ts-sidebar"><div class="ts-sidebar-head">'.ts_brand($base).'</div><nav class="ts-sidebar-nav">'.ts_sidebar_links($role, $active, $base).'</nav><div class="ts-sidebar-foot"><div class="ts-profile-card"><div class="ts-avatar" id="sidebar-avatar">'.$initial.'</div><div class="ts-profile-meta"><div class="ts-profile-name" id="sidebar-name">'.$person.'</div><div class="ts-profile-role">'.$roleName.'</div></div></div></div></aside>';
-    echo '<main class="ts-main"><header class="ts-dashboard-header"><div class="flex items-center gap-12"><button class="ts-icon-btn ts-sidebar-toggle">'.ts_icon('menu').'</button><div><div class="ts-breadcrumb">'.htmlspecialchars($breadcrumb ?: $roleName).'</div><div class="ts-dashboard-title">'.htmlspecialchars($title).'</div></div></div><div class="ts-dashboard-actions"><button class="ts-icon-btn">'.ts_icon('search').'</button><button class="ts-icon-btn">'.ts_icon('bell').'</button><span class="ts-role-pill">'.$roleName.'</span><div class="ts-avatar" id="header-avatar">'.$initial.'</div><button class="ts-icon-btn ts-logout-btn" title="Log out" style="margin-left: 10px;">'.ts_icon('logout').'</button></div></header><div class="ts-page">'.$content.'</div></main></div>'.ts_modal_and_toast().'<script type="module" src="'.$base.'/assets/js/firebase-init.js"></script><script type="module" src="'.ts_asset_url('assets/js/firebase-services.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/firestore-crud.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/validation.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/auth-guard.js', $base).'"></script><script src="'.$base.'/assets/js/ui.js"></script><script type="module">document.querySelector(".ts-logout-btn")?.addEventListener("click", () => { window.tsAuth.logout(); });</script></body></html>';
+    echo '<main class="ts-main"><header class="ts-dashboard-header"><div class="flex items-center gap-12"><button class="ts-icon-btn ts-sidebar-toggle">'.ts_icon('menu').'</button><div><div class="ts-breadcrumb">'.htmlspecialchars($breadcrumb ?: $roleName).'</div><div class="ts-dashboard-title">'.htmlspecialchars($title).'</div></div></div><div class="ts-dashboard-actions"><button class="ts-icon-btn">'.ts_icon('search').'</button>'.ts_dashboard_notifications($role, $base).'<span class="ts-role-pill">'.$roleName.'</span><div class="ts-avatar" id="header-avatar">'.$initial.'</div><button class="ts-icon-btn ts-logout-btn" title="Log out" style="margin-left: 10px;">'.ts_icon('logout').'</button></div></header><div class="ts-page">'.$content.'</div></main></div>'.ts_modal_and_toast().$notificationScript.'<script type="module" src="'.$base.'/assets/js/firebase-init.js"></script><script type="module" src="'.ts_asset_url('assets/js/firebase-services.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/firestore-crud.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/validation.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/auth-guard.js', $base).'"></script><script src="'.$base.'/assets/js/ui.js"></script><script type="module">document.querySelector(".ts-logout-btn")?.addEventListener("click", () => { window.tsAuth.logout(); });</script></body></html>';
 }
 
 function render_auth_page(string $title, string $content, string $base = '..'): void

@@ -74,7 +74,8 @@ window.addEventListener('ts-auth-ready', async () => {
             // Wire up delete buttons
             document.querySelectorAll('.delete-btn').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
-                    if (confirm('Are you sure you want to delete this venue?')) {
+                    const venue = venues.find(item => item.id === btn.dataset.id);
+                    if (await window.tsAdminConfirm('deleteVenue', venue?.name || 'Selected draft venue', [['Address', venue?.address || 'Not provided']])) {
                         try {
                             btn.disabled = true;
                             btn.textContent = '...';

@@ -69,6 +69,7 @@ const formatDate = value => {
 };
 
 const formatSalesPeriod = event => {
+    event = event.configurationDraft?.rules ? { ...event, ...event.configurationDraft.rules } : event;
     if (!event.salesStartDate && !event.salesEndDate) return 'Not configured';
     return `${formatDate(event.salesStartDate)} – ${formatDate(event.salesEndDate)}`;
 };
@@ -138,12 +139,12 @@ window.addEventListener('ts-auth-ready', async () => {
                 const sold = bookingStats.get(e.id)?.sold || 0;
                 const eventId = encodeURIComponent(e.id);
                 const actions = statusStr === 'DRAFT'
-                    ? `<div class="ts-table-actions"><a class="ts-btn ts-btn-secondary ts-btn-sm" href="configuration.php?id=${eventId}">Configure</a><button class="ts-btn ts-btn-danger ts-btn-sm" type="button" data-delete-event="${eventId}">Delete</button></div>`
+                    ? `<div class="ts-table-actions"><a class="ts-btn ts-btn-secondary ts-btn-sm" href="event-new.php?id=${eventId}">Edit Draft</a><button class="ts-btn ts-btn-danger ts-btn-sm" type="button" data-delete-event="${eventId}">Delete</button></div>`
                     : `<a class="ts-btn ts-btn-secondary ts-btn-sm" href="event-detail.php?id=${eventId}">Open</a>`;
 
                 return `
                     <tr>
-                        <td class="cell-title">${esc(e.name)}</td>
+                        <td class="cell-title">${esc(e.name || 'Untitled event')}</td>
                         <td>${esc(e.venueName || 'Unassigned')}</td>
                         <td>${eventDate}</td>
                         <td class="small">${esc(salesPeriod)}</td>

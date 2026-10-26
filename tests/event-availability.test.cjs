@@ -55,6 +55,17 @@ test('legacy category arrays return the same section counts in both backends', (
         eventAvailability(legacy, physical, [], currentTime).categories);
 });
 
+test('PHP and Functions expose only the chosen allocation, leaving spare seats and unused sections off sale', () => {
+    const chosen = { ...event, categories: { A: { quantity: 25 } } };
+    const venueSeats = ['A', 'B'].flatMap(sectionId => Array.from({ length: 250 }, (_, index) => ({
+        venueId: 'venue', sectionId, seatLabel: sectionId + index
+    })));
+    for (const result of [eventAvailability(chosen, venueSeats, [], currentTime), phpAvailability([chosen, venueSeats, [], currentTime])]) {
+        assert.equal(result.remaining, 25);
+        assert.deepEqual(result.categories, [{ sectionId: 'A', allocated: 25, remaining: 25 }]);
+    }
+});
+
 test('the browser requests aggregate counts in the configured Functions region', async () => {
     const source = require('node:fs').readFileSync(path.join(root, 'assets/js/firestore-crud.js'), 'utf8');
     const method = source.match(/async getEventAvailability\(eventId\) \{[\s\S]*?\n    \}/)[0];

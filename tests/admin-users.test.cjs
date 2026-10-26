@@ -30,6 +30,8 @@ async function loadPage(extraUsers = []) {
         });
     }
     const actions = [];
+    const confirmations = [];
+    let confirmationResult = { reason: 'Test reason' };
     let load;
     let failLoad = false;
     const context = {
@@ -38,6 +40,10 @@ async function loadPage(extraUsers = []) {
         prompt: () => 'Test reason', confirm: () => true, alert: message => { throw new Error(message); },
         window: {
             addEventListener: (_, callback) => { load = callback; },
+            tsAdminConfirm: async (action, subject) => {
+                confirmations.push({ action, subject });
+                return confirmationResult;
+            },
             tsUsers: {
                 getUsers: async () => {
                     if (failLoad) throw new Error('Service unavailable');
@@ -68,7 +74,7 @@ async function loadPage(extraUsers = []) {
         await elements.get('users-table-body').listeners.click({ target: { closest: () => button } });
     };
     const navigate = direction => elements.get('users-' + direction).listeners.click();
-    return { elements, actions, filter, rows, action, navigate, reload: () => load({ detail: { role: 'admin' } }), fail: () => { failLoad = true; } };
+    return { elements, actions, confirmations, confirm: result => { confirmationResult = result; }, filter, rows, action, navigate, reload: () => load({ detail: { role: 'admin' } }), fail: () => { failLoad = true; } };
 }
 
 test('the management list and count exclude administrator accounts', async () => {
@@ -175,4 +181,17 @@ test('changing search or a dropdown returns to the first page of matching users'
     assert.deepEqual(page.rows(), []);
     assert.equal(page.elements.get('users-previous').disabled, true);
     assert.equal(page.elements.get('users-next').disabled, true);
+});
+
+
+test('cancelling account confirmation leaves its status and current list unchanged', async () => {
+    const page = await loadPage();
+    page.confirm(null);
+    await page.action('alice', 'suspend');
+    await page.action('bob', 'reactivate');
+    assert.deepEqual(page.actions, []);
+    assert.equal(page.confirmations[0].action, 'suspendUser');
+    assert.equal(page.confirmations[0].subject, 'Alice');
+    assert.equal(page.confirmations[1].action, 'reactivateUser');
+    assert.deepEqual(page.rows(), ['Alice', 'Bob', 'Claire', 'Drew', 'Erin']);
 });

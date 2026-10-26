@@ -10,7 +10,12 @@ api/firebase-config.local.php
 api/*.service-account.json
 
 # Local XAMPP fallback storage
-uploads/
+uploads/*
+!uploads/posters/
+uploads/posters/*
+!uploads/posters/.htaccess
+storage/blueprints/*
+!storage/blueprints/.htaccess
 
 # Dependencies
 vendor/

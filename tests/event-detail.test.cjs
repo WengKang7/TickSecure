@@ -101,6 +101,7 @@ function createPage(options = {}) {
     };
     vm.createContext(context);
     vm.runInContext(fs.readFileSync(path.join(root, 'assets/js/venue-renderer.js'), 'utf8'), context);
+    vm.runInContext(fs.readFileSync(path.join(root, 'assets/js/event-policy.js'), 'utf8'), context);
     vm.runInContext(fs.readFileSync(path.join(root, 'assets/js/event-detail.js'), 'utf8'), context);
     return { elements, context, writes, ready: () => ready(), venueReads: () => venueReads };
 }

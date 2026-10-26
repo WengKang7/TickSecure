@@ -1,0 +1,7 @@
+# Only server-named poster images are public. Never execute uploaded content.
+Options -Indexes -ExecCGI
+Require all denied
+<FilesMatch "^[a-f0-9]{40}\.(jpg|png)$">
+    Require all granted
+    SetHandler default-handler
+</FilesMatch>

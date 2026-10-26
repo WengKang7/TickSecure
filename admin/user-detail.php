@@ -110,20 +110,27 @@ window.addEventListener('ts-auth-ready', async () => {
                 btn.textContent = 'Reactivate Account';
                 btn.className = 'ts-btn ts-btn-success';
                 btn.onclick = async () => {
-                    if (confirm('Reactivate this user?')) {
+                    const decision = await window.tsAdminConfirm('reactivateUser', user.fullName || user.email || 'Selected account', [['Email', user.email || 'Not provided']]);
+                    if (!decision) return;
+                    btn.disabled = true;
+                    try {
                         await window.tsUsers.reactivateUser(userId);
                         await loadUser();
-                    }
+                    } catch (error) { alert(error.message || 'The account could not be reactivated.'); }
+                    finally { btn.disabled = false; }
                 };
             } else {
                 btn.textContent = 'Suspend Account';
                 btn.className = 'ts-btn ts-btn-danger';
                 btn.onclick = async () => {
-                    const reason = prompt('Reason for suspension:');
-                    if (reason) {
-                        await window.tsUsers.suspendUser(userId, reason);
+                    const decision = await window.tsAdminConfirm('suspendUser', user.fullName || user.email || 'Selected account', [['Email', user.email || 'Not provided']]);
+                    if (!decision) return;
+                    btn.disabled = true;
+                    try {
+                        await window.tsUsers.suspendUser(userId, decision.reason);
                         await loadUser();
-                    }
+                    } catch (error) { alert(error.message || 'The account could not be suspended.'); }
+                    finally { btn.disabled = false; }
                 };
             }
         } catch (err) {

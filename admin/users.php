@@ -171,12 +171,11 @@ tbody.addEventListener('click', async event => {
     if (!user) return;
     const action = button.dataset.userAction;
     if (!['suspend', 'reactivate'].includes(action)) return;
-    const reason = action === 'suspend' ? prompt('Reason for suspension:')?.trim() : '';
-    if (action === 'suspend' && !reason) return;
-    if (action === 'reactivate' && !confirm('Reactivate this user?')) return;
+    const decision = await window.tsAdminConfirm(action === 'suspend' ? 'suspendUser' : 'reactivateUser', user.fullName || user.email || 'Selected account', [['Email', user.email || 'Not provided']]);
+    if (!decision) return;
     button.disabled = true;
     try {
-        if (action === 'suspend') await window.tsUsers.suspendUser(user.id, reason);
+        if (action === 'suspend') await window.tsUsers.suspendUser(user.id, decision.reason);
         else await window.tsUsers.reactivateUser(user.id);
         // Reload data without resetting the current search or dropdown choices.
         await loadUsers();

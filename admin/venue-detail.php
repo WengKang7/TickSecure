@@ -153,16 +153,20 @@ window.addEventListener('ts-auth-ready', async () => {
             // Wire Save Details button
             document.getElementById('btn-save-edit').onclick = async () => {
                 const btnSave = document.getElementById('btn-save-edit');
+                if (btnSave.disabled) return;
+                const payload = {
+                    name: document.getElementById('edit-name').value.trim(),
+                    address: document.getElementById('edit-address').value.trim(),
+                    capacity: parseInt(document.getElementById('edit-capacity').value, 10) || 0
+                };
+                if (!await window.tsAdminConfirm('updateVenue', venue.name || 'Selected venue', [['New name', payload.name], ['New address', payload.address], ['Capacity', payload.capacity]])) return;
                 const oldText = btnSave.textContent;
+                btnSave.disabled = true;
                 btnSave.textContent = 'Saving...';
                 btnSave.style.pointerEvents = 'none';
                 
                 try {
-                    await window.tsVenues.updateVenue(venueId, {
-                        name: document.getElementById('edit-name').value.trim(),
-                        address: document.getElementById('edit-address').value.trim(),
-                        capacity: parseInt(document.getElementById('edit-capacity').value, 10) || 0
-                    });
+                    await window.tsVenues.updateVenue(venueId, payload);
                     document.getElementById('edit-modal').style.display = 'none';
                     await loadVenue();
                 } catch (err) {
@@ -170,6 +174,7 @@ window.addEventListener('ts-auth-ready', async () => {
                     alert('Failed to save venue details.');
                 } finally {
                     btnSave.textContent = oldText;
+                    btnSave.disabled = false;
                     btnSave.style.pointerEvents = 'auto';
                 }
             };

@@ -162,17 +162,15 @@ window.addEventListener('ts-auth-ready', async authEvent => {
 
         tableBody.querySelectorAll('.action-suspend').forEach(button => {
             button.addEventListener('click', async () => {
-                const reason = window.prompt('Reason for suspending this listing:');
-                if (reason === null) return;
-                if (!reason.trim()) {
-                    window.alert('A suspension reason is required.');
-                    return;
-                }
+                if (button.disabled) return;
+                const listing = listings.find(item => item.id === button.dataset.id);
+                const decision = await window.tsAdminConfirm('suspendListing', listing?.eventName || 'Selected resale listing', [['Ticket category', listing?.categoryName || 'Not provided'], ['Listing ID', button.dataset.id]]);
+                if (!decision) return;
 
                 button.disabled = true;
                 button.textContent = 'Suspending…';
                 try {
-                    await window.tsResale.suspendListing(button.dataset.id, reason.trim());
+                    await window.tsResale.suspendListing(button.dataset.id, decision.reason);
                     await loadListings();
                 } catch (error) {
                     console.error('Unable to suspend resale listing:', error);

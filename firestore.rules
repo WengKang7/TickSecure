@@ -250,7 +250,7 @@ service cloud.firestore {
           'availability', 'categories', 'maxTicketsPerBuyer',
           'salesStartDate', 'salesEndDate', 'transferEnabled', 'resaleEnabled',
           'resaleStartDate', 'resaleDeadline', 'maxResaleMarkup', 'maxResalePrice',
-          'statusHistory', 'createdAt', 'updatedAt'
+          'statusHistory', 'configurationDraft', 'createdAt', 'updatedAt'
         ])
         && request.resource.data.name is string
         && request.resource.data.date is string
@@ -258,6 +258,7 @@ service cloud.firestore {
         && request.resource.data.organizerUid == request.auth.uid
         && request.resource.data.status == 'DRAFT'
         && request.resource.data.categories is map
+        && (!('configurationDraft' in request.resource.data) || request.resource.data.configurationDraft is map)
         && request.resource.data.createdAt is string
         && request.resource.data.updatedAt is string;
 
@@ -277,9 +278,11 @@ service cloud.firestore {
             'maxTicketsPerBuyer', 'salesStartDate', 'salesEndDate',
             'transferEnabled', 'resaleEnabled', 'resaleStartDate',
             'resaleDeadline', 'maxResaleMarkup', 'maxResalePrice', 'status', 'statusHistory',
-            'updatedAt'
+            'configurationDraft', 'updatedAt'
           ])
           && request.resource.data.categories is map
+          && (!('configurationDraft' in request.resource.data)
+            || (request.resource.data.status == 'DRAFT' && request.resource.data.configurationDraft is map))
           && request.resource.data.updatedAt is string
         );
 

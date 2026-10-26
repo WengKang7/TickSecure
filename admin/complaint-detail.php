@@ -124,24 +124,29 @@ window.addEventListener('ts-auth-ready', async () => {
 
         document.getElementById('val-related').textContent = complaint.relatedBookingId || complaint.relatedTicketId || 'N/A';
 
-        document.getElementById('btn-investigate').onclick = async () => {
-            await window.tsComplaints.updateStatus(complaintId, 'UNDER_INVESTIGATION', 'Administrator review started.');
-            await loadComplaint();
+        let saving = false;
+        const decide = async action => {
+            if (saving) return;
+            saving = true;
+            const buttons = ['btn-investigate', 'btn-reject', 'btn-resolve'].map(id => document.getElementById(id));
+            try {
+                const decision = await window.tsAdminConfirm(action + 'Complaint', complaint.referenceNumber || complaint.id || 'Selected complaint', [['Reporter', complaint.complainantName || 'Not provided'], ['Category', complaint.category || 'Not provided']]);
+                if (!decision) return;
+                buttons.forEach(button => { button.disabled = true; });
+                if (action === 'investigate') await window.tsComplaints.updateStatus(complaintId, 'UNDER_INVESTIGATION', 'Administrator review started.');
+                else if (action === 'reject') await window.tsComplaints.reject(complaintId, decision.reason);
+                else await window.tsComplaints.resolve(complaintId, decision.action, decision.explanation);
+                await loadComplaint();
+            } catch (error) {
+                alert(error.message || 'The complaint could not be updated.');
+            } finally {
+                saving = false;
+                buttons.forEach(button => { button.disabled = false; });
+            }
         };
-        document.getElementById('btn-reject').onclick = async () => {
-            const reason = prompt('Reason for rejection:');
-            if (!reason) return;
-            await window.tsComplaints.reject(complaintId, reason.trim());
-            await loadComplaint();
-        };
-        document.getElementById('btn-resolve').onclick = async () => {
-            const action = prompt('Resolution action:');
-            if (!action) return;
-            const explanation = prompt('Resolution explanation:');
-            if (!explanation) return;
-            await window.tsComplaints.resolve(complaintId, action.trim(), explanation.trim());
-            await loadComplaint();
-        };
+        document.getElementById('btn-investigate').onclick = () => decide('investigate');
+        document.getElementById('btn-reject').onclick = () => decide('reject');
+        document.getElementById('btn-resolve').onclick = () => decide('resolve');
     };
 
     try {

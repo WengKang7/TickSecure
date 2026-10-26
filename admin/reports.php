@@ -478,7 +478,7 @@ window.addEventListener('ts-auth-ready', async () => {
             window.tsBookings.getBookings(),
             window.tsResale.getListings(),
             window.tsTickets.getTickets(),
-            window.tsEvents.getEvents()
+            window.tsEvents.getAdminEvents()
         ]);
         eventById = new Map(events.map((event) => [String(event.id), event]));
         populateEventFilter();

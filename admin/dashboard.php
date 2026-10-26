@@ -116,7 +116,7 @@ window.addEventListener('ts-auth-ready', async () => {
     try {
         const [users, events, complaints, txs, logs] = await Promise.all([
             window.tsUsers.getUsers(),
-            window.tsEvents.getEvents(),
+            window.tsEvents.getAdminEvents(),
             window.tsComplaints.getComplaints(),
             window.tsBlockchain.getTransactions(),
             window.tsAudit.getLogs()

@@ -86,20 +86,27 @@ window.addEventListener('ts-auth-ready', async () => {
                 document.getElementById('action-buttons').style.display = 'none';
             }
             
-            document.getElementById('btn-approve').onclick = async () => {
-                if (confirm('Approve this organizer?')) {
-                    await window.tsUsers.approveOrganizer(userId);
+            let saving = false;
+            const decide = async action => {
+                if (saving) return;
+                saving = true;
+                const buttons = ['btn-approve', 'btn-reject'].map(id => document.getElementById(id));
+                try {
+                    const decision = await window.tsAdminConfirm(action + 'Organizer', user.organizationName || org.organizationName || user.fullName || 'Organizer application', [['Applicant', user.fullName], ['Email', user.email]]);
+                    if (!decision) return;
+                    buttons.forEach(button => { button.disabled = true; });
+                    if (action === 'approve') await window.tsUsers.approveOrganizer(userId);
+                    else await window.tsUsers.rejectOrganizer(userId, decision.reason);
                     await loadOrg();
+                } catch (error) {
+                    alert(error.message || 'The organizer application could not be updated.');
+                } finally {
+                    saving = false;
+                    buttons.forEach(button => { button.disabled = false; });
                 }
             };
-            
-            document.getElementById('btn-reject').onclick = async () => {
-                const reason = prompt('Reason for rejection:');
-                if (reason) {
-                    await window.tsUsers.rejectOrganizer(userId, reason);
-                    await loadOrg();
-                }
-            };
+            document.getElementById('btn-approve').onclick = () => decide('approve');
+            document.getElementById('btn-reject').onclick = () => decide('reject');
 
         } catch (err) {
             console.error(err);

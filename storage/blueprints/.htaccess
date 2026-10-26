@@ -1,0 +1,2 @@
+# Blueprints are served only by the authenticated PHP endpoint.
+Require all denied

@@ -22,6 +22,8 @@ See [`firebase-schema.md`](firebase-schema.md) for the canonical collection shap
 | `functions/index.js` | Trusted Firebase Admin SDK callable backend. |
 | `api/backend.php` | Loopback-only PHP trusted-workflow bridge for an explicit local Spark-plan demo. |
 | `api/firebase-admin.php` | Dependency-free Firebase Auth-token verification and Firestore REST transaction helper used by the local PHP bridge. |
+| `api/venue-blueprint.php` | Authenticated, administrator-only local blueprint upload and download for XAMPP. |
+| `api/event-poster.php` | Authenticated local poster upload for the owning organizer's draft event. |
 | `firestore.rules` | Browser access-control policy. |
 | `firestore.indexes.json` | Versioned Firestore composite-index definitions. |
 | `storage.rules` | Firebase Storage access policy for posters, blueprints, and complaint evidence. |
@@ -184,6 +186,47 @@ If the backend is missing, unavailable, or times out, the form shows an error an
 
 ## CRUD and trusted workflows
 
+### Organizer drafts and buyer rules
+
+My Events opens drafts with **Edit Draft**, starting at Basic Info so organizers
+can change the name, date, venue, description, and media. **Save Draft** keeps
+current inputs without requiring every field or submitting the event.
+**Continue to Tickets & Rules** validates the basic details and selected venue.
+Changing the venue resets its ticket category mappings while preserving other
+details and rule inputs.
+
+On Tickets & Rules, adding, editing, and removing categories changes the current
+form. Save Draft persists those changes, unfinished category fields, blank rule
+inputs, and switch states. Returning with Edit Event Details saves current
+configuration work first. **Review & Submit** validates the event and opens a
+review; only **Submit for Administrator Approval** submits it. Pending and
+published events retain the existing editing restrictions.
+
+Organizers choose which venue sections to use and how many tickets to sell in
+each. Selling 25 tickets in a 250-seat section is valid; unused sections and
+seats stay off sale. Capacity is only an upper limit. Review automatically
+includes a complete category currently in the editor and does not block on an
+unchanged copy of an already configured category.
+
+Configuration validation shows an error below the relevant input, highlights
+it, and scrolls to and focuses the first field needing attention. Editing the
+field clears its error. Invalid saved categories open in the category editor;
+missing basic event details point back to Edit Event Details. General loading
+or save-service failures retain the page-level message.
+
+The organizer preview and buyer event page use the same rule summary: sales
+dates in Malaysia time (UTC+8), ticket holding limits, transfer requirements,
+resale dates, percentage or fixed price caps, and price examples for each
+category. Service charges are described separately. Unfinished form state lives
+in `Events.configurationDraft` and is removed on completion. The checked-in
+Firestore Rules permit it only for editable drafts.
+
+Run `node --test tests/organizer-drafts.test.cjs` for form and summary checks.
+With the private Firebase configuration available, run
+`node scripts/test-local-organizer-drafts.cjs` to test the actual EventService
+using a temporary organizer/event, then remove those fixtures afterward.
+
+
 Normal page CRUD uses the service objects in `assets/js/firestore-crud.js` (for example, `window.tsUsers`, `window.tsEvents`, and `window.tsComplaints`). Firestore Rules remain the authority for which direct browser operations are allowed.
 
 The following mutations must be invoked through a trusted backend rather than direct Firestore writes:
@@ -207,6 +250,53 @@ Event details display total and per-category remaining seats, plus remaining cou
 
 Local XAMPP uses the existing checkout-enabled PHP route automatically, including for guests. Firebase/Emulator mode uses the matching callable; deploy `firebase deploy --only functions:getEventAvailability` or restart the Functions emulator after this update. Firestore inventory rules stay private.
 
+## Blueprint upload troubleshooting
+
+The venue layout upload shows the storage transfer percentage, file-link lookup,
+and Firestore save as separate stages. A transfer with no new bytes for 30
+seconds is cancelled; the total transfer/file-link wait is capped at two minutes.
+PDF section estimation runs after the upload, uses a bounded preview, and does
+not store the full PDF in browser session storage. Review the suggested sections
+and seat counts before activating a layout.
+
+On localhost, venue blueprint uploads use the dedicated PHP route enabled by
+`TICKSECURE_PHP_BLUEPRINT_UPLOAD=1` in `.htaccess`. It verifies the signed-in
+administrator's Firebase ID token, saves the PDF in `storage/blueprints/`, and
+updates the venue metadata in Firestore. Direct access to that directory is
+denied; downloads require the administrator token through the same endpoint.
+This route uses the existing private Firebase configuration and needs no shared
+browser upload token, Firebase Storage bucket, or backend-mode switch. It still
+needs internet access for Firebase Authentication and Firestore.
+
+Remote sites and Emulator Suite sessions retain Firebase Storage. Local event
+posters use the dedicated route below. Complaint evidence retains
+[the separate upload setup](api/README.md#configure-the-full-php-bridge).
+See [local blueprint details and verification](api/README.md#local-venue-blueprints).
+
+## Local event posters
+
+On localhost, event posters use `api/event-poster.php`, enabled by
+`TICKSECURE_PHP_POSTER_UPLOAD=1` in `.htaccess`. This uses the existing private
+Firebase configuration and requires no Storage bucket, shared upload token, or
+backend-mode switch. It verifies the Firebase ID token, active organizer role,
+verified email, ownership, and `DRAFT` event status. Active administrators retain
+their existing email-verification exception.
+
+Only content-validated JPG/PNG images up to 5 MiB are accepted. The server assigns
+a random filename under `uploads/posters/` and saves the public image URL to the
+event in a Firestore transaction. Poster images are public artwork, like the
+normal Firebase Storage poster path. The directory permits only server-named
+JPG/PNG files through the static handler; image files are ignored by Git.
+Keep them in local backups.
+
+If a poster fails after the event details were saved, the editor reports both
+states correctly and retains the selected image for retry. Remote and emulator
+sessions keep their normal Firebase Storage uploads.
+
+Run `node scripts/test-local-poster.cjs` with Apache running for isolated live
+JPG/PNG upload, authorization, and public image retrieval checks. It removes
+its temporary accounts, event, and image files afterward.
+
 ## Production-readiness requirements
 
 The current trusted backend is intentionally a secure development foundation, not a live payments or blockchain system.
@@ -214,7 +304,7 @@ The current trusted backend is intentionally a secure development foundation, no
 - **Payments:** checkout and resale purchase currently write `SIMULATED_PAID`. Before accepting money, integrate a payment provider, verify server-side payment/webhook events, make operations idempotent, and implement failure, cancellation, refund, and reconciliation paths.
 - **Blockchain:** mint, transfer, and resale workflows create backend-owned `BlockchainTransactions` records with simulated `PENDING` state and no transaction hash. They do not submit or confirm an on-chain transaction. Replace this with a secure wallet/provider integration and persist only provider-confirmed chain results.
 - **App Check:** the current callable Functions set `enforceAppCheck: false`. Enable and enforce Firebase App Check, configure valid application clients, and test legitimate flows before public production use.
-- **Uploads:** normal Firebase mode uses Firebase Storage; deploy `storage.rules`, enable Storage in the Firebase project, and keep paths/allowed MIME types aligned with the rules. In explicit local PHP mode only, `api/upload.php` is enabled by server environment variables, a local token, and a loopback check. Its static local files are not private evidence storage and must not be used for production data.
+- **Uploads:** remote and emulator uploads use Firebase Storage; deploy `storage.rules`, enable Storage in the Firebase project, and keep paths/allowed MIME types aligned with the rules. Local venue blueprints use the administrator-authenticated route above. For other uploads in explicit local PHP mode, `api/upload.php` requires server environment variables, a local token, and a loopback check. Its static local files are not private evidence storage and must not be used for production data.
 - **Wallets:** address-format validation is not wallet ownership proof. Before treating wallet identity or on-chain delivery as production-ready, add a signed nonce/challenge flow, canonical unique wallet addresses, and a real custody/provider integration.
 - **Operations:** keep Firestore Rules, Storage Rules, indexes, Functions, and the schema documentation in the same release review. Restrictive rules are deliberate; do not weaken them to make a protected browser write succeed.
 
@@ -224,6 +314,8 @@ If this Firebase project already contains browser-seeded records, backfill canon
 
 ```bash
 php -l api/upload.php
+php -l api/venue-blueprint.php
+php -l api/event-poster.php
 php -l api/backend.php
 php -l api/firebase-admin.php
 node --check assets/js/firebase-init.js

@@ -17,8 +17,9 @@ The project `.htaccess` enables `TICKSECURE_PHP_CHECKOUT=1` alongside the
 separate password-recovery flag. On localhost, `reserveSeats`,
 `releaseSeatReservation`, and `checkout` automatically use the PHP bridge,
 unless Firebase Emulator mode is enabled. These actions require a verified
-Firebase ID token and an active, verified buyer profile. Other mutations and
-uploads retain their separate enablement requirements.
+Firebase ID token and an active, verified buyer profile. Venue blueprints have
+their own authenticated local route below. Other mutations and uploads retain
+their separate enablement requirements.
 
 The flow is event category/quantity, seat reservation, wallet, simulated
 payment, then booking confirmation/My Tickets. MetaMask provides the wallet
@@ -100,7 +101,62 @@ The ignored `api/firebase-config.local.php` specifies project `tick-c12a1` and t
 
  The service account also needs Firebase Authentication user-read permission (`firebaseauth.users.get`). The REST helper requests both the existing Datastore scope and the Identity Toolkit scope for the Auth lookup. Keep the service account outside the web root. The browser requests Firebase's reset email only after a positive result; configuration errors and lookup failures block that request.
 
-## Local uploads
+## Local venue blueprints
+
+The checked-in `.htaccess` enables `TICKSECURE_PHP_BLUEPRINT_UPLOAD=1` for
+`venue-blueprint.php`. On localhost, venue blueprint uploads select this route
+automatically, outside Emulator Suite mode. No `firebaseBackend=php` switch or
+shared upload token is required. The existing `firebase-config.local.php` and
+private service-account file outside `htdocs` must be available; Firebase Auth
+and Firestore must be reachable.
+
+The route accepts one content-validated PDF up to 10 MiB and a venue ID. Every
+upload and download verifies a Firebase ID token and an active administrator
+profile, following the existing administrator email-verification exception. It stores a random PDF filename under
+`storage/blueprints/`, whose committed `.htaccess` blocks static HTTP access.
+It updates only the selected venue's blueprint metadata in a Firestore
+transaction. Guests and buyers cannot upload or download. Remote requests are
+rejected even if the server flag is enabled. Keep these files in local backups;
+they are ignored by Git.
+
+`blueprintUrl` is a relative API path. To download, fetch that path on the same
+project origin with `Authorization: Bearer <Firebase ID token>`; credentials
+must not appear in the URL. Direct navigation without that header returns 401.
+
+Run `node scripts/test-local-blueprint.cjs` with Apache running to exercise the
+actual local endpoint and Firebase services. It creates temporary administrator
+and buyer accounts, a temporary venue, and a sample PDF, then removes them.
+It verifies metadata persistence and that guest, buyer, and public-file access
+are denied. Ordinary automated checks include the policy and browser-routing
+tests in `tests/blueprint-upload.test.cjs`.
+
+## Local event posters
+
+The checked-in `.htaccess` enables `TICKSECURE_PHP_POSTER_UPLOAD=1` for
+`event-poster.php`. On localhost outside Emulator mode, poster uploads use this
+route automatically. No upload-token or backend-mode setup is required. It uses
+the existing private Firebase configuration, so Firebase Auth and Firestore
+must remain reachable.
+
+Send an authenticated multipart `POST` with `eventId`, one `file`, and
+`Authorization: Bearer <Firebase ID token>`. The caller must be the active,
+email-verified organizer owning the draft, or an active administrator. The
+administrator email-verification exception matches sign-in. Buyers, other
+organizers, suspended accounts, and non-draft events are rejected.
+
+The server validates JPG/PNG content up to 5 MiB, saves a random image filename
+under `uploads/posters/`, rechecks authorization and event state in a transaction,
+and updates only `posterUrl` and `updatedAt`. It returns a strict relative path;
+Firestore stores a root-relative URL that works under the XAMPP subdirectory.
+Posters are public event artwork. The committed directory `.htaccess` permits
+only server-named JPG/PNG images with the static handler. Other uploaded content
+and directory listings are denied. Keep the ignored image files in backups.
+
+Run `node scripts/test-local-poster.cjs` to verify live uploads, public image
+retrieval, ownership/role checks, file validation, and draft restrictions using
+temporary fixtures. The script removes all fixtures after testing.
+
+## Other local uploads
 
 `upload.php` is disabled by default and normally returns `410 Gone`. The
 configuration above makes it a local XAMPP-only fallback; Firebase Storage is

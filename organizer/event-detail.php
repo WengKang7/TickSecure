@@ -53,24 +53,7 @@ ob_start();
     </div>
     <div class="ts-tab-panel" data-panel="rules">
         <div class="ts-card ts-card-pad">
-            <div class="ts-detail-grid">
-                <div class="ts-detail-item">
-                    <div class="ts-detail-label">Sales Start</div>
-                    <div class="ts-detail-value" id="rule-sales-start">-</div>
-                </div>
-                <div class="ts-detail-item">
-                    <div class="ts-detail-label">Sales Close</div>
-                    <div class="ts-detail-value" id="rule-sales-close">-</div>
-                </div>
-                <div class="ts-detail-item">
-                    <div class="ts-detail-label">Max / Buyer</div>
-                    <div class="ts-detail-value" id="rule-max-buyer">-</div>
-                </div>
-                <div class="ts-detail-item">
-                    <div class="ts-detail-label">Resale Maximum</div>
-                    <div class="ts-detail-value" id="rule-resale-max">-</div>
-                </div>
-            </div>
+            <div id="organizer-rules-summary"></div>
         </div>
     </div>
     <div class="ts-tab-panel" data-panel="history">
@@ -86,6 +69,7 @@ ob_start();
     <div class="ts-tab-panel" data-panel="sales"><a class="ts-btn ts-btn-primary" href="sales.php">Open Sales Dashboard</a></div>
 </div>
 
+<script src="<?=ts_asset_url('assets/js/event-policy.js', '..')?>"></script>
 <script type="module">
 const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
 window.addEventListener('ts-auth-ready', async () => {
@@ -157,10 +141,8 @@ window.addEventListener('ts-auth-ready', async () => {
         }
 
         // Populate Rules
-        document.getElementById('rule-sales-start').textContent = event.salesStartDate ? new Date(event.salesStartDate).toLocaleString() : 'Not configured';
-        document.getElementById('rule-sales-close').textContent = event.salesEndDate ? new Date(event.salesEndDate).toLocaleString() : 'Not configured';
-        document.getElementById('rule-max-buyer').textContent = event.maxTicketsPerBuyer ? event.maxTicketsPerBuyer : 'Not configured';
-        document.getElementById('rule-resale-max').textContent = event.maxResaleMarkup !== undefined ? event.maxResaleMarkup + '%' : 'Not configured';
+        window.tsEventPolicy.render(document.getElementById('organizer-rules-summary'), event.configurationDraft?.rules
+            ? { ...event, ...event.configurationDraft.rules } : event);
 
         // Populate History
         const historyTbody = document.getElementById('history-timeline');

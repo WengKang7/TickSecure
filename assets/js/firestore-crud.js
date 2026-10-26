@@ -7,12 +7,15 @@ import { db, auth, storage } from './firebase-init.js';
 import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261023-availability';
 import {
     collection, doc, addDoc, setDoc, getDoc, getDocs,
-    updateDoc, deleteDoc, query, where, orderBy, limit,
+    updateDoc, deleteDoc, deleteField, query, where, orderBy, limit,
     writeBatch, runTransaction, increment, arrayUnion, arrayRemove, getCountFromServer
 } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 import {
-    ref, uploadBytes, getDownloadURL
+    ref
 } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js";
+import { uploadToStorage } from './storage-upload.js';
+import { useLocalBlueprintUpload, uploadLocalBlueprint } from './blueprint-upload.js';
+import { useLocalPosterUpload, uploadLocalPoster } from './poster-upload.js';
 
 // ============================================================
 // HELPERS
@@ -180,7 +183,7 @@ async function checkoutWithCallable(request, config) {
     return { ...response, id: bookingId };
 }
 
-async function uploadFile(path, file, allowedMimeTypes = ['image/jpeg', 'image/png', 'application/pdf']) {
+async function uploadFile(path, file, allowedMimeTypes = ['image/jpeg', 'image/png', 'application/pdf'], onStatus = () => {}) {
     const allowedTypes = new Set(allowedMimeTypes);
     if (!file || !allowedTypes.has(file.type) || file.size > 10 * 1024 * 1024) {
         const fileTypes = allowedMimeTypes.includes('application/pdf') ? 'JPG, PNG, or PDF' : 'JPG or PNG';
@@ -217,7 +220,11 @@ async function uploadFile(path, file, allowedMimeTypes = ['image/jpeg', 'image/p
 
         const formData = new FormData();
         formData.append('file', file, safeBaseName);
+        onStatus('Uploading to local storage...');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 45000);
         let response;
+        let payload;
         try {
             response = await fetch(backend.uploadEndpoint, {
                 method: 'POST',
@@ -226,14 +233,21 @@ async function uploadFile(path, file, allowedMimeTypes = ['image/jpeg', 'image/p
                     'X-TickSecure-Upload-Mode': 'local-dev',
                     'X-TickSecure-Local-Upload-Token': localUploadToken
                 },
-                body: formData
+                body: formData,
+                signal: controller.signal
             });
-        } catch (_) {
+            try { payload = await response.json(); }
+            catch (error) {
+                if (controller.signal.aborted) throw error;
+                throw new Error('The local upload service returned an invalid response.');
+            }
+        } catch (error) {
+            if (controller.signal.aborted) throw new Error('The local upload timed out. Check XAMPP Apache and retry.');
+            if (response) throw error;
             throw new Error('The local upload service could not be reached. Check that XAMPP Apache is running.');
+        } finally {
+            clearTimeout(timeout);
         }
-        let payload = null;
-        try { payload = await response.json(); }
-        catch (_) { throw new Error('The local upload service returned an invalid response.'); }
         if (!response.ok || !payload?.ok) {
             throw new Error(payload?.error || 'The local upload service rejected this file.');
         }
@@ -248,8 +262,7 @@ async function uploadFile(path, file, allowedMimeTypes = ['image/jpeg', 'image/p
     }
 
     const objectRef = ref(storage, `${normalizedPath}/${Date.now()}_${safeBaseName}`);
-    await uploadBytes(objectRef, file, { contentType: file.type });
-    return { url: await getDownloadURL(objectRef), localPath: '' };
+    return { url: await uploadToStorage(objectRef, file, onStatus), localPath: '' };
 }
 
 // ============================================================
@@ -471,9 +484,16 @@ export const VenueService = {
         await AuditService.log('venue_deleted', 'venue', venueId);
     },
 
-    async uploadBlueprint(venueId, file) {
-        const upload = await uploadFile(`venues/${venueId}`, file);
+    async uploadBlueprint(venueId, file, onStatus = () => {}) {
+        if (!file || file.type !== 'application/pdf' || file.size < 1 || file.size > 10 * 1024 * 1024) {
+            throw new Error('Choose a PDF file no larger than 10 MB.');
+        }
+        if (useLocalBlueprintUpload()) {
+            return uploadLocalBlueprint(venueId, file, onStatus);
+        }
+        const upload = await uploadFile(`venues/${venueId}`, file, ['application/pdf'], onStatus);
         const url = upload.url;
+        onStatus('Upload complete. Saving the venue record...');
         await updateDoc(doc(db, 'Venues', venueId), { 
             blueprintUrl: url, 
             blueprintName: file.name,
@@ -541,12 +561,12 @@ export const EventService = {
     async createEvent(data) {
         const p = await profile();
         const ref = await addDoc(collection(db, 'Events'), {
-            name: data.name,
+            name: data.name || '',
             description: data.description || '',
-            eventCategory: data.eventCategory || 'Concert',
-            date: data.date,
+            eventCategory: data.eventCategory || '',
+            date: data.date || '',
             time: data.time || '',
-            venueId: data.venueId,
+            venueId: data.venueId || '',
             venueName: data.venueName || '',
             venueLocation: data.venueLocation || '',
             organizerUid: p.id,
@@ -571,6 +591,24 @@ export const EventService = {
         });
         await AuditService.log('event_created', 'event', ref.id, { name: data.name });
         return ref.id;
+    },
+
+    // Admin oversight starts after submission; organizer draft queries stay separate.
+    async getAdminEvents(filters = {}) {
+        const statuses = ['PENDING_REVIEW', 'PUBLISHED', 'APPROVED', 'REJECTED', 'SUSPENDED', 'CANCELLED'];
+        if (filters.status && !statuses.includes(filters.status)) return [];
+        const constraints = [filters.status ? where('status', '==', filters.status) : where('status', 'in', statuses)];
+        if (filters.organizerUid) constraints.push(where('organizerUid', '==', filters.organizerUid));
+        const snap = await getDocs(query(collection(db, 'Events'), ...constraints));
+        let results = snap.docs.map(d => ({ ...d.data(), id: d.id })).filter(event => statuses.includes(event.status));
+        results.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+        if (filters.max) results = results.slice(0, filters.max);
+        return results;
+    },
+
+    async getAdminEvent(eventId) {
+        const event = await this.getEvent(eventId);
+        return event && ['PENDING_REVIEW', 'PUBLISHED', 'APPROVED', 'REJECTED', 'SUSPENDED', 'CANCELLED'].includes(event.status) ? event : null;
     },
 
     async getEvents(filters = {}) {
@@ -610,11 +648,36 @@ export const EventService = {
         await AuditService.log('event_updated', 'event', eventId, data);
     },
 
-    async uploadPoster(eventId, file) {
-        const upload = await uploadFile(`events/${eventId}`, file, ['image/jpeg', 'image/png']);
+    async uploadPoster(eventId, file, onStatus = () => {}) {
+        if (!file || !['image/jpeg', 'image/png'].includes(file.type) || file.size < 1 || file.size > 5 * 1024 * 1024) {
+            throw new Error('Choose a JPG or PNG image no larger than 5 MB.');
+        }
+        if (useLocalPosterUpload()) return uploadLocalPoster(eventId, file, onStatus);
+        const upload = await uploadFile(`events/${eventId}`, file, ['image/jpeg', 'image/png'], onStatus);
         const url = upload.url;
         await updateDoc(doc(db, 'Events', eventId), { posterUrl: url, updatedAt: iso() });
         return url;
+    },
+
+    async saveConfigurationDraft(eventId, { categories, rules, category }) {
+        const normalized = normalizeEventCategories(categories);
+        const prices = Object.values(normalized).map(item => item.price);
+        await this.updateEvent(eventId, {
+            categories: normalized,
+            startingPrice: prices.length ? `RM${Math.min(...prices)}` : '',
+            configurationDraft: { rules, category }
+        });
+    },
+
+    async saveCompletedConfiguration(eventId, categories, rules) {
+        const normalized = normalizeEventCategories(categories);
+        const prices = Object.values(normalized).map(item => item.price);
+        await this.updateEvent(eventId, {
+            ...rules,
+            categories: normalized,
+            startingPrice: prices.length ? `RM${Math.min(...prices)}` : '',
+            configurationDraft: deleteField()
+        });
     },
 
     async updateCategories(eventId, categories) {

@@ -82,13 +82,13 @@ ob_start();
           <div class="ts-list-item"><span>Ticket transfer</span><span id="ev-transfer">&mdash;</span></div>
           <div class="ts-list-item"><span>Official resale</span><span id="ev-resale">&mdash;</span></div>
         </div>
-        <p class="small secondary" id="transfer-policy"></p>
-        <p class="small secondary" id="resale-policy"></p>
+        <div id="buyer-rules-summary" class="mt-20"></div>
       </section>
     </div>
   </div>
 </main>
 <script src="<?=ts_asset_url('assets/js/venue-renderer.js', '..')?>"></script>
+<script src="<?=ts_asset_url('assets/js/event-policy.js', '..')?>"></script>
 <script type="module" src="<?=ts_asset_url('assets/js/event-detail.js', '..')?>"></script>
 
 <?php

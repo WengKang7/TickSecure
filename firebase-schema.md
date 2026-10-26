@@ -111,6 +111,7 @@ Organizer-authored events. Public clients may read only `PUBLISHED` records; org
 | `status` | string | `DRAFT`, `PENDING_REVIEW`, `PUBLISHED`, `REJECTED`, `SUSPENDED`, or `CANCELLED`. |
 | `posterUrl`, `startingPrice`, `availability` | string | Display fields. |
 | `categories` | map | Keyed by physical `sectionId`; each value is `{ name, price, quantity }`, with numeric `price` and `quantity`. |
+| `configurationDraft` | map, optional | Draft-only form state. `rules` retains raw input strings (including blanks) and switches; `category` retains unfinished `name`, `sectionId`, `price`, `quantity`, and `editingSectionId`. Completed categories stay in `categories`. Removed before submission. |
 | `maxTicketsPerBuyer` | number | Maximum tickets a buyer may currently hold for the event; checkout, transfer, resale purchase, and reservations enforce it. |
 | `salesStartDate`, `salesEndDate` | string | Sales-window policy. Date-only values use the product's +08:00 business timezone; the end date is inclusive through 23:59:59.999. |
 | `transferEnabled`, `resaleEnabled` | boolean | Event policy switches. |
@@ -118,6 +119,18 @@ Organizer-authored events. Public clients may read only `PUBLISHED` records; org
 | `maxResaleMarkup`, `maxResalePrice` | number | Percentage and absolute resale caps in RM. |
 | `statusHistory` | array | Transition records with `from`, `to`, `changedBy`, optional `reason`, and `timestamp`. |
 | `rejectReason`, `createdAt`, `updatedAt` | string | Moderation and audit data. |
+
+Each event may use a subset of the venue's physical sections. Category quantity
+can be any positive whole number up to that section's physical capacity; it
+does not have to fill the section. Unselected sections and unused physical
+seats do not become ticket inventory for the event.
+
+Drafts may contain empty event names, descriptions, dates, and venue references.
+Save Draft persists current inputs without requiring the rest of the form.
+Continue validates basic event and venue details; Review checks the complete
+event, category mappings, and rules. Only the final submit action changes the
+status to `PENDING_REVIEW`. Changing the venue clears category mappings and
+unfinished category input while retaining rule inputs.
 
 ### `Bookings/{bookingId}`
 

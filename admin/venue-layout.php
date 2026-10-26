@@ -148,7 +148,7 @@ ob_start();
         <input type="file" style="display:none" id="real-blueprint-file" accept=".pdf,application/pdf">
     </label>
     <div id="upload-error" class="ts-alert ts-alert-error mt-16" style="display:none; text-align: left;"></div>
-    <div id="upload-status" class="mt-16" style="display:none;">Uploading blueprint to secure storage...</div>
+    <div id="upload-status" class="mt-16" role="status" aria-live="polite" style="display:none;">Uploading blueprint to secure storage...</div>
 </div>
 <?php endif; ?>
 
@@ -239,7 +239,7 @@ ob_start();
 
             Replace File
 
-            <input type="file" style="display:none" data-file-name="blueprint-file">
+            <input type="file" style="display:none" data-file-name="blueprint-file" accept=".pdf,application/pdf">
 
         </label>
 
@@ -250,6 +250,8 @@ ob_start();
 
 
 <!-- Blueprint + Detected Sections -->
+<div id="upload-error" class="ts-alert ts-alert-error mb-16" role="alert" style="display:none;"></div>
+<div id="upload-status" class="mb-16" role="status" aria-live="polite" style="display:none;"></div>
 
 <div class="ts-blueprint-grid">
 
@@ -927,14 +929,24 @@ ob_start();
 window.addEventListener('ts-auth-ready', async () => {
 
     async function countSectionsInPDF(file) {
+        let loadingTask;
+        let analysisTimer;
         return new Promise(async (resolve) => {
             try {
                 const pdfjsLib = window['pdfjs-dist/build/pdf'];
                 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
                 const ab = await file.arrayBuffer();
-                const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+                loadingTask = pdfjsLib.getDocument({ data: ab });
+                analysisTimer = setTimeout(() => {
+                    // A blocked worker or complex PDF must not trap the upload.
+                    resolve(4);
+                    loadingTask.destroy().catch(() => {});
+                }, 15000);
+                const pdf = await loadingTask.promise;
                 const page = await pdf.getPage(1);
-                const vp = page.getViewport({ scale: 1.0 });
+                const original = page.getViewport({ scale: 1 });
+                const scale = Math.min(1, 1000 / Math.max(original.width, original.height));
+                const vp = page.getViewport({ scale });
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d', { willReadFrequently: true });
                 canvas.width = vp.width; canvas.height = vp.height;
@@ -969,8 +981,12 @@ window.addEventListener('ts-auth-ready', async () => {
                 }
                 let sec = boxCount > 0 ? boxCount - 1 : 4;
                 if (sec < 1) sec = 4;
-                resolve(sec);
+                resolve(Math.min(26, sec));
             } catch(e) { console.error('CV Error', e); resolve(4); }
+            finally {
+                clearTimeout(analysisTimer);
+                if (loadingTask) loadingTask.destroy().catch(() => {});
+            }
         });
     }
 
@@ -1204,64 +1220,78 @@ window.addEventListener('ts-auth-ready', async () => {
             });
         }
 
+        // Share one guarded flow for initial upload and replacement. Do not
+        // base64-encode the whole PDF into sessionStorage before uploading it.
+        let uploadInProgress = false;
+        async function uploadBlueprint(input) {
+            if (uploadInProgress || !input.files?.length) return;
+            const file = input.files[0];
+            const errEl = document.getElementById('upload-error');
+            const statusEl = document.getElementById('upload-status');
+            const setStatus = message => {
+                statusEl.textContent = message;
+                statusEl.style.display = 'block';
+            };
+            errEl.style.display = 'none';
+            statusEl.style.display = 'none';
+            if (file.type !== 'application/pdf' || file.size < 1 || file.size > 10 * 1024 * 1024) {
+                errEl.textContent = 'Choose a PDF file no larger than 10 MB.';
+                errEl.style.display = 'block';
+                input.value = '';
+                return;
+            }
+            if ((venue.blueprintUrl || venue.blueprintName) && !await window.tsAdminConfirm('replaceBlueprint', venue.name || 'Selected venue', [['Current PDF', venue.blueprintName || 'Existing blueprint'], ['Replacement PDF', file.name]])) {
+                input.value = '';
+                return;
+            }
+            uploadInProgress = true;
+            input.disabled = true;
+            try {
+                setStatus('Connecting to storage...');
+                await window.tsVenues.uploadBlueprint(venueId, file, setStatus);
+                setStatus('Blueprint saved. Estimating sections for review...');
+                // Let the status paint before starting the bounded PDF analysis.
+                await new Promise(resolve => setTimeout(resolve, 0));
+                const count = await countSectionsInPDF(file);
+                try {
+                    sessionStorage.removeItem('mock_pdf_' + venueId);
+                    sessionStorage.setItem('mock_pdf_name_' + venueId, file.name);
+                    sessionStorage.setItem('mock_pdf_size_' + venueId, file.size);
+                    sessionStorage.setItem('mock_pdf_count_' + venueId, count);
+                } catch (error) { console.warn('Section preview could not be cached', error); }
+                window.location.href = `venue-layout.php?id=${encodeURIComponent(venueId)}&step=3`;
+            } catch (error) {
+                errEl.textContent = error.message || 'Blueprint upload failed. Please retry.';
+                errEl.style.display = 'block';
+                statusEl.style.display = 'none';
+            } finally {
+                uploadInProgress = false;
+                input.disabled = false;
+                input.value = '';
+            }
+        }
+
         // Wire Upload (Step 1)
         const realFileInput = document.getElementById('real-blueprint-file');
         if (realFileInput) {
-            realFileInput.addEventListener('change', async (e) => {
-                const errEl = document.getElementById('upload-error');
-                const statusEl = document.getElementById('upload-status');
-                errEl.style.display = 'none';
-                if (e.target.files.length > 0) {
-                    const file = e.target.files[0];
-                    if (file.type !== 'application/pdf') { errEl.innerHTML='<strong>Error</strong><div class="small mt-8">Invalid format. Only PDF files are supported.</div>'; errEl.style.display='block'; e.target.value=''; return; }
-                    const reader = new FileReader();
-                    reader.onload = async (ev) => {
-                        try { sessionStorage.setItem('mock_pdf_'+venueId, ev.target.result); sessionStorage.setItem('mock_pdf_name_'+venueId, file.name); sessionStorage.setItem('mock_pdf_size_'+venueId, file.size); const c=await countSectionsInPDF(file); sessionStorage.setItem('mock_pdf_count_'+venueId, c); } catch(e){ console.warn('Storage err',e); }
-                        try {
-                            statusEl.style.display = 'block';
-                            statusEl.textContent = 'Uploading blueprint...';
-                            await window.tsVenues.uploadBlueprint(venueId, file);
-                            statusEl.textContent = 'Blueprint uploaded. Proceeding to processing...';
-                            window.location.href = `venue-layout.php?id=${venueId}&step=2`;
-                        } catch (err) {
-                            errEl.innerHTML = '<strong>Error</strong><div class="small mt-8"></div>';
-                            errEl.querySelector('div').textContent = err.message;
-                            errEl.style.display = 'block';
-                            statusEl.style.display = 'none';
-                        }
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
+            realFileInput.addEventListener('change', e => uploadBlueprint(e.target));
         }
 
-        if (step === 2) { setTimeout(()=>{window.location.href=`venue-layout.php?id=${venueId}&step=3`;},3000); }
+        if (step === 2) { window.location.replace(`venue-layout.php?id=${encodeURIComponent(venueId)}&step=3`); }
 
         // Wire Replace (Step 3)
         const fileInput = document.querySelector('input[data-file-name="blueprint-file"]');
         if (fileInput) {
-            fileInput.addEventListener('change', async (e) => {
-                if (e.target.files.length > 0) {
-                    const file = e.target.files[0];
-                    if (file.type !== 'application/pdf') { alert('Only PDF files are supported.'); e.target.value=''; return; }
-                    const reader = new FileReader();
-                    reader.onload = async (ev) => {
-                        try { sessionStorage.setItem('mock_pdf_'+venueId, ev.target.result); sessionStorage.setItem('mock_pdf_name_'+venueId, file.name); sessionStorage.setItem('mock_pdf_size_'+venueId, file.size); const c=await countSectionsInPDF(file); sessionStorage.setItem('mock_pdf_count_'+venueId, c); } catch(e){ console.warn('Storage err',e); }
-                        try {
-                            await window.tsVenues.uploadBlueprint(venueId, file);
-                            window.location.href = `venue-layout.php?id=${venueId}&step=2`;
-                        } catch (err) { alert(err.message); }
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
+            fileInput.addEventListener('change', e => uploadBlueprint(e.target));
         }
 
         // Wire Confirm (Step 3 → 4)
         const btnConfirm = document.querySelector('a[href="venue-layout.php?step=4"]');
         if (btnConfirm) {
+            let savingSections = false;
             btnConfirm.addEventListener('click', async (e) => {
                 e.preventDefault();
+                if (savingSections) return;
                 try {
                     let payload = [];
                     let currentTotal = 0;
@@ -1282,17 +1312,26 @@ window.addEventListener('ts-auth-ready', async () => {
                         return;
                     }
 
+                    if (!await window.tsAdminConfirm('confirmSections', venue.name || 'Selected venue', [['Sections', payload.length], ['Physical seats', currentTotal]])) return;
+                    savingSections = true;
+                    btnConfirm.style.pointerEvents = 'none';
                     await window.tsVenues.updateSections(venueId, payload);
                     window.location.href = `venue-layout.php?id=${venueId}&step=4`;
                 } catch(err) { alert(err.message); }
+                finally { savingSections = false; btnConfirm.style.pointerEvents = ''; }
             });
         }
 
         // Wire Activate (Step 5)
         const btnActivate = document.querySelector('#step5-activate-btn');
         if (btnActivate) {
+            let activating = false;
             btnActivate.addEventListener('click', async (e) => {
                 e.preventDefault();
+                if (activating) return;
+                const sections = Array.isArray(venue.sections) ? venue.sections : [];
+                if (!await window.tsAdminConfirm('activateLayout', venue.name || 'Selected venue', [['Sections', sections.length], ['Physical seats', sections.reduce((sum, section) => sum + (Number(section.seatCount) || 0), 0)]])) return;
+                activating = true;
                 btnActivate.textContent = 'Activating...';
                 btnActivate.style.pointerEvents = 'none';
                 try { 
@@ -1303,6 +1342,7 @@ window.addEventListener('ts-auth-ready', async () => {
                     btnActivate.textContent = 'Activate Venue Layout';
                     btnActivate.style.pointerEvents = '';
                 }
+                finally { activating = false; }
             });
         }
 
