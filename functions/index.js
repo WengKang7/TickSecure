@@ -13,11 +13,34 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { checkPasswordResetEmail } = require('./password-reset');
 const { eventAvailability } = require('./event-availability');
+const { allocateSeats } = require('./seat-allocation-policy');
+const { visibleSeat, checkSelected, layoutContext } = require('./seat-picker-policy');
+const { createHash } = require('node:crypto');
+const { transferReceipt, getTicketTransfers } = require('./ticket-transfer-history');
+const { createBlockchainService } = require('./blockchain');
+const { defineSecret } = require('firebase-functions/params');
+const blockchainSignerSecret = defineSecret('TICKSECURE_BLOCKCHAIN_SIGNER_KEY');
 
 if (!getApps().length) initializeApp();
 
 const db = getFirestore();
 const region = 'asia-southeast1';
+const blockchainService = createBlockchainService(db, {
+    projectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || db.projectId,
+    fail: (code, message) => { throw new HttpsError(code, message); }
+});
+for (const [name, method] of Object.entries({ getBlockchainSettings: 'getSettings', configureBlockchain: 'configure',
+    prepareBlockchainOperation: 'prepare', verifyBlockchainOperation: 'verify', getBuyerBlockchainOperations:'listBuyer', getOrganizerBlockchainOperations:'listOrganizer' })) {
+    exports[name] = onCall({ region, enforceAppCheck: false, timeoutSeconds: 120,
+        secrets: ['getBlockchainSettings','configureBlockchain','prepareBlockchainOperation'].includes(name)?[blockchainSignerSecret]:[] }, async request => {
+        const uid = requireAuth(request), data = requireDataObject(request);
+        try { return await blockchainService[method](uid, data); }
+        catch (error) {
+            if (error instanceof HttpsError) throw error;
+            throw new HttpsError('unavailable', 'The Sepolia provider is unavailable. Retry verification with the same transaction hash.');
+        }
+    });
+}
 const serviceCharge = 20;
 const maxTicketsPerBuyer = 20;
 const maxInventoryPerCategory = 100000;
@@ -174,79 +197,26 @@ async function ensureEventInventory(event) {
         throw new HttpsError('failed-precondition', 'This event has no venue inventory.');
     }
 
-    const rawCategoryEntries = Array.isArray(event.categories)
-        ? event.categories.map((category) => [
-            category?.sectionId ?? category?.section ?? category?.id,
-            category,
-        ])
-        : event.categories && typeof event.categories === 'object'
-            ? Object.entries(event.categories)
-            : [];
-    const categoryEntries = [];
-    const seenSections = new Set();
-    rawCategoryEntries.forEach(([rawSectionId, category]) => {
-        const sectionId = typeof rawSectionId === 'string' ? rawSectionId.trim() : '';
-        if (!/^[A-Za-z0-9_-]{1,160}$/.test(sectionId)
-            || !category
-            || typeof category !== 'object'
-            || Array.isArray(category)) {
-            throw new HttpsError('failed-precondition', 'This event has an invalid ticket category configuration.');
-        }
-        if (seenSections.has(sectionId)) {
-            throw new HttpsError('failed-precondition', 'This event maps more than one category to the same section.');
-        }
-        seenSections.add(sectionId);
-
-        let quantity;
-        try {
-            quantity = requirePositiveInteger(
-                category.quantity ?? category.available,
-                'Ticket category quantity',
-                maxInventoryPerCategory
-            );
-        } catch {
-            throw new HttpsError('failed-precondition', 'This event has an invalid ticket category quantity.');
-        }
-        const normalizedCategory = requireTicketCategory(category);
-        categoryEntries.push({ sectionId, quantity, ...normalizedCategory });
-    });
-    if (!categoryEntries.length) {
-        throw new HttpsError('failed-precondition', 'This event has no ticket inventory configured.');
-    }
-
     const physicalSeats = await db.collection('Seats')
         .where('venueId', '==', event.venueId)
         .get();
-    const physicalBySection = new Map();
-    physicalSeats.docs.forEach((seat) => {
-        const value = { id: seat.id, ...seat.data() };
-        const sectionId = typeof value.sectionId === 'string' ? value.sectionId.trim() : '';
-        const seatLabel = typeof value.seatLabel === 'string' ? value.seatLabel.trim() : '';
-        if (!sectionId || !seatLabel || seatLabel.length > 160) return;
-        const sectionSeats = physicalBySection.get(sectionId) || [];
-        sectionSeats.push(value);
-        physicalBySection.set(sectionId, sectionSeats);
-    });
-
+    const sources = physicalSeats.docs.map(seat => ({ id: seat.id, ...seat.data() }));
+    let allocations;
+    try { allocations = allocateSeats(event.categories, sources); }
+    catch (error) { throw new HttpsError('failed-precondition', error.message); }
     const desiredSeats = [];
-    categoryEntries.forEach(({ sectionId, quantity }) => {
-        const availablePhysicalSeats = (physicalBySection.get(sectionId) || [])
-            .sort((left, right) => String(left.seatLabel).localeCompare(String(right.seatLabel)));
-        if (availablePhysicalSeats.length < quantity) {
-            throw new HttpsError(
-                'failed-precondition',
-                `The ${sectionId} allocation exceeds the venue's physical seats.`
-            );
-        }
-        availablePhysicalSeats.slice(0, quantity).forEach((sourceSeat) => {
+    allocations.forEach(({ sectionId, sourceSeat }) => {
             desiredSeats.push({
                 ref: db.collection('EventSeats').doc(eventSeatId(event.id, sourceSeat.id)),
                 data: {
                     eventId: event.id,
                     venueId: event.venueId,
                     sourceSeatId: sourceSeat.id,
+                    physicalSectionId: sourceSeat.sectionId,
                     sectionId,
                     seatLabel: sourceSeat.seatLabel,
+                    ...(sourceSeat.position ? { position: sourceSeat.position } : {}),
+                    ...(sourceSeat.rowLabel ? { rowLabel: sourceSeat.rowLabel, seatNumber: sourceSeat.seatNumber || '' } : {}),
                     status: 'AVAILABLE',
                     reservedBy: '',
                     reservedAt: '',
@@ -257,7 +227,6 @@ async function ensureEventInventory(event) {
                     updatedAt: now(),
                 },
             });
-        });
     });
 
     for (const seatChunk of chunks(desiredSeats)) {
@@ -412,11 +381,8 @@ function notification(recipientUid, message, type, relatedType, relatedId) {
     };
 }
 
-// These records make the current simulated-chain state visible to
-// administrators without pretending that a real blockchain transaction was
-// submitted. A production mint/transfer integration should replace the
-// PENDING state and blank hash with a provider-confirmed transaction.
-function simulatedBlockchainRecord(transactionType, ticketId, walletAddress, relatedEntityType, relatedEntityId, timestamp) {
+// Buyer-submitted chain work is queued by the existing ticket workflows.
+function simulatedBlockchainRecord(transactionType, ticketId, walletAddress, relatedEntityType, relatedEntityId, timestamp, context = {}) {
     return {
         transactionHash: '',
         walletAddress: walletAddress || '',
@@ -425,7 +391,9 @@ function simulatedBlockchainRecord(transactionType, ticketId, walletAddress, rel
         relatedEntityType,
         relatedEntityId,
         status: 'PENDING',
-        network: 'SIMULATED — no chain submission',
+        network: 'Sepolia - awaiting buyer submission',
+        actorUid: context.actorUid || '',
+        actorWallet: context.actorWallet || '',
         failureReason: '',
         timestamp,
     };
@@ -595,7 +563,8 @@ exports.checkout = onCall({ region, enforceAppCheck: false }, async (request) =>
                 walletAddress,
                 'booking',
                 bookingRef.id,
-                createdAt
+                createdAt,
+                {actorUid:uid,actorWallet:walletAddress}
             ));
         }
 
@@ -644,6 +613,8 @@ exports.reserveSeats = onCall({ region, enforceAppCheck: false }, async (request
 
     return db.runTransaction(async (tx) => {
         const buyer = await getActiveBuyer(tx, uid);
+        const reservationLock = db.collection('ReservationLocks').doc(createHash('sha256').update(`${eventId}|${uid}`).digest('hex'));
+        await tx.get(reservationLock);
         const eventSnap = await tx.get(db.collection('Events').doc(eventId));
         if (!eventSnap.exists) throw new HttpsError('not-found', 'Event not found.');
         const event = { id: eventSnap.id, ...eventSnap.data() };
@@ -731,6 +702,7 @@ exports.reserveSeats = onCall({ region, enforceAppCheck: false }, async (request
                 updatedAt: timestamp,
             });
         });
+        tx.set(reservationLock, { eventId, buyerUid: uid, updatedAt: timestamp });
         tx.set(db.collection('AuditLogs').doc(), auditDoc(
             'seats_reserved', 'event', eventId, buyer, { sectionId, quantity }
         ));
@@ -739,6 +711,81 @@ exports.reserveSeats = onCall({ region, enforceAppCheck: false }, async (request
             seats: selected.map((seat) => ({ id: seat.id, seatLabel: seat.seatLabel, sectionId: seat.sectionId })),
             reservationExpiry,
         };
+    });
+});
+
+// Authenticated seat-map projection. Inventory ownership stays server-side.
+exports.getSeatMap = onCall({ region, enforceAppCheck: false }, async request => {
+    const uid = requireAuth(request), data = requireDataObject(request);
+    const eventId = requireId(data.eventId, 'Event ID'), sectionId = requireId(data.sectionId, 'Section ID');
+    const actor = await getActor(uid);
+    if (actor.role !== 'buyer' || actor.status !== 'active' || actor.emailVerified !== true) throw new HttpsError('permission-denied', 'An active, verified buyer account is required.');
+    const eventSnap = await db.collection('Events').doc(eventId).get();
+    const event = { id: eventId, ...eventSnap.data() };
+    if (!salesAreOpen(event)) throw new HttpsError('failed-precondition', 'Ticket sales are not open.');
+    const category = requireTicketCategory(categoryForSection(event.categories, sectionId));
+    const allocations = Array.isArray(event.categories) ? event.categories : Object.values(event.categories || {});
+    const expected = allocations.reduce((sum, category) => sum + requirePositiveInteger(category.quantity ?? category.available, 'Category allocation', maxInventoryPerCategory), 0);
+    if (expected > 5000) throw new HttpsError('resource-exhausted', 'This event is too large for the interactive picker. Use automatic assignment.');
+    let [inventory, venueSnap] = await Promise.all([
+        db.collection('EventSeats').where('eventId', '==', eventId).limit(5001).get(),
+        db.collection('Venues').doc(event.venueId).get()
+    ]);
+    if (inventory.size < expected) { await ensureEventInventory(event); inventory = await db.collection('EventSeats').where('eventId', '==', eventId).limit(5001).get(); }
+    if (inventory.size > 5000) throw new HttpsError('resource-exhausted', 'This event is too large for the interactive picker. Use automatic assignment.');
+    const venue = venueSnap.data() || {};
+    const physicalSections = venue.sections || [];
+    const g = physicalSections.find(s => s.geometry)?.geometry || {};
+    const markers = new Map(physicalSections.flatMap(s => (s.geometry?.seatMarkers || []).map(marker => [`${s.sectionId}-${marker.label}`, { ...marker, page: s.geometry.page || 1 }])));
+    const pages = {};
+    for (const section of physicalSections) {
+        const geometry = section.geometry;
+        if (!geometry) continue;
+        const page = geometry.page || 1;
+        pages[page] ??= { imageWidth: geometry.imageWidth || 104, imageHeight: geometry.imageHeight || 106, decorations: [] };
+        pages[page].decorations.push(...(geometry.decorations || []));
+        if (geometry.numbering?.stagePoint) pages[page].stagePoint = { x: geometry.numbering.stagePoint.x, y: geometry.numbering.stagePoint.y };
+    }
+    const seats = inventory.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(seat => seat.venueId === event.venueId && seat.sectionId === sectionId)
+        .map(seat => visibleSeat(seat, uid, markers.get(seat.seatLabel)));
+    return { eventId, venueId: event.venueId, eventName: event.name || '', venueName: venue.name || event.venueName || '', sectionId,
+        categoryName: category.name, unitPrice: category.price, maxPerBuyer: configuredMaxTickets(event), seats,
+        geometry: { layoutSeats: layoutContext(physicalSections), pages, imageWidth: g.imageWidth || 104, imageHeight: g.imageHeight || 106, page: g.page || 1, decorations: g.decorations || [] } };
+});
+
+exports.holdSelectedSeats = onCall({ region, enforceAppCheck: false }, async request => {
+    const uid = requireAuth(request), data = requireDataObject(request);
+    const eventId = requireId(data.eventId, 'Event ID'), sectionId = requireId(data.sectionId, 'Section ID');
+    const ids = optionalSeatIds(data.seatDocIds); if (!ids.length) throw new HttpsError('invalid-argument', 'Select at least one seat.');
+    await ensurePurchasableEventInventory(eventId, uid);
+    return db.runTransaction(async tx => {
+        const buyer = await getActiveBuyer(tx, uid);
+        const lock = db.collection('ReservationLocks').doc(createHash('sha256').update(`${eventId}|${uid}`).digest('hex'));
+        await tx.get(lock);
+        const eventSnap = await tx.get(db.collection('Events').doc(eventId));
+        if (!eventSnap.exists || !salesAreOpen(eventSnap.data())) throw new HttpsError('failed-precondition', 'Ticket sales are not open.');
+        const event = eventSnap.data(); requireTicketCategory(categoryForSection(event.categories, sectionId));
+        const [snapshots, ownedSnapshot] = await Promise.all([
+            Promise.all(ids.map(id => tx.get(db.collection('EventSeats').doc(id)))),
+            tx.get(db.collection('EventSeats').where('eventId', '==', eventId).where('reservedBy', '==', uid).where('status', '==', 'RESERVED'))
+        ]);
+        const records = snapshots.filter(s => s.exists).map(s => ({ id: s.id, ...s.data() })), currentTime = Date.now();
+        let selected;
+        try { selected = checkSelected(records, ids, { eventId, venueId: event.venueId, sectionId, uid, now: currentTime }); }
+        catch (error) { throw new HttpsError(error.code || 'failed-precondition', error.message); }
+        const owned = ownedSnapshot.docs.map(s => ({ id: s.id, ...s.data() }));
+        const others = owned.filter(seat => reservationIsActive(seat, currentTime) && seat.sectionId !== sectionId);
+        if (await ownedTicketCount(tx, eventId, uid) + others.length + selected.length > configuredMaxTickets(event)) throw new HttpsError('failed-precondition', 'This selection exceeds your ticket limit for the event.');
+        const chosen = new Set(ids), timestamp = now(), expiry = new Date(currentTime + 10 * 60000).toISOString();
+        owned.filter(seat => seat.sectionId === sectionId && !chosen.has(seat.id)).forEach(seat => tx.update(db.collection('EventSeats').doc(seat.id), {
+            status: 'AVAILABLE', reservedBy: '', reservedAt: '', reservationExpiry: '', reservationEventId: '', updatedAt: timestamp
+        }));
+        selected.forEach(seat => tx.update(db.collection('EventSeats').doc(seat.id), {
+            status: 'RESERVED', reservedBy: uid, reservedAt: timestamp, reservationExpiry: expiry, reservationEventId: eventId, updatedAt: timestamp
+        }));
+        tx.set(lock, { eventId, buyerUid: uid, updatedAt: timestamp });
+        tx.set(db.collection('AuditLogs').doc(), auditDoc('seats_selected', 'event', eventId, buyer, { sectionId, quantity: ids.length }));
+        return { seats: selected.map(seat => ({ id: seat.id, seatLabel: seat.seatLabel, sectionId })), reservationExpiry: expiry };
     });
 });
 
@@ -786,6 +833,8 @@ exports.transferTicket = onCall({ region, enforceAppCheck: false }, async (reque
         'Enter a valid recipient wallet address.'
     );
     let recipientUid = '';
+    const transferRef = db.collection('AuditLogs').doc();
+    const blockchainRef = db.collection('BlockchainTransactions').doc();
 
     await db.runTransaction(async (tx) => {
         const actor = await getActiveBuyer(tx, uid);
@@ -843,20 +892,27 @@ exports.transferTicket = onCall({ region, enforceAppCheck: false }, async (reque
             'ticket',
             ticketId
         ));
-        tx.set(db.collection('AuditLogs').doc(), auditDoc(
-            'ticket_transferred', 'ticket', ticketId, actor, { recipientUid: recipient.uid }
+        tx.set(transferRef, auditDoc(
+            'ticket_transferred', 'ticket', ticketId, actor, { recipientUid: recipient.uid,
+                transfer: transferReceipt(ticket, event, actor, recipient, recipientWallet, timestamp) }
         ));
-        tx.set(db.collection('BlockchainTransactions').doc(), simulatedBlockchainRecord(
+        tx.set(blockchainRef, simulatedBlockchainRecord(
             'TRANSFER',
             ticketId,
             recipientWallet,
             'ticket',
             ticketId,
-            timestamp
+            timestamp,
+            {actorUid:uid,actorWallet:ticket.walletAddress || ''}
         ));
     });
 
-    return { ticketId, recipientUid };
+    return { ticketId, recipientUid, transferId: transferRef.id, blockchainRecordId:blockchainRef.id };
+});
+
+exports.getTicketTransfers = onCall({ region, enforceAppCheck: false }, async request => {
+    const uid = requireAuth(request), data = requireDataObject(request);
+    return getTicketTransfers(db, uid, data, (code, message) => { throw new HttpsError(code, message); });
 });
 
 exports.createResaleListing = onCall({ region, enforceAppCheck: false }, async (request) => {
@@ -940,6 +996,11 @@ exports.cancelResaleListing = onCall({ region, enforceAppCheck: false }, async (
             throw new HttpsError('permission-denied', 'This listing cannot be cancelled.');
         }
 
+        const ticketSnap = await tx.get(db.collection('NFTTickets').doc(listing.ticketId));
+        if (!ticketSnap.exists || ticketSnap.data().ownerUid !== uid || ticketSnap.data().status !== 'LISTED_FOR_RESALE') {
+            throw new HttpsError('failed-precondition', 'The listing no longer matches its ticket.');
+        }
+
         const timestamp = now();
         tx.update(listingRef, { status: 'CANCELLED', updatedAt: timestamp });
         tx.update(db.collection('NFTTickets').doc(listing.ticketId), { status: 'VALID', updatedAt: timestamp });
@@ -983,6 +1044,11 @@ exports.updateResalePrice = onCall({ region, enforceAppCheck: false }, async (re
             throw new HttpsError('failed-precondition', `The maximum permitted resale price is RM${maxAllowedPrice.toFixed(2)}.`);
         }
 
+        const ticketSnap = await tx.get(db.collection('NFTTickets').doc(listing.ticketId));
+        if (!ticketSnap.exists || ticketSnap.data().ownerUid !== uid || ticketSnap.data().status !== 'LISTED_FOR_RESALE') {
+            throw new HttpsError('failed-precondition', 'The listing no longer matches its ticket.');
+        }
+
         const timestamp = now();
         tx.update(listingRef, {
             originalPrice,
@@ -1008,7 +1074,7 @@ exports.suspendResaleListing = onCall({ region, enforceAppCheck: false }, async 
 
     return db.runTransaction(async (tx) => {
         const admin = await getActor(uid, tx);
-        if (admin.role !== 'admin' || admin.status !== 'active' || admin.emailVerified !== true) {
+        if (admin.role !== 'admin' || admin.status !== 'active') {
             throw new HttpsError('permission-denied', 'Only administrators can suspend listings.');
         }
 
@@ -1020,9 +1086,14 @@ exports.suspendResaleListing = onCall({ region, enforceAppCheck: false }, async 
             throw new HttpsError('failed-precondition', 'Only active listings can be suspended.');
         }
 
+        const ticketRef = db.collection('NFTTickets').doc(listing.ticketId);
+        const ticketSnap = await tx.get(ticketRef);
+        const restoreTicket = ticketSnap.exists && ticketSnap.data().ownerUid === listing.sellerUid
+            && ticketSnap.data().status === 'LISTED_FOR_RESALE';
+
         const timestamp = now();
         tx.update(listingRef, { status: 'SUSPENDED', riskFlag: reason, updatedAt: timestamp });
-        tx.update(db.collection('NFTTickets').doc(listing.ticketId), { status: 'VALID', updatedAt: timestamp });
+        if (restoreTicket) tx.update(ticketRef, { status: 'VALID', updatedAt: timestamp });
         tx.set(db.collection('Notifications').doc(), notification(
             listing.sellerUid,
             `Your resale listing was suspended: ${reason}`,
@@ -1041,6 +1112,7 @@ exports.purchaseResale = onCall({ region, enforceAppCheck: false }, async (reque
     const uid = requireAuth(request);
     const data = requireDataObject(request);
     const listingId = requireId(data.listingId, 'Listing ID');
+    const expectedPrice = Object.hasOwn(data, 'expectedPrice') ? requirePrice(data.expectedPrice) : null;
 
     return db.runTransaction(async (tx) => {
         const buyer = await getActiveBuyer(tx, uid);
@@ -1050,6 +1122,9 @@ exports.purchaseResale = onCall({ region, enforceAppCheck: false }, async (reque
         const listingSnap = await tx.get(listingRef);
         if (!listingSnap.exists) throw new HttpsError('not-found', 'Listing not found.');
         const listing = { id: listingSnap.id, ...listingSnap.data() };
+        if (listing.status === 'SOLD' && listing.buyerUid === uid) {
+            return { listingId, ticketId: listing.ticketId, totalAmount: Number(listing.resalePrice) + serviceCharge };
+        }
         if (listing.status !== 'ACTIVE' || listing.sellerUid === uid) {
             throw new HttpsError('failed-precondition', 'This listing is no longer available.');
         }
@@ -1057,6 +1132,23 @@ exports.purchaseResale = onCall({ region, enforceAppCheck: false }, async (reque
         const eventSnap = await tx.get(db.collection('Events').doc(listing.eventId));
         if (!eventSnap.exists || !resaleIsOpen(eventSnap.data())) {
             throw new HttpsError('failed-precondition', 'Resale is not available for this event.');
+        }
+        const event = eventSnap.data();
+        const category = categoryForSection(event.categories, listing.sectionId);
+        const originalPrice = Math.round(Number(category?.price ?? listing.originalPrice ?? 0) * 100) / 100;
+        const configuredCap = Number(event.maxResalePrice) || 0;
+        const maximum = configuredCap > 0 ? Math.round(configuredCap * 100) / 100
+            : Math.round(originalPrice * (1 + (Number(event.maxResaleMarkup) || 0) / 100) * 100) / 100;
+        const price = requirePrice(listing.resalePrice);
+        if (price > maximum || listing.ruleCompliance === 'VIOLATION') {
+            throw new HttpsError('failed-precondition', 'This listing exceeds the current resale price limit.');
+        }
+        if (expectedPrice !== null && expectedPrice !== price) {
+            throw new HttpsError('failed-precondition', 'The seller changed the price. Refresh this listing before purchasing.');
+        }
+        const sellerSnap = await tx.get(db.collection('Users').doc(listing.sellerUid));
+        if (!sellerSnap.exists || sellerSnap.data().status !== 'active' || sellerSnap.data().role !== 'buyer') {
+            throw new HttpsError('failed-precondition', 'The seller is no longer eligible to sell this ticket.');
         }
         const maxPerBuyer = Number(eventSnap.data().maxTicketsPerBuyer) || 4;
         const buyerTicketCount = await ownedTicketCount(tx, listing.eventId, uid);
@@ -1066,7 +1158,10 @@ exports.purchaseResale = onCall({ region, enforceAppCheck: false }, async (reque
 
         const ticketRef = db.collection('NFTTickets').doc(listing.ticketId);
         const ticketSnap = await tx.get(ticketRef);
-        if (!ticketSnap.exists || ticketSnap.data().status !== 'LISTED_FOR_RESALE') {
+        if (!ticketSnap.exists || ticketSnap.data().status !== 'LISTED_FOR_RESALE'
+            || ticketSnap.data().ownerUid !== listing.sellerUid
+            || ticketSnap.data().eventId !== listing.eventId
+            || ticketSnap.data().sectionId !== listing.sectionId) {
             throw new HttpsError('failed-precondition', 'The ticket is no longer available.');
         }
 
@@ -1110,15 +1205,17 @@ exports.purchaseResale = onCall({ region, enforceAppCheck: false }, async (reque
         tx.set(db.collection('AuditLogs').doc(), auditDoc(
             'resale_completed', 'resale', listingId, buyer, { ticketId: listing.ticketId }
         ));
-        tx.set(db.collection('BlockchainTransactions').doc(), simulatedBlockchainRecord(
+        const blockchainRef = db.collection('BlockchainTransactions').doc();
+        tx.set(blockchainRef, simulatedBlockchainRecord(
             'RESALE',
             listing.ticketId,
             buyerWallet,
             'resale',
             listingId,
-            timestamp
+            timestamp,
+            {actorUid:uid,actorWallet:buyerWallet}
         ));
-        return { listingId, ticketId: listing.ticketId, totalAmount: Number(listing.resalePrice) + serviceCharge };
+        return { listingId, ticketId: listing.ticketId, totalAmount: Number(listing.resalePrice) + serviceCharge, blockchainRecordId:blockchainRef.id };
     });
 });
 
@@ -1132,7 +1229,7 @@ exports.scanTicket = onCall({ region, enforceAppCheck: false }, async (request) 
         const actor = await getActor(uid, tx);
         if (!['admin', 'organizer'].includes(actor.role)
             || actor.status !== 'active'
-            || actor.emailVerified !== true) {
+            || (actor.role !== 'admin' && actor.emailVerified !== true)) {
             throw new HttpsError('permission-denied', 'Only authorized event personnel can scan tickets.');
         }
 

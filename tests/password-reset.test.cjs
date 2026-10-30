@@ -257,7 +257,7 @@ test('checkout and aggregate availability use PHP on loopback; remote and emulat
     client.context.window.location.hostname = 'localhost';
     for (const name of ['getEventAvailability', 'reserveSeats', 'releaseSeatReservation', 'checkout']) await client.invoke({}, { name });
     assert.equal(client.requests.length, 4);
-    await client.invoke({}, { name: 'transferTicket' });
+    await client.invoke({}, { name: 'scanTicket' });
     assert.equal(client.callableRequests.length, 1);
     client.context.window.tsFirebase.emulator = { enabled: true };
     await client.invoke({}, { name: 'reserveSeats' });

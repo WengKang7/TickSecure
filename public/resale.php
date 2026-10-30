@@ -9,6 +9,7 @@ ob_start();
   <div class="ts-grid-3" id="resale-grid">
     <div class="text-center secondary" style="grid-column:1/-1; padding:40px;">Loading listings...</div>
   </div>
+  <div class="flex gap-12 mt-24"><a class="ts-btn ts-btn-secondary" href="../buyer/resale.php">My listings</a><a class="ts-btn ts-btn-secondary" href="../buyer/resale-purchases.php">My resale purchases</a></div>
 </div></main>
 
 <script type="module">

@@ -43,9 +43,23 @@ window.addEventListener('ts-auth-ready', async () => {
                     <div class="flex items-center gap-12">
                         <span class="small muted">${n.createdAt ? (typeof n.createdAt.toDate === 'function' ? n.createdAt.toDate().toLocaleString() : n.createdAt) : ''}</span>
                         ${!n.read ? `<button class="ts-btn ts-btn-secondary ts-btn-sm btn-read" data-id="${n.id}">Mark Read</button>` : ''}
+                        <button class="ts-btn ts-btn-secondary ts-btn-sm btn-delete-notification" type="button" data-id="${encodeURIComponent(n.id)}">Delete</button>
                     </div>
                 </div>
             `).join('');
+
+            container.querySelectorAll('.btn-delete-notification').forEach(button => {
+                button.addEventListener('click', async () => {
+                    if (button.disabled) return;
+                    button.disabled = true;
+                    try {
+                        if (!await window.tsDecision('deleteNotification', 'Notification', [['Message', notifs.find(item => encodeURIComponent(item.id) === button.dataset.id)?.message || 'Selected notification']])) return;
+                        await window.tsNotifications.delete(decodeURIComponent(button.dataset.id));
+                        await loadData();
+                    } catch (error) { window.alert(error.message); button.disabled = false; }
+                    finally { button.disabled = false; }
+                });
+            });
 
             container.querySelectorAll('.btn-read').forEach(btn => {
                 btn.addEventListener('click', async (e) => {

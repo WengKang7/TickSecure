@@ -56,6 +56,7 @@ ob_start();
                         ticket-related transactions. Never enter a wallet private key into this platform.</div>
                 </div>
             </div>
+            <a class="ts-btn ts-btn-secondary mt-20" href="blockchain.php">My blockchain transactions</a><p class="small secondary mt-12">Mint and transfer ticket NFTs from your own MetaMask wallet on Sepolia. Each NFT transaction needs your approval and Sepolia test ETH for gas.</p>
             <div class="flex justify-between mt-24"><a class="ts-btn ts-btn-secondary"
                     href="tickets.php" id="btn-back">Back to My Tickets</a><a class="ts-btn ts-btn-primary" href="#" id="btn-continue" style="display:none">Continue</a></div>
         </div>

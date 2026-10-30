@@ -79,7 +79,7 @@ ob_start();
     </div>
 </div>
 
-<script src="../assets/js/venue-renderer.js"></script>
+<script src="<?=ts_asset_url('assets/js/venue-renderer.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/organizer-event-editor.js', '..')?>"></script>
 
 <?php

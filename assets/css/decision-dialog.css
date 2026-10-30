@@ -1,0 +1,55 @@
+/* Scoped component styles: page buttons, cards and forms are unaffected. */
+.ts-decision {
+    --decision-accent: #193c64;
+    --decision-soft: #eaf1f8;
+    box-sizing: border-box;
+    width: min(500px, calc(100vw - 32px));
+    max-height: min(88vh, 850px);
+    max-height: min(88dvh, 850px);
+    margin: auto;
+    padding: 28px;
+    border: 1px solid #e2e7ef;
+    border-radius: 22px;
+    color: #182438;
+    background: #fff;
+    box-shadow: 0 28px 90px #0d1c3633;
+    font: 400 15px/1.55 Inter, "Segoe UI", sans-serif;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+.ts-decision::backdrop { background: #0b172eb3; backdrop-filter: blur(5px); }
+.ts-decision[data-tone="danger"] { --decision-accent: #b52e3b; --decision-soft: #fff0f0; }
+.ts-decision[data-tone="success"] { --decision-accent: #176c58; --decision-soft: #eaf7f1; }
+.ts-decision[open] { animation: decision-enter 150ms ease-out; }
+.ts-decision * { box-sizing: border-box; }
+.ts-decision [hidden] { display: none !important; }
+.ts-decision form { margin: 0; }
+.ts-decision-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+.ts-decision-symbol { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 17px; color: var(--decision-accent); background: var(--decision-soft); }
+.ts-decision-symbol svg { width: 28px; height: 28px; }
+.ts-decision-close { display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 10px; background: #f4f6f9; color: #647187; cursor: pointer; }
+.ts-decision-close svg { width: 18px; height: 18px; }
+.ts-decision-eyebrow { margin: 0 0 7px; color: var(--decision-accent); font-size: 10px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
+.ts-decision h2 { margin: 0; font-size: clamp(23px, 5vw, 28px); font-weight: 700; line-height: 1.2; letter-spacing: -.035em; }
+.ts-decision-message { margin: 13px 0 22px; color: #626e80; font-size: 14px; }
+.ts-decision-review { padding: 16px; border: 1px solid #e7ebf1; border-radius: 13px; background: #f7f9fc; }
+.ts-decision-subject { font-size: 14px; font-weight: 650; overflow-wrap: anywhere; white-space: pre-wrap; }
+.ts-decision-details { display: grid; grid-template-columns: minmax(85px, .7fr) minmax(0, 1.3fr); gap: 9px 16px; margin: 12px 0 0; padding-top: 12px; border-top: 1px solid #e4e9f1; font-size: 12px; }
+.ts-decision-details dt { color: #6a7587; }
+.ts-decision-details dd { margin: 0; color: #25364c; text-align: right; overflow-wrap: anywhere; white-space: pre-wrap; }
+.ts-decision-field { display: block; margin-top: 18px; }
+.ts-decision-field label { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 650; }
+.ts-decision-input { display: block; width: 100%; min-height: 44px; margin: 0; padding: 10px 12px; border: 1px solid #cad3df; border-radius: 10px; color: #182438; background: #fff; font: inherit; font-size: 14px; resize: vertical; }
+.ts-decision-input[aria-invalid="true"] { border-color: #b52e3b; }
+.ts-decision-error { margin: 6px 0 0; color: #b52e3b; font-size: 12px; }
+.ts-decision-footer { display: flex; gap: 10px; margin-top: 26px; }
+.ts-decision-button { min-height: 46px; flex: 1; padding: 11px 16px; border: 1px solid transparent; border-radius: 11px; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; transition: background 120ms, box-shadow 120ms; }
+.ts-decision-cancel { color: #4f5d71; background: #fff; border-color: #dce2eb; }
+.ts-decision-cancel:hover, .ts-decision-close:hover { background: #edf1f6; }
+.ts-decision-submit { color: #fff; background: var(--decision-accent); }
+.ts-decision-submit:hover { filter: brightness(.93); }
+.ts-decision :is(button, input, textarea):focus-visible { outline: 3px solid #5e9fdf; outline-offset: 3px; }
+.ts-decision-hint { margin: 14px 0 0; color: #7b8595; text-align: center; font-size: 11px; }
+@keyframes decision-enter { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: none; } }
+@media (max-width: 420px) { .ts-decision { padding: 22px; border-radius: 18px; } .ts-decision-footer { flex-direction: column-reverse; } .ts-decision-details { gap: 8px 12px; } }
+@media (prefers-reduced-motion: reduce) { .ts-decision[open] { animation: none; } .ts-decision-button { transition: none; } }

@@ -18,7 +18,8 @@ window.addEventListener('ts-auth-ready', () => {
         'buyer/notifications.php': 'Back to notifications', 'buyer/complaints.php': 'Back to Help',
         'buyer/resale.php': 'Back to My Resale', 'public/events.php': 'Back to events',
         'public/event-detail.php': 'Back to event', 'public/resale.php': 'Back to resale',
-        'public/resale-detail.php': 'Back to resale ticket', 'index.php': 'Back to home'
+        'public/resale-detail.php': 'Back to resale ticket', 'index.php': 'Back to home',
+        'buyer/resale-new.php': 'Back to create listing', 'buyer/resale-purchases.php': 'Back to resale purchases'
     };
     try {
         const candidate = new URL(walletParams.get('returnTo') || '', window.location.href);
@@ -54,6 +55,7 @@ window.addEventListener('ts-auth-ready', () => {
         if (!eventId || !seats.length) return;
         event.preventDefault();
         try {
+            if (!await window.tsDecision('releaseReservation', 'Reserved tickets', [['Quantity', qty]])) return;
             await window.tsSeats.releaseSeats(seats, { eventId });
             try { sessionStorage.removeItem(`ts-seat-reservation:${user.uid}:${eventId}:${sectionId}:${qty}`); } catch (_) {}
             window.location.href = el('btn-back').href;

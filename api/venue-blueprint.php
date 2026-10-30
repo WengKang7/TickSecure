@@ -56,9 +56,10 @@ try {
         if (!is_file($path)) {
             throw new FirebaseBackendException(404, 'Blueprint not found.', 'not-found');
         }
-        header('Content-Type: application/pdf');
+        $isPng = str_ends_with($path, '.png');
+        header('Content-Type: ' . ($isPng ? 'image/png' : 'application/pdf'));
         header('Content-Length: ' . filesize($path));
-        header('Content-Disposition: attachment; filename="blueprint.pdf"');
+        header('Content-Disposition: attachment; filename="blueprint.' . ($isPng ? 'png' : 'pdf') . '"');
         header('Cache-Control: no-store');
         header('X-Content-Type-Options: nosniff');
         readfile($path);
@@ -67,7 +68,7 @@ try {
 
     $file = $_FILES['file'] ?? null;
     if (!is_array($file) || is_array($file['name'] ?? null)) {
-        throw new FirebaseBackendException(400, 'Submit one PDF using the file field. Check the PHP upload limit if the file is large.', 'file-required');
+        throw new FirebaseBackendException(400, 'Submit one PNG or PDF using the file field. Check the PHP upload limit if the file is large.', 'file-required');
     }
     $uploadError = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
     if ($uploadError !== UPLOAD_ERR_OK) {
@@ -79,11 +80,11 @@ try {
         throw new FirebaseBackendException(400, 'The uploaded file is invalid.', 'invalid-file');
     }
     $size = (int)($file['size'] ?? 0);
-    blueprint_inspect_pdf($temporaryPath, $size);
-    $filename = bin2hex(random_bytes(20)) . '.pdf';
+    $mime = blueprint_inspect_file($temporaryPath, $size);
+    $filename = bin2hex(random_bytes(20)) . ($mime === 'image/png' ? '.png' : '.pdf');
     $savedPath = blueprint_file_path($filename);
     if (!move_uploaded_file($temporaryPath, $savedPath)) {
-        throw new FirebaseBackendException(500, 'The PDF could not be saved locally.', 'upload-save-failed');
+        throw new FirebaseBackendException(500, 'The blueprint could not be saved locally.', 'upload-save-failed');
     }
     chmod($savedPath, 0600);
     $name = basename(str_replace('\\', '/', (string)($file['name'] ?? 'blueprint.pdf')));
@@ -91,16 +92,24 @@ try {
     $metadata = [
         'blueprintUrl' => $url,
         'blueprintLocalFile' => $filename,
-        'blueprintName' => mb_substr($name, 0, 200),
+        'blueprintName' => mb_substr($name, 0, 255),
         'blueprintSize' => $size,
+        'blueprintMimeType' => $mime,
+        'blueprintHash' => hash_file('sha256', $savedPath),
+        'sections' => [],
+        'blueprintAnalysis' => ['status' => 'PENDING', 'sourceName' => mb_substr($name, 0, 255), 'sourceSize' => $size],
         'updatedAt' => gmdate('Y-m-d\TH:i:s\Z'),
     ];
     // Recheck authorization inside the metadata transaction, so role changes or
     // a deleted venue during the upload cannot publish the new blueprint.
     $firebase->transaction(static function (FirebaseFirestoreTransaction $tx) use ($claims, $uid, $venueId, $metadata): void {
         blueprint_require_admin($claims, $tx->get('Users', $uid));
-        if ($tx->get('Venues', $venueId) === null) {
+        $currentVenue = $tx->get('Venues', $venueId);
+        if ($currentVenue === null) {
             throw new FirebaseBackendException(404, 'Venue not found.', 'not-found');
+        }
+        if (in_array($currentVenue['layoutStatus'] ?? '', ['ACTIVE', 'PROCESSING'], true)) {
+            throw new FirebaseBackendException(409, 'Only a draft venue blueprint can be changed.', 'layout-locked');
         }
         $tx->update('Venues', $venueId, $metadata);
     });

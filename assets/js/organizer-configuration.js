@@ -8,6 +8,7 @@
     };
     const categoryFields = { name: 'catName', sectionId: 'catSection', price: 'catPrice', quantity: 'catQuantity' };
     const eventId = new URLSearchParams(window.location.search).get('id');
+    let seatEditor = null;
     let event, venue, categories = [], editing = -1, initialized = false, busy = false, dirty = false;
     const invalid = (fieldId, message) => ({ fieldId, message });
     function clearFieldError(id) {
@@ -31,6 +32,7 @@
             el(id).value = categories[editing][key];
         });
         el('add-cat-btn').textContent = 'Update Category';
+        seatEditor?.edit(categories[editing]);
     }
     function error(problem) {
         const message = typeof problem === 'string' ? problem : problem.message;
@@ -57,7 +59,7 @@
     const rules = () => ({ ...Object.fromEntries(Object.entries(ruleFields).map(([key, id]) => [key, el(id).value])),
         transferEnabled: el('transferEnabled').checked, resaleEnabled: el('resaleEnabled').checked });
     const category = () => ({ ...Object.fromEntries(Object.entries(categoryFields).map(([key, id]) => [key, el(id).value])),
-        editingSectionId: editing >= 0 ? categories[editing]?.sectionId || '' : '' });
+        editingSectionId: editing >= 0 ? categories[editing]?.sectionId || '' : '', ...(seatEditor?.value() || {}) });
     const capacity = sectionId => Number((venue?.sections || []).find(section => String(section.sectionId) === sectionId)?.seatCount || 0);
     function changed(e) {
         if (e?.target?.id) clearFieldError(e.target.id);
@@ -76,15 +78,17 @@
     function clearCategory() {
         Object.values(categoryFields).forEach(id => { el(id).value = ''; clearFieldError(id); });
         editing = -1;
+        seatEditor?.clear();
         el('add-cat-btn').textContent = 'Add Category';
     }
     function renderCategories() {
         el('categories-tbody').innerHTML = categories.map((item, index) => `<tr>
-            <td class="cell-title">${esc(item.name)}</td><td>${esc((venue?.sections || []).find(section => section.sectionId === item.sectionId)?.name || item.sectionId)}</td>
+            <td class="cell-title">${esc(item.name)}</td><td>${Array.isArray(item.seatLabels) ? esc(item.seatLabels.length + ' selected seats') : esc((venue?.sections || []).find(section => section.sectionId === item.sectionId)?.name || item.sectionId)}</td>
             <td>RM${Number(item.price).toFixed(2)}</td><td>${Number(item.quantity)} tickets</td>
-            <td>${Number(item.quantity) <= capacity(item.sectionId) ? `Up to ${capacity(item.sectionId)} tickets` : `Exceeds the ${capacity(item.sectionId)}-ticket limit`}</td>
+            <td>${Array.isArray(item.seatLabels) ? `${item.seatLabels.length} assigned` : Number(item.quantity) <= capacity(item.sectionId) ? `Up to ${capacity(item.sectionId)} tickets` : `Exceeds the ${capacity(item.sectionId)}-ticket limit`}</td>
             <td><button class="ts-btn ts-btn-secondary ts-btn-sm" data-edit-category="${index}" type="button">Edit</button> <button class="ts-btn ts-btn-secondary ts-btn-sm" data-remove-category="${index}" type="button">Remove</button></td></tr>`).join('')
             || '<tr><td colspan="6" class="text-center">No categories configured. You can save a draft before adding categories.</td></tr>';
+        seatEditor?.render();
         el('categories-tbody').querySelectorAll('[data-edit-category]').forEach(button => button.addEventListener('click', () => {
             editCategory(Number(button.dataset.editCategory));
             changed();
@@ -102,10 +106,12 @@
     function validateCategory(value, index = -1) {
         const name = String(value.name).trim(), sectionId = String(value.sectionId);
         if (name.length < 2 || name.length > 80) return invalid('catName', 'Category name must contain 2 to 80 characters.');
-        if (!capacity(sectionId)) return invalid('catSection', 'Choose a physical section from the selected venue.');
+        const exact = Array.isArray(value.seatLabels);
+        if (exact) { const problem = window.tsSeatCategories.validate(value, categories, venue?.sections || [], index >= 0 ? categories[index].sectionId : null); if (problem) return invalid('catQuantity', problem); }
+        if (!exact && !capacity(sectionId)) return invalid('catSection', 'Choose a physical section from the selected venue.');
         if (!/^\d+(?:\.\d{1,2})?$/.test(String(value.price)) || Number(value.price) < 1 || Number(value.price) > 99999) return invalid('catPrice', 'Enter a ticket price from RM1.00 to RM99,999.00 with at most two decimal places.');
-        if (!/^\d+$/.test(String(value.quantity)) || Number(value.quantity) < 1 || Number(value.quantity) > capacity(sectionId)) return invalid('catQuantity', `Enter a whole ticket quantity between 1 and ${capacity(sectionId)} for this section.`);
-        if (categories.some((item, i) => i !== index && item.sectionId === sectionId)) return invalid('catSection', 'This section already has a category. Edit its existing category instead.');
+        if (!exact && (!/^\d+$/.test(String(value.quantity)) || Number(value.quantity) < 1 || Number(value.quantity) > capacity(sectionId))) return invalid('catQuantity', `Enter a whole ticket quantity between 1 and ${capacity(sectionId)} for this section.`);
+        if (!exact && categories.some((item, i) => i !== index && item.sectionId === sectionId)) return invalid('catSection', 'This section already has a category. Edit its existing category instead.');
         if (categories.some((item, i) => i !== index && item.name.toLowerCase() === name.toLowerCase())) return invalid('catName', 'Each category needs a different name.');
         return '';
     }
@@ -121,7 +127,9 @@
         const unchanged = categories.some((item, index) => (editing < 0 || index === editing) && item.sectionId === value.sectionId
             && String(item.name).trim() === value.name.trim()
             && Number(item.price) === Number(value.price)
-            && Number(item.quantity) === Number(value.quantity));
+            && Number(item.quantity) === Number(value.quantity)
+            && JSON.stringify(item.seatLabels || null) === JSON.stringify(value.seatLabels || null)
+            && (item.color || '') === (value.color || ''));
         if (unchanged) {
             clearCategory();
             changed();
@@ -129,7 +137,7 @@
         }
         const problem = validateCategory(value, editing);
         if (problem) return problem;
-        const item = { name: value.name.trim(), sectionId: value.sectionId, price: Number(value.price), quantity: Number(value.quantity) };
+        const item = { name: value.name.trim(), sectionId: value.sectionId, price: Number(value.price), quantity: Number(value.quantity), ...(Array.isArray(value.seatLabels) ? { seatLabels: value.seatLabels, color: value.color } : {}) };
         if (editing >= 0) categories[editing] = item;
         else categories.push(item);
         clearCategory();
@@ -203,7 +211,7 @@
             const venueSubtitle = document.querySelector('.ts-card-sub');
             if (venueSubtitle) venueSubtitle.textContent = venue ? `${venue.name} · Administrator-managed physical layout` : 'No venue selected. Use Edit Event Details to choose one.';
             el('venue-sections-title').textContent = venue ? `Venue Sections · ${venue.name}` : 'Venue not selected';
-            window.tsVenueRenderer?.renderBoard('mini-venue-board', venue?.sections || []);
+            window.tsVenueRenderer?.renderBoard('mini-venue-board', venue?.sections || [], { cleanLayout: true, fitContainer: true });
             el('venue-sections-list').innerHTML = (venue?.sections || []).map(section => `<div class="ts-list-item"><div><div class="ts-list-title">${esc(section.name)}</div><div class="ts-list-sub">${Number(section.seatCount)} physical seats</div></div></div>`).join('') || 'Choose a venue in Event Details before mapping ticket categories.';
             el('catSection').innerHTML = '<option value="">Select section...</option>' + (venue?.sections || []).map(section => `<option value="${esc(section.sectionId)}">${esc(section.name)} · ${Number(section.seatCount)} seats</option>`).join('');
             categories = Array.isArray(event.categories) ? event.categories.map(item => ({ ...item, sectionId: item.sectionId || item.section || item.id || '' }))
@@ -231,6 +239,8 @@
                 editing = pending.editingSectionId ? categories.findIndex(item => item.sectionId === pending.editingSectionId) : -1;
                 if (editing >= 0) el('add-cat-btn').textContent = 'Update Category';
             }
+            seatEditor = window.tsOrganizerSeatCategories?.({ venue: venue || { sections: [] }, categories: () => categories, editing: () => editing, changed, isBusy: () => busy }) || null;
+            if (seatEditor && pending) seatEditor.edit(pending);
             renderCategories();
             window.tsEventPolicy.render(el('buyer-rules-preview'), { ...event, ...rules(), categories });
             initialized = true;
@@ -255,7 +265,7 @@
             clearErrors();
             const value = category(), problem = validateCategory(value, editing);
             if (problem) { error(problem); return; }
-            const item = { name: value.name.trim(), sectionId: value.sectionId, price: Number(value.price), quantity: Number(value.quantity) };
+            const item = { name: value.name.trim(), sectionId: value.sectionId, price: Number(value.price), quantity: Number(value.quantity), ...(Array.isArray(value.seatLabels) ? { seatLabels: value.seatLabels, color: value.color } : {}) };
             if (editing >= 0) categories[editing] = item;
             else categories.push(item);
             clearCategory();
@@ -279,6 +289,7 @@
             if (problem) { error(problem); return; }
             lock(true);
             try {
+                if (!await window.tsDecision('submitEvent', event.name || 'Event draft', [['Venue', venue.name || event.venueName || 'Selected venue'], ['Categories', categories.length]])) { lock(false); return; }
                 const data = rules();
                 ['maxTicketsPerBuyer', 'maxResaleMarkup', 'maxResalePrice'].forEach(key => { data[key] = Number(data[key]) || 0; });
                 await window.tsEvents.saveCompletedConfiguration(eventId, categories, data);

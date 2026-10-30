@@ -23,7 +23,7 @@ class Element {
 function page(name, options = {}) {
     const php = fs.readFileSync(path.join(root, 'buyer', name + '.php'), 'utf8');
     const elements = new Map([...php.matchAll(/id="([^"]+)"/g)].map(match => [match[1], new Element()]));
-    const calls = { bookings: [], releases: [], profiles: [], reservations: [] };
+    const calls = { bookings: [], releases: [], profiles: [], reservations: [], confirmations: [] };
     const state = { now: Date.now() };
     let ready;
     const ticks = [];
@@ -31,6 +31,7 @@ function page(name, options = {}) {
     const location = new URL('http://localhost/ticksecure-ui/buyer/' + name + '.php?' + (options.query ?? query.toString()));
     const window = {
         location: { href: location.href, search: location.search, hostname: location.hostname, origin: location.origin },
+        tsDecision: async (...args) => { calls.confirmations.push(args); return options.cancelDecision ? null : {}; },
         tsCurrentUser: null,
         addEventListener(type, callback) { if (type === 'ts-auth-ready') ready = callback; },
         tsEvents: { getEvent: async () => event },
@@ -218,4 +219,30 @@ test('confirmation displays simulated payment truthfully and rejects an unavaila
         await denied.ready();
         assert.equal(denied.elements.get('confirmation-title').textContent, 'Booking confirmation unavailable');
     }
+});
+
+
+test('cancelling purchase or seat release keeps the current booking flow unchanged', async () => {
+    const p = page('checkout', { cancelDecision: true });
+    await p.ready();
+    p.elements.get('demo-payment-consent').checked = true;
+    await p.elements.get('btn-pay').listeners.click();
+    assert.equal(p.calls.bookings.length, 0);
+    assert.equal(p.calls.confirmations[0][0], 'checkout');
+    assert.equal(p.elements.get('btn-pay').disabled, false);
+    await p.elements.get('checkout-back').listeners.click({ preventDefault() {} });
+    assert.equal(p.calls.releases.length, 0);
+    assert.equal(p.calls.confirmations.at(-1)[0], 'releaseReservation');
+});
+
+test('reservation expiry during the confirmation prevents checkout and releases the hold', async () => {
+    const p = page('checkout');
+    await p.ready();
+    p.elements.get('demo-payment-consent').checked = true;
+    p.window.tsDecision = async () => { p.state.now = Date.parse(expiry) + 1; return {}; };
+    await p.elements.get('btn-pay').listeners.click();
+    assert.equal(p.calls.bookings.length, 0);
+    assert.equal(p.calls.releases.length, 1);
+    assert.equal(p.elements.get('btn-pay').disabled, true);
+    assert.match(p.elements.get('checkout-error').textContent, /expired/);
 });

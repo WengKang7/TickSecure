@@ -41,6 +41,7 @@ function renderAvailability() {
     });
     el('ven-board').querySelectorAll('[data-section-id]').forEach(section => {
         const content = section.children[0];
+        if (!content || content.namespaceURI === 'http://www.w3.org/2000/svg') return;
         let label = content.children[2];
         if (!label) { label = document.createElement('span'); content.append(label); }
         const count = remainingFor(section.dataset.sectionId);
@@ -120,9 +121,9 @@ function updateOrder() {
     el('ticket-subtotal').textContent = available ? money(category.price * quantity) : 'Unavailable';
     el('ticket-total').textContent = available ? money(category.price * quantity + 20) : 'Unavailable';
     const button = el('category-book-btn');
-    button.textContent = salesStatus || (category && remainingFor(category.sectionId) === 0 ? 'Sold out' : !signedIn ? 'Sign in to book' : available ? 'Continue to seat assignment' : 'Select a ticket category');
+    button.textContent = salesStatus || (category && remainingFor(category.sectionId) === 0 ? 'Sold out' : !signedIn ? 'Sign in to book' : available ? 'Choose your seats' : 'Select a ticket category');
     const params = new URLSearchParams({ eventId: currentEvent?.id || '', sectionId: selectedSection || '', qty: String(quantity) });
-    button.href = signedIn && available ? `../buyer/seat-assignment.php?${params}` : '../auth/login.php';
+    button.href = signedIn && available ? `../buyer/seat-picker.php?${params}` : '../auth/login.php';
     button.setAttribute('aria-disabled', String(!currentEvent?.id || Boolean(salesStatus) || (category && remainingFor(category.sectionId) === 0) || (signedIn && !available)));
 }
 
@@ -144,6 +145,9 @@ function highlightSection(sectionId) {
         section.classList.toggle('is-selected', selected);
         section.setAttribute('aria-pressed', String(selected));
     });
+    el('ven-board').querySelectorAll('[data-category-id]').forEach(seat => {
+        seat.classList.toggle('is-category-selected', Boolean(sectionId && seat.dataset.categoryId === sectionId));
+    });
     el('cat-list').querySelectorAll('[data-category-section]').forEach(card => {
         const selected = card.dataset.categorySection === sectionId;
         card.classList.toggle('is-selected', selected);
@@ -153,7 +157,7 @@ function highlightSection(sectionId) {
     el('selected-category-label').textContent = category ? category.name : 'Tickets from';
     el('selected-category-price').textContent = category ? money(category.price) : startingPrice();
     el('category-selection-note').textContent = salesMessage() || (category
-        ? categoryLimit(category) > 0 ? `${category.name} / Section ${sectionId}. ${window.tsCurrentUser?.uid ? 'Choose your quantity below.' : 'Sign in to book tickets.'}` : 'Tickets are not available in this category.'
+        ? categoryLimit(category) > 0 ? `${category.name}. ${window.tsCurrentUser?.uid ? 'Choose your quantity below.' : 'Sign in to book tickets.'}` : 'Tickets are not available in this category.'
         : 'Select a ticket category from the list or venue layout.');
     updateOrder();
 }
@@ -187,7 +191,8 @@ function renderCategories(event) {
         const detail = document.createElement('span');
         detail.className = 'small secondary';
         const allocation = Math.max(0, Number(category.quantity) || 0);
-        detail.textContent = `Section ${category.sectionId} / ${allocation ? allocation + ' tickets allocated' : 'Ticket setup pending'}`;
+        detail.textContent = allocation ? `${allocation} numbered seats` : 'Ticket setup pending';
+        if (/^#[0-9a-f]{6}$/i.test(category.color || '')) card.style.borderLeft = `4px solid ${category.color}`;
         const remaining = document.createElement('span');
         remaining.className = 'ts-event-remaining';
         remaining.textContent = 'Checking remaining seats...';
@@ -207,7 +212,7 @@ function renderCategories(event) {
         cards.push(empty);
     }
     el('cat-list').replaceChildren(...cards);
-    el('category-count').textContent = `${categories.length} ${categories.length === 1 ? 'category' : 'categories'} / automatic seat assignment`;
+    el('category-count').textContent = `${categories.length} ${categories.length === 1 ? 'category' : 'categories'} · choose your own seats`;
     el('ev-price').innerHTML = `<strong>From ${esc(startingPrice())}</strong><span>Availability checked at booking</span>`;
     const params = new URLSearchParams(window.location.search);
     quantity = 1;
@@ -269,7 +274,8 @@ async function loadVenue(event, version) {
             return;
         }
         // Same section order, positions, stage, sizes and CSS as the admin layout.
-        window.tsVenueRenderer.renderBoard('ven-board', venue.sections, { onSectionSelect: highlightSection });
+        const mapped = window.tsSeatCategories?.project(venue.sections, categories) || venue.sections;
+        window.tsVenueRenderer.renderBoard('ven-board', mapped, { seatOnly: true, onSectionSelect: highlightSection, onCategorySelect: highlightSection });
         el('ven-name').textContent = venue.name || event.venueName || 'Venue';
         el('ven-address').textContent = venue.address || event.venueLocation || 'Approved physical venue layout';
         el('venue-section-count').textContent = `${venue.sections.length} sections / ${venue.sections.reduce((sum, section) => sum + (Number(section.seatCount) || 0), 0)} physical seats`;

@@ -76,7 +76,15 @@ function clearTickSecureSession() {
 
 }
 
+let logoutPending = false;
 async function logoutTickSecure() {
+
+    if (logoutPending) return;
+    logoutPending = true;
+    if (!await window.tsDecision('logout', window.tsCurrentUser?.fullName || 'Your TickSecure session')) {
+        logoutPending = false;
+        return;
+    }
 
     const logoutButton =
         document.getElementById(

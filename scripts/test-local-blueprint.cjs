@@ -1,4 +1,4 @@
-// Live local integration test: only temporary users, venue, and PDF are created.
+// Live local integration test: only temporary users, venue, and blueprints are created.
 // Credentials and Firebase ID tokens never reach the output.
 const fs = require('node:fs');
 const path = require('node:path');
@@ -26,10 +26,11 @@ async function main() {
     let assertions = 0;
     const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n');
     const endpoint = base + 'api/venue-blueprint.php';
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1cAAAAASUVORK5CYII=', 'base64');
     async function upload(token, content = pdf, type = 'application/pdf', expected = 201) {
         const form = new FormData();
         form.append('venueId', venueId);
-        form.append('file', new Blob([content], { type }), 'layout.pdf');
+        form.append('file', new Blob([content], { type }), type === 'image/png' ? 'layout.png' : 'layout.pdf');
         const response = await fetch(endpoint, { method: 'POST', headers: token ? { Authorization: 'Bearer ' + token } : {}, body: form, signal: AbortSignal.timeout(60000) });
         const body = await response.json();
         assert.equal(response.status, expected, JSON.stringify(body));
@@ -82,20 +83,32 @@ async function main() {
         assert.equal(download.status, 200);
         assert.deepEqual(Buffer.from(await download.arrayBuffer()), pdf);
         assertions += 4;
-        console.log('PASS: ' + assertions + ' live checks; provisioned-admin PDF upload, Firestore metadata, admin download, and denied suspended/guest/buyer/public access.');
+        await upload(tokens.admin, png, 'image/png');
+        const pngVenue = (await venueRef.get()).data();
+        localFiles.add(pngVenue.blueprintLocalFile);
+        assert.equal(pngVenue.blueprintName, 'layout.png');
+        assert.equal(pngVenue.blueprintMimeType, 'image/png');
+        assert.match(pngVenue.blueprintLocalFile, /^[a-f0-9]{40}\.png$/);
+        const pngDownload = await fetch(url, { headers: { Authorization: 'Bearer ' + tokens.admin } });
+        assert.equal(pngDownload.status, 200);
+        assert.equal(pngDownload.headers.get('content-type'), 'image/png');
+        assert.deepEqual(Buffer.from(await pngDownload.arrayBuffer()), png);
+        assert.equal((await fetch(base + 'storage/blueprints/' + pngVenue.blueprintLocalFile)).status, 403);
+        assertions += 7;
+        console.log('PASS: ' + assertions + ' live checks; provisioned-admin PNG/PDF uploads, Firestore metadata, matching download types, and denied suspended/guest/buyer/public access.');
     } finally {
         // Only fixture paths generated in this run can be removed.
         const current = await venueRef.get();
         if (current.exists && current.data().blueprintLocalFile) localFiles.add(current.data().blueprintLocalFile);
         for (const name of localFiles) {
-            if (!/^[a-f0-9]{40}\.pdf$/.test(name)) throw Error('Invalid fixture filename during cleanup');
+            if (!/^[a-f0-9]{40}\.(pdf|png)$/.test(name)) throw Error('Invalid fixture filename during cleanup');
             const file = path.resolve(root, 'storage/blueprints', name);
             assert.equal(path.dirname(file), path.resolve(root, 'storage/blueprints'));
             if (fs.existsSync(file)) fs.unlinkSync(file);
         }
         for (const ref of refs) await ref.delete();
         for (const uid of users) await auth.deleteUser(uid);
-        console.log('Removed the temporary test users, venue, and PDF.');
+        console.log('Removed the temporary test users, venue, and PNG/PDF files.');
     }
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; });

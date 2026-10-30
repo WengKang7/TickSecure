@@ -5,6 +5,7 @@ ob_start();
 
 <?=ts_page_head('Loading...', ' ', '<button id="btn-toggle-status" class="ts-btn ts-btn-danger" style="display:none;">Suspend Account</button>')?>
 <div id="user-detail-container" style="display:none;">
+    <div class="mb-24"><a class="ts-btn ts-btn-secondary" id="account-edit-link">Edit / archive account</a></div>
     <div class="ts-grid-2">
         <div class="ts-card ts-card-pad">
             <div class="flex justify-between">
@@ -88,6 +89,9 @@ window.addEventListener('ts-auth-ready', async () => {
         try {
             const user = await window.tsUsers.getUser(userId);
             if (!user) throw new Error('User not found');
+            const accountLink = document.getElementById('account-edit-link');
+            accountLink.href = `account-edit.php?id=${encodeURIComponent(userId)}`;
+            accountLink.hidden = !['buyer', 'organizer'].includes(user.role);
             
             document.getElementById('user-detail-container').style.display = 'block';
             document.querySelector('.ts-page-title').textContent = user.fullName || 'No Name';
@@ -106,6 +110,7 @@ window.addEventListener('ts-auth-ready', async () => {
 
             const btn = document.getElementById('btn-toggle-status');
             btn.style.display = 'inline-flex';
+            if (user.status === 'deleted') btn.style.display = 'none';
             if (user.status === 'suspended') {
                 btn.textContent = 'Reactivate Account';
                 btn.className = 'ts-btn ts-btn-success';

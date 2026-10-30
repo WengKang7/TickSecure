@@ -29,13 +29,17 @@ window.addEventListener('ts-auth-ready', async () => {
         if (version !== loadVersion) return;
         if (!record || record.ownerUid !== uid) throw Error('This ticket could not be found or is no longer in your account.');
         const ticket = { ...record, id };
-        const [eventResult, bookingResult] = await Promise.allSettled([
+        el('ticket-transfer-history-link').href = 'ticket-transfers.php?ticketId=' + encodeURIComponent(id);
+        el('ticket-buyer-chain-link').href = 'blockchain.php?ticketId=' + encodeURIComponent(id);
+        const [eventResult, bookingResult, transferResult] = await Promise.allSettled([
             ticket.eventId ? window.tsEvents.getEvent(ticket.eventId) : Promise.resolve(null),
-            ticket.bookingId ? window.tsBookings.getBooking(ticket.bookingId) : Promise.resolve(null)
+            ticket.bookingId ? window.tsBookings.getBooking(ticket.bookingId) : Promise.resolve(null),
+            window.tsTickets.getTransfers?.({ ticketId: id }) || Promise.resolve({ records: [] })
         ]);
         if (version !== loadVersion) return;
         const event = eventResult.status === 'fulfilled' ? eventResult.value : null;
         const booking = bookingResult.status === 'fulfilled' ? bookingResult.value : null;
+        const transfers = transferResult.status === 'fulfilled' && Array.isArray(transferResult.value?.records) ? transferResult.value.records : [];
         const demo = booking?.paymentStatus === 'SIMULATED_PAID';
         el('val-event').textContent = ticket.eventName || event?.name || 'Event';
         el('val-event-meta').textContent = display.eventDate(ticket, event);
@@ -52,6 +56,19 @@ window.addEventListener('ts-auth-ready', async () => {
         el('val-mint-status').textContent = minted ? 'Minted' : demo ? 'Not minted (demo)' : 'Not minted yet';
         el('val-contract').textContent = ticket.contractAddress || 'No contract recorded';
         el('val-tx').textContent = ticket.transactionHash || (demo ? 'No blockchain transaction in demo mode' : 'No mint transaction recorded');
+        const latest = ticket.chainId === 11155111 && /^0x[0-9a-fA-F]{64}$/.test(ticket.blockchainLastTransactionHash || '');
+        el('ticket-chain-latest').hidden = !latest;
+        el('val-chain-latest').replaceChildren();
+        if (latest) {
+            const link = document.createElement('a');
+            link.textContent = ticket.blockchainLastTransactionHash;
+            link.href = 'https://sepolia.etherscan.io/tx/' + ticket.blockchainLastTransactionHash;
+            link.target = '_blank'; link.rel = 'noopener noreferrer';
+            el('val-chain-latest').append(link);
+            el('val-chain-owner').textContent = ticket.blockchainWalletAddress || 'Not recorded';
+            el('val-chain-sync').textContent = (ticket.blockchainWalletAddress || '').toLowerCase() === (ticket.walletAddress || '').toLowerCase()
+                ? 'The recorded blockchain wallet matches your ticket wallet.' : 'Your current ticket ownership is awaiting blockchain synchronization.';
+        }
         if (booking?.buyerUid === uid) {
             el('view-booking').href = `booking-detail.php?id=${encodeURIComponent(ticket.bookingId)}`;
             el('view-booking').hidden = false;
@@ -89,6 +106,8 @@ window.addEventListener('ts-auth-ready', async () => {
             const title = document.createElement('div');
             title.className = 'ts-timeline-title';
             title.textContent = entry.type === 'ISSUED' ? 'Ticket issued' : entry.type === 'RESALE' ? 'Resale purchase' : 'Transferred';
+            const receipt = entry.type !== 'ISSUED' && entry.type !== 'RESALE' ? transfers.find(t => t.fromWallet === entry.fromWallet && t.toWallet === entry.toWallet && Math.abs(Date.parse(t.timestamp) - Date.parse(entry.timestamp)) < 5000) : null;
+            if (receipt) title.textContent = receipt.direction === 'SENT' ? `Sent to ${receipt.toName || 'another buyer'}` : `Received from ${receipt.fromName || 'another buyer'}`;
             const date = document.createElement('div');
             date.className = 'ts-timeline-meta';
             date.textContent = display.date(entry.timestamp);

@@ -155,17 +155,20 @@ test('refresh updates quantities and sold-out categories; failures never display
     assert.equal(page.elements.get('refresh-availability').disabled, false);
 });
 
-test('the public seating renderer matches the admin layout positions exactly', () => {
+test('admin and public layouts use the shared renderer with usable legacy positions', () => {
     const page = createPage();
     const admin = fs.readFileSync(path.join(root, 'admin/venue-layout.php'), 'utf8');
-    const calculate = admin.match(/function calcPositions\(n\) \{[\s\S]*?\n    \}/)[0];
+    assert.match(admin, /assets\/js\/venue-renderer\.js/);
+    const editor = fs.readFileSync(path.join(root, 'assets/js/venue-layout-editor.js'), 'utf8');
+    assert.match(editor, /window\.tsVenueRenderer\.renderBoard/);
     for (const count of [1, 2, 3, 4, 5, 8, 12]) {
-        const adminPositions = JSON.parse(JSON.stringify(vm.runInNewContext(calculate + '; calcPositions(' + count + ');')));
         const positions = page.context.window.tsVenueRenderer.getSectionPositions(count);
-        const publicPositions = JSON.parse(JSON.stringify(positions.map(position => ({
-            top: position.top + '%', left: position.left + '%', width: position.width + '%', height: position.height + '%'
-        }))));
-        assert.deepEqual(publicPositions, adminPositions, 'Section count ' + count);
+        assert.equal(positions.length, count);
+        positions.forEach(position => {
+            assert.ok(position.left >= 0 && position.top >= 0);
+            assert.ok(position.width > 0 && position.height > 0);
+            assert.ok(position.left + position.width <= 100 && position.top + position.height <= 100);
+        });
     }
 });
 
@@ -189,7 +192,7 @@ test('signed-in visitors see real physical sections and category selection highl
     assert.equal(categories[0].getAttribute('aria-pressed'), 'false');
     assert.equal(page.elements.get('selected-category-label').textContent, 'Standard');
     assert.equal(page.elements.has('book-btn'), false, 'duplicate header booking button is removed');
-    assert.match(page.elements.get('category-book-btn').href, /buyer\/seat-assignment\.php\?eventId=event-1&sectionId=B&qty=1/);
+    assert.match(page.elements.get('category-book-btn').href, /buyer\/seat-picker\.php\?eventId=event-1&sectionId=B&qty=1/);
     assert.equal(page.writes.length, 0, 'previewing categories must not create reservations or writes');
 });
 
@@ -329,14 +332,14 @@ test('closed or upcoming sales stay visible but cannot start checkout', async ()
     }
 });
 
-test('the selected category and quantity reach the existing reservation step without choosing again', async () => {
+test('the selected category and quantity reach the seat picker without choosing again', async () => {
     const page = createPage();
     await page.ready();
     page.elements.get('cat-list').children[1].listeners.click();
     page.elements.get('quantity-plus').listeners.click();
     page.elements.get('quantity-plus').listeners.click();
     const target = new URL(page.elements.get('category-book-btn').href, 'http://localhost/ticksecure-ui/public/event-detail.php');
-    assert.equal(target.pathname, '/ticksecure-ui/buyer/seat-assignment.php');
+    assert.equal(target.pathname, '/ticksecure-ui/buyer/seat-picker.php');
     const php = fs.readFileSync(path.join(root, 'buyer/seat-assignment.php'), 'utf8');
     const script = fs.readFileSync(path.join(root, 'assets/js/seat-assignment.js'), 'utf8');
     const elements = new Map([...php.matchAll(/id="([^"]+)"/g)].map(match => [match[1], new Element()]));

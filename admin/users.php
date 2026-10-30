@@ -5,6 +5,7 @@ ob_start();
 
 <?=ts_page_head('User Management', 'Search registered Buyers and Event Organizers, review account status and apply access controls.', '<button class="ts-btn ts-btn-secondary">'.ts_icon('download').' Export</button>')?>
 <div class="ts-card">
+    <div class="ts-card-pad"><a class="ts-btn ts-btn-primary" href="account-edit.php">Create account</a></div>
     <div class="ts-filter-bar ts-user-filters">
         <div class="ts-input-wrap ts-search">
             <?=ts_icon('search')?><input id="user-search" class="ts-input" type="search" aria-label="Search users by name or email" placeholder="Search name or email">
@@ -20,6 +21,7 @@ ob_start();
             <option value="suspended">Suspended</option>
             <option value="pending">Pending</option>
             <option value="rejected">Rejected</option>
+            <option value="deleted">Archived</option>
         </select>
         <select id="user-verification-filter" class="ts-select" aria-label="Filter by email verification">
             <option value="">All verification</option>

@@ -145,6 +145,7 @@ ob_start();
 
         returnButton?.addEventListener('click', async (event) => {
             event.preventDefault();
+            if (currentUser() && !await window.tsDecision('logout', 'Your email verification session')) return;
             returnButton.setAttribute('aria-disabled', 'true');
             returnButton.style.pointerEvents = 'none';
             message.textContent = 'Returning to sign in...';

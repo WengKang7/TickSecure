@@ -108,6 +108,11 @@ document.addEventListener('DOMContentLoaded', () => {
             submitBtn.textContent = 'Submitting...';
             
             try {
+                if (!await window.tsDecision('submitComplaint', V.val(form, 'complaintCategory'), [['Description', V.val(form, 'complaintDescription')], ['Evidence', evidence?.name || 'None']])) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit Complaint';
+                    return;
+                }
                 await window.tsComplaints.createComplaint({
                     category: V.val(form, 'complaintCategory'),
                     description: V.val(form, 'complaintDescription'),

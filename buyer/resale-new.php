@@ -18,8 +18,10 @@ ob_start();
                     class="ts-step-line"></span>
                 <div class="ts-step active"><span class="ts-step-num">2</span>Price</div><span
                     class="ts-step-line"></span>
-                <div class="ts-step"><span class="ts-step-num">3</span>Wallet Approval</div>
+                <div class="ts-step"><span class="ts-step-num">3</span>Listing</div>
             </div>
+            <div class="ts-field mt-24"><label class="ts-label" for="resale-ticket">Ticket to sell</label><select class="ts-select" id="resale-ticket" disabled><option>Loading tickets...</option></select></div>
+            <p id="resale-message" role="status" aria-live="polite"></p>
             <div class="ts-grid-2 mt-24">
                 <div>
                     <div class="ts-card ts-card-pad">
@@ -40,7 +42,7 @@ ob_start();
                 </div>
                 <div>
                     <div class="ts-field"><label class="ts-label">Resale Price (RM)</label><input class="ts-input"
-                            name="resalePrice" id="input-price" value="">
+                            name="resalePrice" id="input-price" type="number" min="0.01" step="0.01" value="" disabled>
                         <div class="ts-help" id="val-price-help">Loading limits...</div>
                     </div>
                     <div class="ts-card ts-card-pad mt-16">
@@ -56,112 +58,12 @@ ob_start();
             </div>
             <div class="flex justify-between mt-24"><a class="ts-btn ts-btn-secondary"
                     href="tickets.php" id="btn-cancel">Cancel</a><button class="ts-btn ts-btn-primary"
-                    id="btn-submit">Continue to Wallet Approval</button></div>
+                    id="btn-submit" type="button" disabled>Create listing</button></div>
         </div>
     </div>
 </main>
 
-<script type="module">
-document.addEventListener('DOMContentLoaded', () => {
-    window.addEventListener('ts-auth-ready', async () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const ticketId = urlParams.get('ticketId');
-        if (!ticketId) return;
-
-        let ticket;
-        let originalPrice = 0;
-        let maxAllowedPrice = 0;
-
-        try {
-            ticket = await window.tsTickets.getTicket(ticketId);
-            const event = await window.tsEvents.getEvent(ticket.eventId);
-            
-            document.getElementById('val-event').textContent = ticket.eventName;
-            document.getElementById('val-ticket-info').textContent = `${ticket.categoryName || 'N/A'} · Seat ${ticket.seatId || 'N/A'} · Ticket ${ticket.id}`;
-            document.getElementById('val-owner').textContent = ticket.walletAddress || window.tsCurrentUser.walletAddress;
-            document.getElementById('val-status').innerHTML = `<span class="ts-chip ts-chip-success">Eligible</span>`;
-            
-            const categories = Array.isArray(event.categories)
-                ? event.categories
-                : Object.entries(event.categories || {}).map(([sectionId, category]) => ({
-                    ...category,
-                    sectionId
-                }));
-            const category = categories.find(c =>
-                c.sectionId === ticket.sectionId ||
-                c.section === ticket.sectionId ||
-                c.name === ticket.categoryName
-            );
-            const maxMarkupPercent = Number(event.maxResaleMarkup ?? 0);
-            originalPrice = Number(category?.price) || 0;
-            const configuredMaxPrice = Number(event.maxResalePrice ?? 0);
-            maxAllowedPrice = configuredMaxPrice > 0
-                ? configuredMaxPrice
-                : originalPrice * (1 + (maxMarkupPercent / 100));
-            
-            document.getElementById('val-rules').textContent = configuredMaxPrice > 0
-                ? `The organizer set a fixed maximum resale price of RM${maxAllowedPrice.toFixed(2)}.`
-                : `Maximum allowed markup is ${maxMarkupPercent}%. Maximum allowed price RM${maxAllowedPrice.toFixed(2)}.`;
-            document.getElementById('val-price-help').textContent = `Original price RM${originalPrice.toFixed(2)} · Maximum RM${maxAllowedPrice.toFixed(2)}`;
-            
-            document.getElementById('summary-original').textContent = `RM${originalPrice.toFixed(2)}`;
-            document.getElementById('summary-max').textContent = `RM${maxAllowedPrice.toFixed(2)}`;
-            
-            document.getElementById('btn-cancel').href = `ticket-detail.php?id=${ticketId}`;
-            
-            const priceInput = document.getElementById('input-price');
-            priceInput.value = originalPrice.toFixed(2);
-            document.getElementById('summary-resale').textContent = `RM${originalPrice.toFixed(2)}`;
-            
-            priceInput.addEventListener('input', () => {
-                const p = parseFloat(priceInput.value) || 0;
-                document.getElementById('summary-resale').textContent = `RM${p.toFixed(2)}`;
-                const alertBox = document.getElementById('price-alert');
-                const alertText = document.getElementById('price-alert-text');
-                
-                alertBox.style.display = 'flex';
-                if (p > 0 && p <= maxAllowedPrice) {
-                    alertBox.className = 'ts-alert ts-alert-success mt-12';
-                    alertText.textContent = 'Price is within the organizer-defined limit.';
-                } else {
-                    alertBox.className = 'ts-alert ts-alert-error mt-12';
-                    alertText.textContent = 'Price exceeds maximum allowed or is invalid.';
-                }
-            });
-
-            const submitBtn = document.getElementById('btn-submit');
-            submitBtn.addEventListener('click', async (e) => {
-                e.preventDefault();
-                const p = parseFloat(priceInput.value);
-                if (!p || p <= 0 || p > maxAllowedPrice) {
-                    window.tsValidation.showGlobalError(document.getElementById('resale-form-container'), 'Invalid Price', `Price must be between RM1 and RM${maxAllowedPrice.toFixed(2)}`);
-                    return;
-                }
-                
-                submitBtn.disabled = true;
-                submitBtn.textContent = 'Processing...';
-                
-                try {
-                    await window.tsResale.createListing({
-                        ticketId: ticket.id,
-                        resalePrice: p,
-                        originalPrice,
-                        maxAllowedPrice
-                    });
-                    window.location.href = 'resale.php';
-                } catch (err) {
-                    window.tsValidation.showGlobalError(document.getElementById('resale-form-container'), 'Error', err.message);
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Continue to Wallet Approval';
-                }
-            });
-            
-        } catch (err) {
-            console.error(err);
-        }
-    });
-});
-</script>
+<script type="module" src="<?=ts_asset_url('assets/js/resale-create.js', '..')?>"></script>
 
 <?php
 $content = ob_get_clean();

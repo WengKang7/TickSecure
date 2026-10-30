@@ -11,14 +11,14 @@ ob_start();
                 <h1 class="ts-section-title">My Tickets</h1>
                 <p class="ts-section-copy">View active, transferred, used and resale-listed NFT tickets owned by your
                     connected wallet.</p>
-            </div><a class="ts-btn ts-btn-secondary"
+            </div><a class="ts-btn ts-btn-primary" href="blockchain.php">My blockchain</a><a class="ts-btn ts-btn-secondary"
                 href="wallet.php"><?=ts_icon('wallet')?>
                 Wallet 0x12A4…8F92</a>
         </div>
         <div class="ts-tabs mb-24" id="ticket-tabs">
             <button class="ts-tab active" data-filter="valid">Active</button>
             <button class="ts-tab" data-filter="listed">Listed for Resale</button>
-            <button class="ts-tab" data-filter="transferred">Transferred</button>
+            <a class="ts-tab" href="ticket-transfers.php">Sent &amp; received</a>
             <button class="ts-tab" data-filter="used">Used</button>
             <button class="ts-tab" data-filter="cancelled">Cancelled / Expired</button>
         </div>
@@ -34,7 +34,7 @@ window.addEventListener('ts-auth-ready', async (authEvent) => {
 
     let allTickets = [];
     const container = document.getElementById('ticket-list');
-    const tabs = document.querySelectorAll('#ticket-tabs .ts-tab');
+    const tabs = document.querySelectorAll('#ticket-tabs button.ts-tab');
 
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, character => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'

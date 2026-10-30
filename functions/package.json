@@ -6,9 +6,10 @@
     "node": "20"
   },
   "scripts": {
-    "check": "node --check index.js && node --check password-reset.js && node --check event-availability.js"
+    "check": "node --check index.js && node --check password-reset.js && node --check event-availability.js && node --check seat-picker-policy.js && node --check seat-allocation-policy.js && node --check ticket-transfer-history.js && node --check blockchain.js && node --check blockchain-policy.js && node --check blockchain-signer.js && node --check blockchain-php-bridge.js"
   },
   "dependencies": {
+    "ethers": "6.17.0",
     "firebase-admin": "^13.0.0",
     "firebase-functions": "^6.0.0"
   }

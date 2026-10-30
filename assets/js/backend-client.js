@@ -70,7 +70,10 @@ export async function invokeTrustedBackend(request, config) {
     }
     const localDemoCheckout = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
         && window.tsFirebase?.emulator?.enabled !== true
-        && ['getEventAvailability', 'reserveSeats', 'releaseSeatReservation', 'checkout'].includes(config.name);
+        && ['getEventAvailability', 'getSeatMap', 'holdSelectedSeats', 'reserveSeats', 'releaseSeatReservation', 'checkout',
+            'createResaleListing', 'updateResalePrice', 'cancelResaleListing', 'suspendResaleListing', 'purchaseResale', 'transferTicket', 'getTicketTransfers',
+            'getBlockchainSettings', 'configureBlockchain', 'prepareBlockchainOperation', 'verifyBlockchainOperation',
+            'getBuyerBlockchainOperations', 'getOrganizerBlockchainOperations'].includes(config.name);
     if (config.backend === 'php' || usingLocalPhpBackend() || localDemoCheckout) {
         return invokeLocalPhpBackend(request, config);
     }

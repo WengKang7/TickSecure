@@ -44,7 +44,7 @@ ob_start();
                 </div>
                 <div class="flex justify-center gap-12 wrap mt-24"><a class="ts-btn ts-btn-primary"
                         href="bookings.php" id="btn-view-booking" hidden>View Booking</a><a class="ts-btn ts-btn-secondary"
-                        href="tickets.php">View My Tickets</a><a class="ts-btn ts-btn-tertiary"
+                        href="tickets.php">View My Tickets</a><a class="ts-btn ts-btn-primary" id="confirmation-chain-link" href="blockchain.php">Mint ticket NFTs</a><a class="ts-btn ts-btn-tertiary"
                         href="../public/events.php">Back to Events</a></div>
             </div>
             <div class="ts-accordion" style="margin:0 22px 22px"><button class="ts-accordion-trigger">Technical

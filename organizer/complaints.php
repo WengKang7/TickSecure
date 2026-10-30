@@ -115,7 +115,7 @@ async function loadComplaints() {
     tbody.innerHTML = complaints.map((complaint) => {
         const [tone, label] = statusDisplay(complaint.status);
         return `<tr>
-            <td class="cell-title">${esc(complaint.referenceNumber || complaint.id)}</td>
+            <td class="cell-title"><a href="complaint-manage.php?id=${encodeURIComponent(complaint.id)}">${esc(complaint.referenceNumber || complaint.id)}</a></td>
             <td>${esc(complaint.category || 'Other')}</td>
             <td>${dateText(complaint.createdAt)}</td>
             <td><span class="ts-chip ts-chip-${tone}">${esc(label)}</span></td>
@@ -164,6 +164,7 @@ form?.addEventListener('submit', async (event) => {
     submitButton.disabled = true;
     submitButton.textContent = 'Submitting...';
     try {
+        if (!await window.tsDecision('submitComplaint', category, [['Description', description], ['Evidence', evidenceFile?.name || 'None']])) return;
         await window.tsComplaints.createComplaint({ category, description, evidenceFile });
         form.reset();
         closeModal();

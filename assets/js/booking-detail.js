@@ -18,6 +18,7 @@ window.addEventListener('ts-auth-ready', async () => {
         if (version !== loadVersion) return;
         if (!record || record.buyerUid !== uid) throw Error('This booking could not be found or you do not have access to it.');
         const booking = { ...record, id };
+        el('booking-buyer-chain-link').href = 'blockchain.php?bookingId=' + encodeURIComponent(id);
         const status = ({ CONFIRMED: ['Confirmed', 'success'], COMPLETED: ['Completed', 'neutral'], CANCELLED: ['Cancelled', 'error'],
             PENDING: ['Pending', 'warning'] })[String(booking.status).toUpperCase()] || ['Status unavailable', 'neutral'];
         el('val-eyebrow').textContent = `Booking ${booking.bookingNumber || id}`;

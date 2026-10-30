@@ -49,6 +49,7 @@ window.addEventListener('ts-auth-ready', async () => {
         if (processing) { event.preventDefault(); return; }
         event.preventDefault();
         try {
+            if (!await window.tsDecision('releaseReservation', 'Reserved tickets', [['Quantity', quantity]])) return;
             await window.tsSeats.releaseSeats(seatDocIds, { eventId });
             try { sessionStorage.removeItem(storageKey); } catch (_) {}
             clearInterval(timer);
@@ -108,6 +109,13 @@ window.addEventListener('ts-auth-ready', async () => {
             processing = true;
             updatePaymentButton();
             try {
+                if (!await window.tsDecision('checkout', event.name || 'Reserved tickets',
+                    [['Category', category.name || sectionId], ['Quantity', quantity], ['Total including service charge', money(total)], ['Receiving wallet', user.walletAddress]])) return;
+                if (Date.now() >= expiresAt) {
+                    processing = false;
+                    await expire();
+                    return;
+                }
                 const booking = await window.tsBookings.createBooking({ eventId, sectionId, seatDocIds,
                     walletAddress: user.walletAddress, paymentMethod: 'simulated' });
                 if (!booking?.id) throw Error('No booking confirmation was returned. Retry to recover your booking.');

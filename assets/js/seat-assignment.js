@@ -214,6 +214,7 @@ document.getElementById('change-category-btn').addEventListener('click', async e
     const button = document.getElementById('change-category-btn');
     button.setAttribute('aria-disabled', 'true');
     try {
+        if (!await window.tsDecision('releaseReservation', 'Reserved tickets', [['Quantity', currentReservation.seatDocIds.length]])) return;
         await window.tsSeats.releaseSeats(currentReservation.seatDocIds, { eventId: currentReservation.eventId });
         try { sessionStorage.removeItem(currentStorageKey); } catch (_) {}
         clearInterval(reservationTimer);

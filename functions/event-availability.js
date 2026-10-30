@@ -1,8 +1,9 @@
 // Public projection only. Never return seat IDs, buyers or reservation details.
 function eventAvailability(event, physicalSeats, eventSeats, currentTime = Date.now()) {
-    const physicalCounts = new Map();
+    const physicalCounts = new Map(), physicalLabels = new Set();
     for (const seat of physicalSeats) {
         if (seat.venueId === event.venueId && seat.sectionId && String(seat.seatLabel || '').trim()) {
+            physicalLabels.add(seat.seatLabel);
             physicalCounts.set(String(seat.sectionId), (physicalCounts.get(String(seat.sectionId)) || 0) + 1);
         }
     }
@@ -21,7 +22,11 @@ function eventAvailability(event, physicalSeats, eventSeats, currentTime = Date.
         const value = Number(category.quantity ?? category.available ?? 0);
         const allocated = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
         // Reservation cannot succeed when the allocation exceeds physical inventory.
-        const capacity = (physicalCounts.get(sectionId) || 0) >= allocated ? allocated : 0;
+        const exact = Object.hasOwn(category, 'seatLabels');
+        const valid = exact ? Array.isArray(category.seatLabels) && category.seatLabels.length === allocated
+            && new Set(category.seatLabels).size === allocated && category.seatLabels.every(label => physicalLabels.has(label))
+            : (physicalCounts.get(sectionId) || 0) >= allocated;
+        const capacity = valid ? allocated : 0;
         return { sectionId, allocated, remaining: Math.max(0, capacity - (blocked.get(sectionId) || 0)) };
     });
     return { eventId: event.id, checkedAt: new Date(currentTime).toISOString(), categories,

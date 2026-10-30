@@ -64,7 +64,7 @@ window.addEventListener('ts-auth-ready', async () => {
                 <td>${submitStr}</td>
                 <td><span class="ts-chip ts-chip-${tone}">${status}</span></td>
                 <td>${updateStr}</td>
-                <td><a class="ts-btn ts-btn-secondary ts-btn-sm" href="complaint-detail.php?id=${c.id}">View</a></td>
+                <td><a class="ts-btn ts-btn-secondary ts-btn-sm" href="complaint-detail.php?id=${encodeURIComponent(c.id)}">View</a> <a class="ts-btn ts-btn-secondary ts-btn-sm" href="complaint-manage.php?id=${encodeURIComponent(c.id)}">Manage</a></td>
             </tr>
             `;
         }).join('');

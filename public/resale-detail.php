@@ -46,6 +46,7 @@ ob_start();
 </div></div></main>
 
 <script type="module">
+import '../assets/js/resale-policy.js';
 const resaleServiceCharge = 20;
 
 const amount = value => {
@@ -66,7 +67,10 @@ const eventDateLabel = event => {
     return parts.length ? parts.join(' · ') : 'Not available';
 };
 
-window.addEventListener('ts-auth-ready', async () => {
+let resaleInitialized = false;
+async function initializeResaleDetail() {
+    if (resaleInitialized || !window.tsCurrentUser?.uid) return;
+    resaleInitialized = true;
     const listingId = new URLSearchParams(window.location.search).get('id');
     const purchaseButton = document.getElementById('rd-purchase-btn');
     const purchaseMessage = document.getElementById('rd-purchase-message');
@@ -97,9 +101,11 @@ window.addEventListener('ts-auth-ready', async () => {
         const status = String(listing.status || '').toUpperCase();
         const resalePrice = amount(listing.resalePrice);
         const maximumPrice = amount(listing.maxAllowedPrice);
+        const unavailableReason = window.tsResalePolicy.unavailable(event);
+        const currentMaximum = event ? window.tsResalePolicy.limits(event, listing).maximum : maximumPrice;
         const compliant = String(listing.ruleCompliance || '').toUpperCase() !== 'VIOLATION'
-            && (!maximumPrice || resalePrice <= maximumPrice);
-        const available = status === 'ACTIVE' && compliant;
+            && (!maximumPrice || resalePrice <= maximumPrice) && resalePrice <= currentMaximum;
+        const available = status === 'ACTIVE' && compliant && !unavailableReason && resalePrice <= currentMaximum;
         const statusTone = {
             ACTIVE: 'success',
             SOLD: 'info',
@@ -117,7 +123,7 @@ window.addEventListener('ts-auth-ready', async () => {
         document.getElementById('rd-ticket-info').textContent = `${listing.categoryName || 'Ticket'} · Seat ${listing.seatId || 'Not assigned'}`;
         document.getElementById('rd-orig-price').textContent = currency(listing.originalPrice);
         document.getElementById('rd-resale-price').textContent = currency(resalePrice);
-        document.getElementById('rd-max-price').textContent = maximumPrice ? currency(maximumPrice) : 'Not configured';
+        document.getElementById('rd-max-price').textContent = currentMaximum ? currency(currentMaximum) : 'Not configured';
         document.getElementById('rd-seller').textContent = abbreviated(listing.sellerWallet || listing.sellerUid);
         document.getElementById('rd-event-date').textContent = eventDateLabel(event);
         document.getElementById('rd-venue').textContent = event?.venueName || 'Not available';
@@ -127,13 +133,21 @@ window.addEventListener('ts-auth-ready', async () => {
         const ruleAlert = document.getElementById('rd-rule-alert');
         const ruleTitle = document.getElementById('rd-rule-title');
         const ruleCopy = document.getElementById('rd-rule-copy');
-        ruleAlert.className = `ts-alert ${compliant ? 'ts-alert-success' : 'ts-alert-warning'} mt-24`;
-        ruleTitle.textContent = compliant ? 'Resale rule verified' : 'Listing needs review';
-        ruleCopy.textContent = compliant
+        ruleAlert.className = `ts-alert ${available ? 'ts-alert-success' : 'ts-alert-warning'} mt-24`;
+        ruleTitle.textContent = available ? 'Resale available' : status === 'SOLD' ? 'Sale completed' : 'Listing unavailable';
+        ruleCopy.textContent = available
             ? 'This listing is within the organizer-defined resale price and availability rules.'
-            : (listing.riskFlag || 'This listing is outside its permitted resale conditions.');
+            : status === 'SOLD' ? 'This ticket has already been purchased.'
+                : (unavailableReason || listing.riskFlag || 'This listing is outside its permitted resale conditions.');
 
         const profile = window.tsCurrentUser;
+        if (status === 'SOLD' && listing.buyerUid === profile?.uid) {
+            purchaseButton.textContent = 'View purchased ticket';
+            purchaseButton.disabled = false;
+            purchaseMessage.textContent = `Purchase complete. Total ${currency(resalePrice + resaleServiceCharge)}.`;
+            purchaseButton.addEventListener('click', () => { window.location.href = `../buyer/ticket-detail.php?id=${encodeURIComponent(listing.ticketId)}`; });
+            return;
+        }
         if (!profile) {
             purchaseButton.disabled = false;
             purchaseButton.textContent = 'Sign in to purchase';
@@ -156,7 +170,17 @@ window.addEventListener('ts-auth-ready', async () => {
 
         if (!available) {
             purchaseButton.textContent = 'Listing unavailable';
-            purchaseMessage.textContent = listing.riskFlag || 'This listing is no longer available for purchase.';
+            purchaseMessage.textContent = unavailableReason || listing.riskFlag || 'This listing is no longer available within the current price rules.';
+            return;
+        }
+
+        if (!/^0x[a-fA-F0-9]{40}$/.test(profile.walletAddress || '')) {
+            purchaseButton.textContent = 'Connect wallet to purchase';
+            purchaseButton.disabled = false;
+            purchaseMessage.textContent = 'A connected wallet is required to receive your ticket.';
+            purchaseButton.addEventListener('click', () => {
+                window.location.href = `../buyer/wallet.php?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+            });
             return;
         }
 
@@ -169,15 +193,22 @@ window.addEventListener('ts-auth-ready', async () => {
                 return;
             }
 
-            if (!window.confirm(`Purchase this resale ticket for ${currency(resalePrice + resaleServiceCharge)}?`)) return;
+            if (purchaseButton.disabled) return;
+            purchaseButton.disabled = true;
+            if (!await window.tsDecision('purchaseResale', listing.eventName || event?.name || 'Resale ticket',
+                [['Ticket price', currency(resalePrice)], ['Service charge', currency(resaleServiceCharge)],
+                    ['Total', currency(resalePrice + resaleServiceCharge)], ['Receiving wallet', profile.walletAddress]])) {
+                purchaseButton.disabled = false;
+                return;
+            }
 
             purchaseButton.disabled = true;
             purchaseButton.textContent = 'Completing purchase…';
             purchaseMessage.textContent = 'Checking availability and transferring the ticket…';
             try {
-                const result = await window.tsResale.purchaseListing(listing.id);
+                const result = await window.tsResale.purchaseListing(listing.id, resalePrice);
                 const ticketId = result?.ticketId || listing.ticketId;
-                window.location.href = `../buyer/tickets.php?resalePurchase=${encodeURIComponent(ticketId)}`;
+                window.location.href = result?.blockchainRecordId ? `../buyer/blockchain.php?recordId=${encodeURIComponent(result.blockchainRecordId)}` : `../buyer/tickets.php?resalePurchase=${encodeURIComponent(ticketId)}`;
             } catch (error) {
                 console.error('Resale purchase failed:', error);
                 purchaseButton.disabled = false;
@@ -192,7 +223,9 @@ window.addEventListener('ts-auth-ready', async () => {
         purchaseButton.textContent = 'Listing unavailable';
         purchaseMessage.textContent = 'Please return to the resale marketplace and choose another listing.';
     }
-});
+}
+window.addEventListener('ts-auth-ready', initializeResaleDetail);
+if (window.tsCurrentUser?.uid) initializeResaleDetail();
 </script>
 
 <?php

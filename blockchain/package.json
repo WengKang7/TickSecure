@@ -1,0 +1,15 @@
+{
+  "name": "ticksecure-sepolia-contract",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compile": "node scripts/compile.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "@openzeppelin/contracts": "5.6.1",
+    "ethers": "6.17.0",
+    "hardhat": "3.21.2",
+    "solc": "0.8.38"
+  }
+}

@@ -65,7 +65,7 @@ ob_start();
             <div class="ts-summary-row total"><span>Total</span><strong id="ticket-total">&mdash;</strong></div>
           </div>
           <a class="ts-btn ts-btn-primary w-full" id="category-book-btn" href="../auth/login.php" data-book-event aria-disabled="true">Sign in to book <?=ts_icon('arrow-right')?></a>
-          <p class="small secondary ts-event-booking-note">Seats are assigned automatically. Live availability is checked when you continue.</p>
+          <p class="small secondary ts-event-booking-note">Choose your seats on the next screen. Seats are held for 10 minutes after reservation.</p>
         </div>
       </aside>
     </div>
@@ -75,19 +75,20 @@ ob_start();
         <h2 class="ts-card-title" id="event-about-heading">About the event</h2>
         <p class="secondary ts-event-about" id="ev-about">Loading event details...</p>
       </section>
-      <section class="ts-card ts-card-pad" aria-labelledby="event-policies-heading">
-        <h2 class="ts-card-title" id="event-policies-heading">Ticket policies</h2>
+      <details class="ts-card ts-card-pad ts-simple-details" aria-labelledby="event-policies-heading">
+        <summary class="ts-card-title" id="event-policies-heading">Ticket policies</summary>
         <div class="ts-list">
-          <div class="ts-list-item"><span>Automatic seat assignment</span><?=ts_status('Enabled', 'success')?></div>
+          <div class="ts-list-item"><span>Numbered seating</span><?=ts_status('Choose your seats', 'success')?></div>
           <div class="ts-list-item"><span>Ticket transfer</span><span id="ev-transfer">&mdash;</span></div>
           <div class="ts-list-item"><span>Official resale</span><span id="ev-resale">&mdash;</span></div>
         </div>
         <div id="buyer-rules-summary" class="mt-20"></div>
-      </section>
+      </details>
     </div>
   </div>
 </main>
 <script src="<?=ts_asset_url('assets/js/venue-renderer.js', '..')?>"></script>
+<script src="<?=ts_asset_url('assets/js/seat-category-model.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/event-policy.js', '..')?>"></script>
 <script type="module" src="<?=ts_asset_url('assets/js/event-detail.js', '..')?>"></script>
 

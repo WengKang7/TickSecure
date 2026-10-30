@@ -13,20 +13,70 @@ this local project instead of Firebase Storage.
 
 ## Current local checkout
 
+### Sepolia blockchain publishing
+
+`TICKSECURE_PHP_BLOCKCHAIN=1` enables six role-scoped blockchain actions:
+`getBlockchainSettings`, `configureBlockchain`, `prepareBlockchainOperation`
+and `verifyBlockchainOperation`, plus `getBuyerBlockchainOperations` and
+`getOrganizerBlockchainOperations`. Buyers prepare/verify their own operations,
+admins configure deployment, and organizers read their own events. Admin email
+verification is not required; buyers and organizers still require verification.
+PHP verifies the ID token and invokes the shared Node service. Buyers submit through MetaMask;
+the backend signs short-lived permissions using a private server key outside
+`htdocs` and independently verifies Sepolia receipts before confirming hashes.
+Buyer keys stay in MetaMask. See
+[the complete setup and recovery guide](../blockchain/README.md). This flag
+does not enable unrelated mutations. Set `TICKSECURE_SEPOLIA_RPC_URL` on the
+server to override the default public provider.
+
+### Ticket and checkout actions
+
+Ticket transfers have a separate loopback-only opt-in,
+`TICKSECURE_PHP_TRANSFER=1`, enabled in this project's `.htaccess`. On localhost,
+`transferTicket` and the read-only `getTicketTransfers` action use the authenticated PHP bridge automatically, except in
+Firebase Emulator mode. It checks both buyer profiles, the exact saved recipient
+wallet, ticket ownership/status, event transfer rules and the recipient's ticket
+limit before committing ownership, history and audit records together. It does
+not enable other backend actions or submit a blockchain transaction. Remote
+hosting requires the deployed `transferTicket` and `getTicketTransfers` callable Functions.
+
+`getTicketTransfers` accepts optional `{ ticketId, transferId }` filters. It
+requires an active, verified buyer and returns only safe receipts where that
+buyer was the sender or receiver. New transfer audit entries hold an immutable
+display snapshot; older entries use matching ticket history and current profile
+names. The sender retains the receipt after handover, without access to the
+current owner's entry ticket or QR. No browser permission to read audit logs is
+added, and the queries use existing single-field indexes.
+
 The project `.htaccess` enables `TICKSECURE_PHP_CHECKOUT=1` alongside the
-separate password-recovery flag. On localhost, `reserveSeats`,
+separate password-recovery flag. On localhost, `getSeatMap`, `holdSelectedSeats`, `reserveSeats`,
 `releaseSeatReservation`, and `checkout` automatically use the PHP bridge,
 unless Firebase Emulator mode is enabled. These actions require a verified
 Firebase ID token and an active, verified buyer profile. Venue blueprints have
 their own authenticated local route below. Other mutations and uploads retain
 their separate enablement requirements.
 
-The flow is event category/quantity, seat reservation, wallet, simulated
+The flow is event category/quantity, exact seat selection and reservation, wallet, simulated
 payment, then booking confirmation/My Tickets. MetaMask provides the wallet
 address; payment does not request a blockchain transaction. No card details
 are collected, no money is charged, and bookings have `SIMULATED_PAID` status.
 Prices and the RM20 service charge are calculated on the server. Repeating
 checkout for the same purchased seats returns the original booking.
+
+`getSeatMap` accepts `{ eventId, sectionId }` and returns allocated seats with
+safe availability and geometry, never another buyer's UID, expiry or booking ID.
+`geometry.layoutSeats` provides up to 5,000 physical `{ seatLabel, number, position }`
+records for the buyer's 3D venue context. These records carry no inventory ID or
+availability and cannot be reserved. `geometry.pages[page].stagePoint`, when
+present, is the administrator's chosen stage centre. Viewing a 3D seat performs
+no reservation or database mutation.
+`holdSelectedSeats` accepts `{ eventId, sectionId, seatDocIds }` (1-20 distinct
+IDs, further limited by event policy). It atomically verifies all seats and holds
+them for ten minutes, replacing the caller's previous holds in that section.
+Private `ReservationLocks` documents serialize automatic and manual selections
+for a buyer/event. `releaseSeatReservation` and `checkout` retain their contracts.
+The interactive map supports events with up to 5,000 allocated seats; larger
+events retain automatic assignment.
 
 Local reservation queries use an event-scoped single-field query and filter
 inside the transaction, so they work without the callable backend's composite
@@ -38,6 +88,12 @@ With Apache running and the private Firebase configuration available, run
 `node scripts/test-local-checkout.cjs` manually to test real HTTP requests and
 Firebase client permissions. It creates temporary test users and fixtures and
 removes them afterward; it never purchases an existing event's tickets.
+
+`node scripts/test-local-seat-picker.cjs` is a separate opt-in live integration
+test for exact seat claims, competing buyers, privacy, expiry, replacement and
+simulated checkout. It creates temporary Firebase users and fixture data and
+attempts cleanup in `finally`; it requires approval to run against a live project.
+The ordinary `node --test tests/*.test.cjs` suite has no cloud writes.
 
 ## Configure the full PHP bridge
 
@@ -110,12 +166,13 @@ shared upload token is required. The existing `firebase-config.local.php` and
 private service-account file outside `htdocs` must be available; Firebase Auth
 and Firestore must be reachable.
 
-The route accepts one content-validated PDF up to 10 MiB and a venue ID. Every
+The route accepts one content-validated PNG or PDF up to 10 MiB and a venue ID. Every
 upload and download verifies a Firebase ID token and an active administrator
-profile, following the existing administrator email-verification exception. It stores a random PDF filename under
+profile, following the existing administrator email-verification exception. It stores a random filename with the validated .png or .pdf extension under
 `storage/blueprints/`, whose committed `.htaccess` blocks static HTTP access.
-It updates only the selected venue's blueprint metadata in a Firestore
-transaction. Guests and buyers cannot upload or download. Remote requests are
+It updates the selected venue's blueprint metadata and SHA-256 hash, clears stale
+section geometry, and marks OCR pending in a Firestore transaction. Active layouts
+cannot be replaced. Browser OCR saves the new polygons after a successful scan. Guests and buyers cannot upload or download. Remote requests are
 rejected even if the server flag is enabled. Keep these files in local backups;
 they are ignored by Git.
 
@@ -125,7 +182,7 @@ must not appear in the URL. Direct navigation without that header returns 401.
 
 Run `node scripts/test-local-blueprint.cjs` with Apache running to exercise the
 actual local endpoint and Firebase services. It creates temporary administrator
-and buyer accounts, a temporary venue, and a sample PDF, then removes them.
+and buyer accounts, a temporary venue, and sample PNG/PDF blueprints, then removes them.
 It verifies metadata persistence and that guest, buyer, and public-file access
 are denied. Ordinary automated checks include the policy and browser-routing
 tests in `tests/blueprint-upload.test.cjs`.

@@ -15,7 +15,7 @@
         updateVenue: { title: 'Save these venue changes?', message: 'The venue name, address and capacity will be updated. Review the new details below before saving.', label: 'Save Venue Changes' },
         confirmSections: { title: 'Confirm these venue sections?', message: 'These physical sections and seat counts will be saved as the layout used to generate seats. Review the totals before continuing.', label: 'Confirm Sections' },
         activateLayout: { title: 'Activate this venue layout?', message: 'Physical seat records will be generated and the venue will become available for organizers. Its sections will be locked after activation.', label: 'Activate Layout', tone: 'success' },
-        replaceBlueprint: { title: 'Replace the venue blueprint?', message: 'The selected PDF will replace the current blueprint reference. Its seating sections will need to be reviewed before activation.', label: 'Replace Blueprint', tone: 'danger' },
+        replaceBlueprint: { title: 'Replace the venue blueprint?', message: 'The selected PNG or PDF will replace the current blueprint reference. Its seating sections will need to be reviewed before activation.', label: 'Replace Blueprint', tone: 'danger' },
         suspendListing: { title: 'Suspend this resale listing?', message: 'Buyers will no longer be able to purchase this listing while it is suspended. The seller will be notified of the reason.', label: 'Suspend Listing', tone: 'danger', fields: reason },
         investigateComplaint: { title: 'Start investigating this complaint?', message: 'The complaint status will change to Under investigation and the action will be recorded in its timeline.', label: 'Start Investigation' },
         rejectComplaint: { title: 'Reject this complaint?', message: 'The complaint will be closed as rejected and the reason will be recorded in its timeline.', label: 'Reject Complaint', tone: 'danger', fields: reason },
@@ -40,6 +40,7 @@
     window.tsAdminConfirm = (action, subject, details = []) => {
         const config = actions[action];
         if (!config || pending || window.tsCurrentUser?.role !== 'admin' || window.tsCurrentUser.status !== 'active') return Promise.resolve(null);
+        if (window.tsConfirmDecision) return window.tsConfirmDecision({ ...config, subject, details, requireAdmin: true });
         el('title').textContent = config.title;
         el('message').textContent = config.message;
         el('subject').textContent = String(subject || 'Selected record');

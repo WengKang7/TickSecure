@@ -34,16 +34,17 @@ ob_start();
           <div class="ts-record-card-heading"><h2 id="ownership-heading">Ticket ownership</h2><div id="val-status-label"></div></div>
           <dl class="ts-record-facts ts-record-facts-stack">
             <div><dt>Current owner wallet</dt><dd class="ts-record-code" id="val-owner"></dd></div>
-            <div><dt>Token ID</dt><dd id="val-token-id"></dd></div>
+            <div><dt>Token ID</dt><dd class="ts-record-code" id="val-token-id"></dd></div>
             <div><dt>Blockchain status</dt><dd id="val-mint-status"></dd></div>
           </dl>
           <div class="ts-record-ticket-actions"><a class="ts-btn ts-btn-secondary" href="#" id="btn-transfer" hidden><?=ts_icon('arrow-right')?> Transfer</a><a class="ts-btn ts-btn-primary" href="#" id="btn-resale" hidden>List for resale</a></div>
           <p class="small secondary ts-record-policy-note" id="ticket-actions-note"></p>
           <a class="ts-record-history-link" href="#history">View ownership history &darr;</a>
-          <details class="ts-record-technical"><summary>Blockchain details <?=ts_icon('chevron-down')?></summary><dl class="ts-record-facts ts-record-facts-stack"><div><dt>Contract address</dt><dd class="ts-record-code" id="val-contract"></dd></div><div><dt>Mint transaction</dt><dd class="ts-record-code" id="val-tx"></dd></div></dl></details>
+          <a class="ts-btn ts-btn-secondary w-full mt-16" id="ticket-buyer-chain-link" href="blockchain.php">My NFT transactions</a>
+          <details class="ts-record-technical"><summary>Blockchain details <?=ts_icon('chevron-down')?></summary><dl class="ts-record-facts ts-record-facts-stack"><div><dt>Contract address</dt><dd class="ts-record-code" id="val-contract"></dd></div><div><dt>Mint transaction</dt><dd class="ts-record-code" id="val-tx"></dd></div><div id="ticket-chain-latest" hidden><dt>Latest confirmed Sepolia transaction</dt><dd class="ts-record-code" id="val-chain-latest"></dd><dt>Wallet recorded on Sepolia</dt><dd class="ts-record-code" id="val-chain-owner"></dd><dd class="small secondary" id="val-chain-sync"></dd></div></dl></details>
         </aside>
       </div>
-      <section class="ts-card ts-record-card ts-record-history" id="history" aria-labelledby="history-heading"><h2 id="history-heading">Ownership history</h2><div class="ts-timeline" id="timeline-container"></div></section>
+      <section class="ts-card ts-record-card ts-record-history" id="history" aria-labelledby="history-heading"><div class="ts-transfer-page-heading"><h2 id="history-heading">Ownership history</h2><a class="ts-btn ts-btn-secondary" id="ticket-transfer-history-link" href="ticket-transfers.php">Sender &amp; receiver details</a></div><div class="ts-timeline" id="timeline-container"></div></section>
     </div>
   </div>
 </main>

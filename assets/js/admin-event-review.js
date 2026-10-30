@@ -60,8 +60,10 @@
             const id = String(category.sectionId || '');
             const section = sections.find(item => String(item.sectionId || item.letter || item.id || '') === id);
             const row = document.createElement('tr');
-            const capacity = section ? number(section.seatCount ?? section.seats) : null;
-            [category.name || 'Unnamed category', section?.name || (id ? `Section ${id}` : 'Not mapped'),
+            const exact = Array.isArray(category.seatLabels);
+            const mapped = exact ? sections.filter(s => category.seatLabels.some(label => label.startsWith(s.sectionId + '-'))) : [];
+            const capacity = exact ? mapped.reduce((sum, s) => sum + (number(s.seatCount ?? s.seats) || 0), 0) : section ? number(section.seatCount ?? section.seats) : null;
+            [category.name || 'Unnamed category', exact ? `${category.seatLabels.length} selected seats · ${mapped.map(s => s.name).join(', ')}` : section?.name || (id ? `Section ${id}` : 'Not mapped'),
                 money(category.price), count(category.quantity), capacity == null ? 'Not available' : count(capacity)]
                 .forEach(value => row.appendChild(node('td', value)));
             body.appendChild(row);
@@ -151,7 +153,7 @@
             : 'The current venue layout is not available. Submitted venue details are shown above.');
         el('review-venue-board').replaceChildren();
         el('review-venue-board').hidden = !venue?.sections?.length;
-        if (venue?.sections?.length) window.tsVenueRenderer.renderBoard('review-venue-board', venue.sections);
+        if (venue?.sections?.length) window.tsVenueRenderer.renderBoard('review-venue-board', window.tsSeatCategories?.project(venue.sections, event.categories) || venue.sections, { cleanLayout: true, seatOnly: true });
         el('venue-link').hidden = !venue;
         if (venue) el('venue-link').href = `venue-layout.php?id=${encodeURIComponent(event.venueId)}`;
         renderHistory(event, organizer);

@@ -91,6 +91,7 @@ ob_start();
 
 <script src="<?=ts_asset_url('assets/js/event-policy.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/venue-renderer.js', '..')?>"></script>
+<script src="<?=ts_asset_url('assets/js/seat-category-model.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/admin-event-review.js', '..')?>"></script>
 <?php
 $content = ob_get_clean();

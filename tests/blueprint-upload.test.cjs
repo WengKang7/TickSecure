@@ -91,7 +91,7 @@ test('storage permission failures show an actionable error and clear timers', as
 });
 
 async function blueprintPage(options = {}) {
-    const elements = new Map(['real-blueprint-file', 'upload-error', 'upload-status', 'save-layout-draft', 'confirm-sections', 'activate-layout'].map(id => [id, {
+    const elements = new Map(['real-blueprint-file', 'upload-error', 'upload-status', 'save-layout-draft', 'confirm-sections', 'activate-layout', 'blueprint-filename', 'blueprint-size', 'manual-blueprint-review'].map(id => [id, {
         style: {}, value: 'selected.pdf', disabled: false, listeners: {},
         addEventListener(type, callback) { this.listeners[type] = callback; }
     }]));
@@ -103,7 +103,14 @@ async function blueprintPage(options = {}) {
         location: { search: '?id=venue-1&step=' + (options.step || 1), href: 'initial' },
         addEventListener(type, callback) { ready = callback; },
         tsAdminConfirm: async (...args) => { decisions.push(args); return options.confirm === false ? null : {}; },
+        tsBlueprintOCR: { scan: async file => {
+            if (options.ocrError) throw Error(options.ocrError);
+            return { sections: [{ sectionId: 'SCANNED', name: 'Scanned section', seatCount: 0, geometry: { layout: 'ocr' } }],
+                analysis: { sourceName: file.name, sourceSize: file.size, status: 'NEEDS_REVIEW' } };
+        } },
         tsVenues: {
+            saveBlueprintAnalysis: async (...args) => { if (options.saveError) throw Error(options.saveError); writes.push(['analysis', ...args]); },
+            failBlueprintAnalysis: async (...args) => writes.push(['failed', ...args]),
             getVenue: async () => options.venue || ({ name: 'Test venue', sections: [] }),
             uploadBlueprint: async (...args) => { calls++; return options.upload?.(...args); },
             updateSections: async (...args) => writes.push(['sections', ...args]),
@@ -133,6 +140,33 @@ test('oversized PDFs are rejected before upload or PDF analysis', async () => {
     assert.equal(p.elements.get('upload-error').style.display, 'block');
 });
 
+test('small PNG uploads reach review without PDF parsing and cache the correct file type', async () => {
+    const p = await blueprintPage();
+    let pdfCalls = 0;
+    p.window['pdfjs-dist/build/pdf'] = { GlobalWorkerOptions: {}, getDocument() { pdfCalls++; throw Error('PNG must not reach PDF.js'); } };
+    p.input.files = [{ name: 'layout.png', type: 'image/png', size: 56743, arrayBuffer: async () => new ArrayBuffer(1) }];
+    await p.change();
+    assert.equal(p.calls, 1);
+    assert.equal(pdfCalls, 0);
+    assert.equal(p.cache.get('blueprint_type_venue-1'), 'image/png');
+    assert.match(p.window.location.href, /step=3/);
+});
+
+test('unsupported, empty, and oversized PNG files are rejected before upload', async () => {
+    for (const [type, size, message] of [['image/jpeg', 100, /PNG image or PDF/], ['image/png', 0, /empty/], ['image/png', 11 * 1024 * 1024, /10 MB/]]) {
+        const p = await blueprintPage();
+        p.input.files = [{ name: 'layout.png', type, size }];
+        await p.change();
+        assert.equal(p.calls, 0);
+        assert.match(p.elements.get('upload-error').textContent, message);
+    }
+});
+
+test('PNG blueprint metadata renders as PNG on reload', async () => {
+    const p = await blueprintPage({ step: 3, venue: { name: 'Venue', sections: [], blueprintName: 'layout.png', blueprintSize: 56743, blueprintMimeType: 'image/png' } });
+    assert.match(p.elements.get('blueprint-size').textContent, /^PNG/);
+});
+
 test('failed uploads release the input, show the error, and allow the same PDF to be retried', async () => {
     const p = await blueprintPage({ upload: async () => { throw Error('Storage denied this upload'); } });
     await p.change();
@@ -145,12 +179,14 @@ test('failed uploads release the input, show the error, and allow the same PDF t
     assert.equal(p.calls, 2);
 });
 
-test('successful uploads reach review even if PDF analysis is unavailable, without caching the full PDF', async () => {
+test('successful uploads persist OCR sections before navigating, without caching the full PDF', async () => {
     const p = await blueprintPage();
     await p.change();
     assert.equal(p.calls, 1);
     assert.equal(p.window.location.href, 'venue-layout.php?id=venue-1&step=3');
-    assert.equal(p.cache.get('mock_pdf_count_venue-1'), 4);
+    assert.equal(p.cache.has('mock_pdf_count_venue-1'), false);
+    assert.equal(p.writes[0][0], 'analysis');
+    assert.equal(p.writes[0][2].sections[0].sectionId, 'SCANNED');
     assert.equal(p.cache.has('mock_pdf_venue-1'), false);
     assert.equal(p.decisions.length, 0, 'an initial draft upload does not need an extra confirmation');
 });
@@ -168,15 +204,37 @@ test('replacing an existing PDF requires confirmation and Cancel keeps the curre
     assert.match(confirmed.window.location.href, /step=3/);
 });
 
-test('section confirmation and layout activation stop before persistence or navigation on Cancel', async () => {
+test('OCR failure reports the saved upload, offers manual review and never navigates with sample sections', async () => {
+    const p = await blueprintPage({ ocrError: 'No readable labels found' });
+    await p.change();
+    assert.equal(p.calls, 1);
+    assert.equal(p.window.location.href, 'initial');
+    assert.match(p.elements.get('upload-error').textContent, /File uploaded, but OCR did not complete.*No readable labels/);
+    assert.equal(p.writes[0][0], 'failed');
+    assert.equal(p.elements.get('manual-blueprint-review').hidden, false);
+    assert.match(p.elements.get('manual-blueprint-review').href, /step=3/);
+    assert.equal(p.cache.has('mock_pdf_count_venue-1'), false);
+});
+
+test('OCR result persistence must succeed before the upload flow advances', async () => {
+    const p = await blueprintPage({ saveError: 'Firestore unavailable' });
+    await p.change();
+    assert.equal(p.window.location.href, 'initial');
+    assert.match(p.elements.get('upload-error').textContent, /Firestore unavailable/);
+});
+
+test('section review and activation both stop on Cancel and save only after confirmation', async () => {
     const venue = { name: 'Test venue', capacity: 20, layoutStatus: 'DRAFT', sections: [{ sectionId: 'A', name: 'Section A', seatCount: 20 }] };
-    for (const [id, action, kind, next] of [['confirm-sections', 'confirmSections', 'sections', 'step=4'], ['activate-layout', 'activateLayout', 'activate', 'activated=1']]) {
-        const cancelled = await blueprintPage({ venue, confirm: false, step: 5 });
+    for (const [id, action, kind, next, step] of [
+        ['confirm-sections', 'confirmSections', 'sections', 'step=5', 3],
+        ['activate-layout', 'activateLayout', 'activate', 'activated=1', 5]
+    ]) {
+        const cancelled = await blueprintPage({ venue, confirm: false, step });
         await cancelled.click(id);
         assert.deepEqual(cancelled.writes, []);
         assert.equal(cancelled.window.location.href, 'initial');
         assert.equal(cancelled.decisions[0][0], action);
-        const confirmed = await blueprintPage({ venue, step: 5 });
+        const confirmed = await blueprintPage({ venue, step });
         await confirmed.click(id);
         assert.equal(confirmed.writes[0][0], kind);
         assert.equal(confirmed.writes[0][1], 'venue-1');
@@ -224,6 +282,61 @@ test('local blueprint upload sends the Firebase token and original PDF, without 
     assert.equal(c.requests[0].headers['X-TickSecure-Local-Upload-Token'], undefined);
 });
 
+test('local PNG uploads retain the original PNG bytes and content type', async () => {
+    const c = localUploadClient();
+    const bytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1cAAAAASUVORK5CYII=', 'base64');
+    const file = new File([bytes], 'layout.png', { type: 'image/png' });
+    await c.context.uploadLocalBlueprint('venue-1', file);
+    const uploaded = c.requests[0].body.get('file');
+    assert.equal(uploaded.type, 'image/png');
+    assert.equal(uploaded.name, 'layout.png');
+    assert.deepEqual(Buffer.from(await uploaded.arrayBuffer()), bytes);
+});
+
+test('PHP validates PNG and PDF contents, rejects disguised files, and resolves private PNG paths', () => {
+    const { execFileSync } = require('node:child_process');
+    const php = process.env.PHP_BINARY || (process.platform === 'win32' ? 'C:/xampp/php/php.exe' : 'php');
+    const output = execFileSync(php, ['-r', `
+        require $argv[1];
+        $tmp = tempnam(sys_get_temp_dir(), 'blueprint-policy-');
+        $results = [];
+        try {
+            foreach ([base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1cAAAAASUVORK5CYII='),
+                '%PDF-1.4' . chr(10) . '%%EOF', '<?php echo "not a PNG";',
+                base64_decode('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='),
+                hex2bin('89504e470d0a1a0a')] as $content) {
+                file_put_contents($tmp, $content);
+                try { $results[] = blueprint_inspect_file($tmp, strlen($content)); }
+                catch (FirebaseBackendException $e) { $results[] = $e->httpStatus; }
+            }
+            $results[] = basename(blueprint_file_path(str_repeat('a', 40) . '.png'));
+        } finally { unlink($tmp); }
+        echo json_encode($results);
+    `, path.join(root, 'api/venue-blueprint-policy.php')], { encoding: 'utf8' });
+    assert.deepEqual(JSON.parse(output), ['image/png', 'application/pdf', 415, 415, 415, 'a'.repeat(40) + '.png']);
+});
+
+test('the venue service accepts PNG and PDF on Firebase Storage and retains their MIME metadata', async () => {
+    const crud = fs.readFileSync(path.join(root, 'assets/js/firestore-crud.js'), 'utf8');
+    const source = crud.slice(crud.indexOf('export const VenueService ='), crud.indexOf('export const EventService ='))
+        .replace('export const VenueService =', 'globalThis.venue =');
+    const uploads = [], writes = [];
+    const context = vm.createContext({
+        useLocalBlueprintUpload: () => false,
+        uploadFile: async (...args) => { uploads.push(args); return { url: 'https://storage.example/blueprint' }; },
+        updateDoc: async (...args) => writes.push(args), doc: () => 'venue-ref', db: {}, iso: () => 'now', crypto: require('node:crypto').webcrypto
+    });
+    vm.runInContext(source, context);
+    context.venue.getVenue = async () => ({ layoutStatus: 'DRAFT' });
+    for (const type of ['image/png', 'application/pdf']) {
+        await context.venue.uploadBlueprint('venue', { name: 'blueprint', size: 100, type, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer });
+        assert.deepEqual(Array.from(uploads.at(-1)[2]), ['image/png', 'application/pdf']);
+        assert.equal(writes.at(-1)[1].blueprintMimeType, type);
+    }
+    await assert.rejects(context.venue.uploadBlueprint('venue', { name: 'bad.jpg', size: 100, type: 'image/jpeg' }), /PNG or PDF/);
+    assert.equal(uploads.length, 2);
+});
+
 test('guest uploads cannot reach PHP and server authorization failures remain visible', async () => {
     const guest = localUploadClient({ guest: true });
     await assert.rejects(guest.context.uploadLocalBlueprint('venue-1', {}), /Sign in/);
@@ -254,12 +367,12 @@ test('PHP blueprint policy accepts provisioned admins and denies missing identit
         catch (FirebaseBackendException $e) { $results[] = $e->httpStatus; }
         try { blueprint_file_path('../private.pdf'); $results[] = 200; }
         catch (FirebaseBackendException $e) { $results[] = $e->httpStatus; }
-        try { blueprint_inspect_pdf(__FILE__, BLUEPRINT_MAX_BYTES + 1); $results[] = 200; }
+        try { blueprint_inspect_file(__FILE__, BLUEPRINT_MAX_BYTES + 1); $results[] = 200; }
         catch (FirebaseBackendException $e) { $results[] = $e->httpStatus; }
         $tmp = tempnam(sys_get_temp_dir(), 'blueprint-policy-');
         try {
             file_put_contents($tmp, '<?php echo "disguised as a PDF";');
-            try { blueprint_inspect_pdf($tmp, filesize($tmp)); $results[] = 200; }
+            try { blueprint_inspect_file($tmp, filesize($tmp)); $results[] = 200; }
             catch (FirebaseBackendException $e) { $results[] = $e->httpStatus; }
         } finally { unlink($tmp); }
         $results[] = blueprint_is_loopback('127.0.0.1');

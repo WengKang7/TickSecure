@@ -26,6 +26,7 @@ ob_start();
           <div class="ts-record-payment-row ts-record-payment-total"><span id="payment-total-label">Total</span><strong id="val-total"></strong></div>
           <div class="ts-record-payment-status"><span class="small secondary">Payment status</span><div id="val-payment-status"></div><p class="small secondary" id="payment-note"></p></div>
           <a class="ts-btn ts-btn-secondary w-full" href="tickets.php">View My Tickets <?=ts_icon('arrow-right')?></a>
+          <a class="ts-btn ts-btn-primary w-full mt-12" id="booking-buyer-chain-link" href="blockchain.php">Mint &amp; track ticket NFTs</a>
           <details class="ts-record-technical"><summary>Blockchain details <?=ts_icon('chevron-down')?></summary><dl class="ts-record-facts ts-record-facts-stack"><div><dt>Minting status</dt><dd id="val-mint-status"></dd></div><div><dt>Transaction</dt><dd class="ts-record-code" id="val-tx"></dd></div></dl></details>
         </aside>
       </div>

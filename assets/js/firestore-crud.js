@@ -4,7 +4,7 @@
  * Exposed globally as window.ts<ServiceName> for use by page scripts.
  */
 import { db, auth, storage } from './firebase-init.js';
-import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261023-availability';
+import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261030-transfer-history';
 import {
     collection, doc, addDoc, setDoc, getDoc, getDocs,
     updateDoc, deleteDoc, deleteField, query, where, orderBy, limit,
@@ -77,7 +77,9 @@ export function normalizeEventCategories(categories, resolveSectionId = null) {
         normalized[resolvedSectionId] = {
             name: String(value.name ?? value.categoryName ?? resolvedSectionId).trim() || resolvedSectionId,
             price: asAmount(value.price ?? value.unitPrice),
-            quantity: Math.max(0, Math.floor(asAmount(value.quantity ?? value.available)))
+            quantity: Math.max(0, Math.floor(asAmount(value.quantity ?? value.available))),
+            ...(Object.hasOwn(value, 'seatLabels') ? { seatLabels: Array.isArray(value.seatLabels) ? [...value.seatLabels] : [] } : {}),
+            ...(/^#[0-9a-f]{6}$/i.test(value.color || '') ? { color: value.color } : {})
         };
     };
 
@@ -485,22 +487,71 @@ export const VenueService = {
     },
 
     async uploadBlueprint(venueId, file, onStatus = () => {}) {
-        if (!file || file.type !== 'application/pdf' || file.size < 1 || file.size > 10 * 1024 * 1024) {
-            throw new Error('Choose a PDF file no larger than 10 MB.');
+        if (!file || !['image/png', 'application/pdf'].includes(file.type) || file.size < 1 || file.size > 10 * 1024 * 1024) {
+            throw new Error('Choose a PNG or PDF file no larger than 10 MB.');
         }
         if (useLocalBlueprintUpload()) {
             return uploadLocalBlueprint(venueId, file, onStatus);
         }
-        const upload = await uploadFile(`venues/${venueId}`, file, ['application/pdf'], onStatus);
+        const venue = await this.getVenue(venueId);
+        if (!venue || ['ACTIVE', 'PROCESSING'].includes(venue.layoutStatus)) throw new Error('Only a draft venue blueprint can be changed.');
+        const blueprintHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer())), byte => byte.toString(16).padStart(2, '0')).join('');
+        const upload = await uploadFile(`venues/${venueId}`, file, ['image/png', 'application/pdf'], onStatus);
         const url = upload.url;
         onStatus('Upload complete. Saving the venue record...');
         await updateDoc(doc(db, 'Venues', venueId), { 
             blueprintUrl: url, 
             blueprintName: file.name,
             blueprintSize: file.size,
+            blueprintMimeType: file.type,
+            blueprintHash,
+            sections: [],
+            blueprintAnalysis: { status: 'PENDING', sourceName: file.name, sourceSize: file.size },
             updatedAt: iso() 
         });
         return url;
+    },
+
+    async saveBlueprintAnalysis(venueId, result) {
+        const venue = await this.getVenue(venueId);
+        if (!venue || ['ACTIVE', 'PROCESSING'].includes(venue.layoutStatus)) throw new Error('Only a draft layout can be scanned.');
+        if (venue.blueprintName !== result.analysis.sourceName || venue.blueprintSize !== result.analysis.sourceSize
+            || (venue.blueprintHash && venue.blueprintHash !== result.analysis.sourceHash)) {
+            throw new Error('The blueprint changed during OCR. Scan the current file again.');
+        }
+        if (!Array.isArray(result.sections) || !result.sections.length || result.sections.length > 300) throw new Error('OCR did not return usable sections.');
+        await updateDoc(doc(db, 'Venues', venueId), { sections: result.sections, blueprintAnalysis: result.analysis, updatedAt: iso() });
+        await AuditService.log('venue_blueprint_scanned', 'venue', venueId, { sectionCount: result.sections.length });
+    },
+
+    async failBlueprintAnalysis(venueId, file, message) {
+        const venue = await this.getVenue(venueId);
+        if (!venue || ['ACTIVE', 'PROCESSING'].includes(venue.layoutStatus)
+            || venue.blueprintName !== file.name || venue.blueprintSize !== file.size) return;
+        if (venue.blueprintHash) {
+            const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer())), byte => byte.toString(16).padStart(2, '0')).join('');
+            if (hash !== venue.blueprintHash) return;
+        }
+        await updateDoc(doc(db, 'Venues', venueId), { sections: [],
+            blueprintAnalysis: { status: 'FAILED', sourceName: file.name, sourceSize: file.size, message: String(message).slice(0, 500) }, updatedAt: iso() });
+    },
+
+    async readBlueprint(venueId) {
+        const venue = await this.getVenue(venueId);
+        if (!venue?.blueprintUrl) throw new Error('Upload a blueprint before running OCR.');
+        const root = window.tsFirebase?.backend?.projectUrl || window.location.href;
+        const url = new URL(venue.blueprintUrl, root), headers = {};
+        if (url.origin === window.location.origin && url.pathname.endsWith('/api/venue-blueprint.php')) {
+            if (!auth.currentUser) throw new Error('Sign in before reading a blueprint.');
+            headers.Authorization = `Bearer ${await auth.currentUser.getIdToken()}`;
+        }
+        if (!['http:', 'https:'].includes(url.protocol)) throw new Error('The blueprint URL is invalid.');
+        const response = await fetch(url, { headers, credentials: 'same-origin', signal: AbortSignal.timeout(30000) });
+        if (!response.ok) throw new Error('The blueprint could not be read. Re-upload the original file and retry.');
+        const blob = await response.blob();
+        const type = blob.type.split(';')[0];
+        if (!['image/png', 'application/pdf'].includes(type) || blob.size > 10 * 1024 * 1024) throw new Error('The stored blueprint is not a supported PNG or PDF.');
+        return new File([blob], venue.blueprintName || 'blueprint', { type });
     },
 
     async updateSections(venueId, sections) {
@@ -509,6 +560,13 @@ export const VenueService = {
         if (venue.layoutStatus === 'ACTIVE' || venue.layoutStatus === 'PROCESSING') {
             throw new Error('An active venue layout is locked. Create a new venue layout to change its sections.');
         }
+        if (!Array.isArray(sections) || !sections.length || sections.some(section =>
+            !/^[A-Za-z0-9_-]{1,160}$/.test(section.sectionId) || !String(section.name || '').trim()
+            || !Number.isSafeInteger(section.seatCount) || section.seatCount < 0 || section.seatCount > 100000
+        ) || new Set(sections.map(s => s.sectionId)).size !== sections.length) {
+            throw new Error('Sections need unique identifiers, names and whole-number capacities from 0 to 100,000.');
+        }
+        if (sections.reduce((sum, section) => sum + (section.geometry?.seatMarkers?.length || 0), 0) > 3000) throw new Error('A layout supports up to 3,000 positioned seats.');
         const totalSeats = sections.reduce((s, sec) => s + (parseInt(sec.seatCount, 10) || 0), 0);
         await updateDoc(doc(db, 'Venues', venueId), {
             sections, capacity: totalSeats, updatedAt: iso()
@@ -520,8 +578,25 @@ export const VenueService = {
         const venue = await this.getVenue(venueId);
         if (!venue) throw new Error('Venue not found.');
         if (!venue.sections || venue.sections.length === 0) throw new Error('No sections configured.');
+        if (venue.sections.reduce((sum, section) => sum + (section.geometry?.seatMarkers?.length || 0), 0) > 3000) throw new Error('A layout supports up to 3,000 positioned seats.');
         if (venue.layoutStatus === 'ACTIVE') return;
+        if (venue.sections.some(section => !Number.isSafeInteger(section.seatCount) || section.seatCount < 1 || section.seatCount > 100000)) {
+            throw new Error('Enter a verified positive whole-number capacity for every section before activation.');
+        }
+        if (venue.sections.some(section => section.geometry?.layout === 'ocr' && !section.geometry.reviewed)) {
+            throw new Error('Review every OCR section before activating the layout.');
+        }
+        if (venue.sections.some(section => {
+            const markers = section.geometry?.seatMarkers;
+            return markers && (!Array.isArray(markers) || markers.length !== section.seatCount
+                || new Set(markers.map(marker => marker.label)).size !== markers.length
+                || markers.some(marker => !/^[A-Z0-9_-]{1,40}$/.test(marker.label)));
+        })) throw new Error('Detected seat labels must be unique and match the confirmed seat count.');
 
+        if (venue.sections.some(section => section.geometry?.source === 'shape-detection'
+            && section.geometry.seatMarkers?.some(marker => !marker.row || !marker.number))) throw new Error('Group every detected seat into a row and assign its number before activation.');
+        if (venue.sections.some(section => section.geometry?.seatMarkers?.some(marker => !Number.isFinite(marker.x) || !Number.isFinite(marker.y)
+            || marker.x < 0 || marker.x > 104 || marker.y < 0 || marker.y > 106))) throw new Error('All seat positions must be inside the blueprint.');
         // Physical venue seats are reusable by EventSeats. Write them in
         // capped batches so normal large venue layouts stay below Firestore's
         // 500-operation batch limit. Keeping PROCESSING on failure also makes
@@ -532,12 +607,17 @@ export const VenueService = {
         const createdAt = iso();
         for (const section of venue.sections) {
             for (let i = 1; i <= section.seatCount; i++) {
-                const label = `${section.sectionId}${String(i).padStart(2, '0')}`;
+                const marker = section.geometry?.seatMarkers?.[i - 1];
+                const label = marker ? `${section.sectionId}-${marker.label}` : `${section.sectionId}${String(i).padStart(2, '0')}`;
                 physicalSeats.push({
                     ref: doc(db, 'Seats', `${venueId}_${label}`),
                     data: {
                     venueId, sectionId: section.sectionId,
                     seatLabel: label, status: 'AVAILABLE',
+                    ...(marker ? { position: { x: marker.x, y: marker.y, page: section.geometry.page || 1,
+                        ...(Number.isFinite(marker.width) ? { width: marker.width } : {}), ...(Number.isFinite(marker.height) ? { height: marker.height } : {}),
+                        rotation: Number.isFinite(marker.rotation) ? marker.rotation : 0, shape: marker.shape === 'rect' ? 'rect' : 'circle' },
+                        rowLabel: marker.row || '', seatNumber: marker.number || '' } : {}),
                     createdAt,
                     updatedAt: createdAt
                     }
@@ -839,6 +919,14 @@ export const SeatService = {
      * Allocates the next available seats. In production this delegates seat
      * selection to a callable Function; local Firestore writes are dev-only.
      */
+    async getSeatMap(eventId, sectionId) {
+        return invokeTrustedBackend({ eventId, sectionId }, { name: 'getSeatMap', region: DEFAULT_FUNCTION_REGION });
+    },
+
+    async holdSelectedSeats(eventId, sectionId, seatDocIds) {
+        return invokeTrustedBackend({ eventId, sectionId, seatDocIds }, { name: 'holdSelectedSeats', region: DEFAULT_FUNCTION_REGION });
+    },
+
     async reserveNextAvailableSeats({ eventId, venueId, sectionId, count, expiryMinutes = 10 }) {
         const requestedCount = Math.max(1, Math.min(parseInt(count, 10) || 1, 30));
         const request = {
@@ -1369,6 +1457,13 @@ export const TicketService = {
         return this.getTickets({ ownerUid: uid() });
     },
 
+    async getTransfers(filters = {}) {
+        const request = {};
+        if (filters.ticketId) request.ticketId = String(filters.ticketId);
+        if (filters.transferId) request.transferId = String(filters.transferId);
+        return invokeCallable(request, { name: 'getTicketTransfers', region: DEFAULT_FUNCTION_REGION });
+    },
+
     async transferTicket(ticketId, recipientWallet) {
         const callableConfig = secureFunctionConfig(
             'tsTransferTicketFunction', 'transferTicketFunction', 'transferTicket'
@@ -1676,6 +1771,12 @@ export const ResaleService = {
         return this.getListings({ sellerUid: uid() });
     },
 
+    async getPurchases() {
+        const snap = await getDocs(query(collection(db, 'ResaleListings'), where('buyerUid', '==', uid())));
+        return snap.docs.map(d => withResaleAliases({ id: d.id, ...d.data() }))
+            .sort((a, b) => String(b.completedAt || '').localeCompare(String(a.completedAt || '')));
+    },
+
     async updatePrice(listingId, newPrice) {
         const callableConfig = secureFunctionConfig(
             'tsUpdateResalePriceFunction', 'updateResalePriceFunction', 'updateResalePrice'
@@ -1745,12 +1846,13 @@ export const ResaleService = {
         }
     },
 
-    async purchaseListing(listingId) {
+    async purchaseListing(listingId, expectedPrice = undefined) {
         const callableConfig = secureFunctionConfig(
             'tsPurchaseResaleFunction', 'purchaseResaleFunction', 'purchaseResale'
         );
         if (callableConfig && window.tsCheckoutMode !== 'local') {
-            return invokeCallable({ listingId: String(listingId || '').trim() }, callableConfig);
+            return invokeCallable({ listingId: String(listingId || '').trim(),
+                ...(expectedPrice === undefined ? {} : { expectedPrice }) }, callableConfig);
         }
 
         if (!clientCheckoutFallbackAllowed()) {

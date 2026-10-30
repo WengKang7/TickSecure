@@ -12,7 +12,7 @@ window.addEventListener('ts-auth-ready', async () => {
         el('confirmation-title').textContent = demo ? 'Demo booking confirmed' : 'Booking confirmed';
         el('booking-success-icon').hidden = false;
         el('confirmation-details').hidden = false;
-        el('success-copy').textContent = demo ? 'Your simulated payment was successful. No money was charged. Your tickets are now in My Tickets; blockchain minting is not performed in this demo.'
+        el('success-copy').textContent = demo ? 'Your simulated payment was successful. No money was charged. Your tickets are now in My Tickets. Sepolia NFT issuance is tracked separately in each ticket’s blockchain details.'
             : 'Your booking is confirmed. You can view your tickets in My Tickets.';
         el('val-event').textContent = booking.eventName || 'Event';
         el('val-booking-id').textContent = booking.bookingNumber || booking.id;
@@ -21,18 +21,19 @@ window.addEventListener('ts-auth-ready', async () => {
         el('val-paid').textContent = `RM${Number(booking.totalAmount || 0).toFixed(2)}${demo ? ' (simulated)' : ''}`;
         el('btn-view-booking').href = `booking-detail.php?id=${encodeURIComponent(id)}`;
         el('btn-view-booking').hidden = false;
+        el('confirmation-chain-link').href = 'blockchain.php?bookingId=' + encodeURIComponent(id);
         el('val-nft-status').textContent = demo ? 'Not minted (demo)' : 'Pending';
         el('val-tx').textContent = demo ? 'No blockchain transaction (demo)' : 'Pending';
         el('val-tx-status').textContent = demo ? 'Simulated' : 'Pending';
-        if (!demo) {
+        {
             try {
                 const tickets = await window.tsTickets.getTickets({ bookingId: id });
-                const ticket = tickets[0];
-                if (ticket) {
-                    const minted = String(ticket.mintingStatus).toUpperCase() === 'MINTED';
-                    el('val-nft-status').textContent = minted ? 'Minted' : 'Pending';
-                    el('val-tx').textContent = ticket.transactionHash || 'Pending';
-                    el('val-tx-status').textContent = minted ? 'Confirmed' : 'Pending';
+                const owned = tickets.filter(ticket => ticket.ownerUid === window.tsCurrentUser?.uid);
+                const minted = owned.filter(ticket => ticket.chainId === 11155111 && ticket.mintingStatus === 'MINTED' && /^0x[0-9a-fA-F]{64}$/.test(ticket.transactionHash || ''));
+                if (minted.length) {
+                    el('val-nft-status').textContent = minted.length === owned.length ? 'Minted on Sepolia' : 'Partially minted on Sepolia';
+                    el('val-tx').textContent = [...new Set(minted.map(ticket => ticket.transactionHash))].join('\n');
+                    el('val-tx-status').textContent = 'Confirmed on Sepolia';
                 }
             } catch (_) { /* Confirmed booking remains visible if issuance lookup fails. */ }
         }

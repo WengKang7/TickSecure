@@ -18,7 +18,7 @@ This is the canonical Firestore model for TickSecure's trusted Firebase architec
 `Seats` and `EventSeats` intentionally serve different purposes:
 
 1. `Seats` is the reusable physical layout for one venue. An administrator generates it when activating a venue layout.
-2. `Events.categories` maps commercial categories to physical section IDs and specifies the number of seats allocated to that event.
+2. `Events.categories` maps category allocation IDs to either an exact list of physical seat labels or a legacy physical section and ticket quantity.
 3. On the first trusted reservation or checkout for a published event, the backend clones the allocated physical seats into `EventSeats`. Its deterministic document IDs are `${eventId}_${sourceSeatId}`.
 4. Only `EventSeats` carries the event-specific `AVAILABLE`, `RESERVED`, and `SOLD` state. A reservation or sale for Event A must never affect Event B's inventory at the same venue.
 
@@ -64,9 +64,39 @@ Administrator-managed venue metadata and confirmed physical layout.
 | `layoutStatus` | string | `DRAFT`, `PROCESSING`, or `ACTIVE`. |
 | `sections` | array | `{ sectionId, name, seatCount, geometry }` records. |
 | `blueprintUrl`, `blueprintName`, `blueprintSize` | string/string/number | Optional layout-upload metadata. |
+| `blueprintMimeType` | string, optional | `image/png` or `application/pdf`; older records may infer the format from the filename. |
 | `createdBy`, `createdAt`, `updatedAt` | string | Audit metadata. |
 
-`geometry` contains numeric `left`, `top`, `width`, and `height` values.
+`geometry` is optional for older rectangular layouts. OCR maps use
+`{ type: "polygon", layout: "ocr", points: [{ x, y }], fill, labelX, labelY,
+kind, page, imageWidth, imageHeight, confidence, reviewed, boundarySource }`.
+Points use the renderer's `104 x 106` coordinate system. The original aspect ratio
+is restored from `imageWidth/imageHeight`. `kind` is `seated` or `standing`.
+`boundarySource` is `color-region`, `text-bounds` or `seat-shapes`; all detected regions start
+with `reviewed: false`. Optional `decorations` preserve stage/FOH geometry detected
+from the source. Existing arena-zones/standing-bowl geometry remains readable.
+
+Optional `seatMarkers` entries are `{ id, label, row, number, x, y, width, height,
+rotation, shape, color, labelSource, confidence }`. Legacy markers may contain
+only `{ label, x, y, confidence }`. `width/height` share the normalized coordinates;
+`rotation` is in source-image degrees and `shape` is `rect` or `circle`. Stable
+marker IDs survive draft regrouping; physical seat IDs are created on activation.
+`labelSource` is `auto`, `ocr`, `unlabelled`, `grouped` or `manual`. Detected seats automatically receive consecutive numeric labels, left to right within each physical row, then continuing with the next row away from the stage. `row` identifies the detected physical row, including matching row segments across aisles. `geometry.nonSeatAreas` optionally stores OCR annotation exclusion polygons (`{ name, points }`), which are checked alongside stage decorations before numbering; these are not physical seats. Position, dimensions and rotation stay unchanged. `geometry.numbering` stores `{ mode: 'row-by-row', start, stageSource, stagePoint? }`, where `stageSource` is `detected`, `picked` or `top` (top-of-page fallback). Numbering spans sections and pages without duplicates. Review is still required before activation. Drafts support up to 3,000 positioned markers.
+Their length determines the proposed seat count. On
+activation, their human-facing seat identifier is `{sectionId}-{label}`. Without
+individual markers, section capacity starts at zero and must be entered manually;
+those seats retain the legacy `{sectionId}{paddedIndex}` format and their positions
+within the section are illustrative. Standing capacity does not imply fixed seats.
+
+`blueprintAnalysis` records `{ status, sourceName, sourceSize, sourceHash, engine,
+scannedAt, pages, sectionCount, message }` as available. Status is `PENDING`,
+`FAILED` or `NEEDS_REVIEW`. Each `pages` entry is `{ page, width, height, sections,
+mode, shapes }`, where mode is `seats` or `sections`.
+`blueprintHash` holds the original file SHA-256 so a completed scan cannot replace
+a newer file's geometry even when its filename and size are identical. New uploads
+clear old sections and mark analysis pending. Every OCR section needs a verified
+positive capacity and explicit review before activation. OCR never assigns event
+prices or ticket categories.
 
 ### `Seats/{venueId}_{seatLabel}`
 
@@ -77,18 +107,21 @@ Reusable physical seat records generated from an active venue layout. Example do
 | `venueId`, `sectionId`, `seatLabel` | string | Physical placement and stable human-facing label. |
 | `status` | string | Currently initialized as `AVAILABLE`; it is layout metadata, not event inventory state. |
 | `createdAt`, `updatedAt` | ISO 8601 string | Provisioning metadata. |
+| `position` | map, optional | `{ x, y, page, width, height, rotation, shape }` for positioned seats. |
+| `rowLabel`, `seatNumber` | string, optional | Reviewed row and number copied from the marker. |
 
 Administrators own this collection. The trusted backend reads it to construct event-specific inventory; it does not reserve or sell this reusable physical record.
 
 ### `EventSeats/{eventId}_{sourceSeatId}`
 
-Backend-created event-scoped inventory cloned from `Seats` according to the event's category allocations. This is the authoritative collection for reservation and sale state.
+Backend-created event-scoped inventory cloned from `Seats` according to the event's category allocations. This is the authoritative collection for reservation and sale state. `sectionId` is the event category allocation ID; `physicalSectionId` records the physical source section on newly created records. `sourceSeatId` and the unchanged physical `seatLabel` identify the actual chair.
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | `eventId`, `venueId` | string | Event and source venue. |
 | `sourceSeatId` | string | Document ID of the reusable physical `Seats` record. |
 | `sectionId`, `seatLabel` | string | Physical section and label copied from the source seat. |
+| `position`, `rowLabel`, `seatNumber` | map/string/string, optional | Geometry and row numbering copied from physical seats; older inventory can use locked venue marker geometry as a read fallback. |
 | `status` | string | `AVAILABLE`, `RESERVED`, or `SOLD`. |
 | `reservedBy` | string | Buyer UID while the seat is temporarily reserved; otherwise empty. |
 | `reservedAt`, `reservationExpiry` | ISO 8601 string | Reservation timestamps; an expired reservation can be reclaimed by the secure reservation workflow. |
@@ -96,7 +129,14 @@ Backend-created event-scoped inventory cloned from `Seats` according to the even
 | `bookingId` | string | Set after trusted checkout sells the seat. |
 | `createdAt`, `updatedAt` | ISO 8601 string | Inventory audit metadata. |
 
-Buyer clients do not read this inventory directly because it contains reservation ownership. Callable reservation/checkout responses expose only the caller's selected seat labels; administrators retain read access for operational review. All creation and state changes are performed by the Functions backend.
+Buyer clients do not read this inventory directly because it contains reservation ownership. The authenticated `getSeatMap` action exposes offered seat IDs, labels, safe geometry and `AVAILABLE`, `MINE`, `HELD`, `SOLD` or `BLOCKED` status. Only `MINE` includes an expiry. It never exposes owners or booking IDs. `holdSelectedSeats` verifies exact event/venue/section membership, the buyer limit and availability in an all-or-nothing ten-minute transaction. Administrators retain inventory read access; the Functions backend or authenticated local PHP bridge performs state changes.
+
+### `ReservationLocks/{sha256(eventId + "|" + buyerUid)}`
+
+Private backend-only `{ eventId, buyerUid, updatedAt }` records serialize the same
+buyer's automatic and exact-seat reservation changes, including across sections.
+All browser reads and writes are denied. Seat documents themselves enforce
+competing buyers' availability through transaction conflicts and retries.
 
 ### `Events/{eventId}`
 
@@ -110,8 +150,8 @@ Organizer-authored events. Public clients may read only `PUBLISHED` records; org
 | `organizerUid`, `organizerName` | string | Event owner and display snapshot. |
 | `status` | string | `DRAFT`, `PENDING_REVIEW`, `PUBLISHED`, `REJECTED`, `SUSPENDED`, or `CANCELLED`. |
 | `posterUrl`, `startingPrice`, `availability` | string | Display fields. |
-| `categories` | map | Keyed by physical `sectionId`; each value is `{ name, price, quantity }`, with numeric `price` and `quantity`. |
-| `configurationDraft` | map, optional | Draft-only form state. `rules` retains raw input strings (including blanks) and switches; `category` retains unfinished `name`, `sectionId`, `price`, `quantity`, and `editingSectionId`. Completed categories stay in `categories`. Removed before submission. |
+| `categories` | map | Keyed by category allocation ID (legacy entries use physical `sectionId`). Each value is `{ name, price, quantity, seatLabels?, color? }`. `seatLabels` lists the exact full physical identifiers; quantity must match its unique entries and categories cannot overlap. Without `seatLabels`, the key selects a physical section using the legacy quantity allocation. |
+| `configurationDraft` | map, optional | Draft-only form state. `rules` retains raw input strings (including blanks) and switches; `category` retains unfinished `name`, `sectionId`, `price`, `quantity`, `editingSectionId`, and optional `seatLabels`/`color`. Completed categories stay in `categories`. Removed before submission. |
 | `maxTicketsPerBuyer` | number | Maximum tickets a buyer may currently hold for the event; checkout, transfer, resale purchase, and reservations enforce it. |
 | `salesStartDate`, `salesEndDate` | string | Sales-window policy. Date-only values use the product's +08:00 business timezone; the end date is inclusive through 23:59:59.999. |
 | `transferEnabled`, `resaleEnabled` | boolean | Event policy switches. |
@@ -142,7 +182,7 @@ Backend-created checkout records. A browser may request checkout but cannot crea
 | `buyerUid`, `buyerName` | string | Buyer authorization and display snapshot. |
 | `organizerUid` | string | Backend authorization projection from the event. |
 | `eventId`, `eventName` | string | Event reference and snapshot. |
-| `categoryName`, `sectionId` | string | Purchased category and physical section. |
+| `categoryName`, `sectionId` | string | Purchased category name and event category allocation ID; legacy allocation IDs equal the physical section. |
 | `seats` | array of strings | Seat labels, for example `A01`. |
 | `seatDocIds` | array of strings | `EventSeats` document IDs sold by the transaction. |
 | `quantity` | number | Must match the allocated event seats. |
@@ -162,9 +202,12 @@ One backend-issued entry credential per `EventSeats` record sold in a booking.
 | `organizerUid` | string | Backend authorization projection. |
 | `categoryName`, `sectionId`, `seatId` | string | Ticket placement; `seatId` is the human-facing seat label. |
 | `ownerUid`, `walletAddress` | string | Current ownership. |
-| `tokenId`, `transactionHash` | string | Reserved for real chain identifiers; currently blank in the simulated implementation. |
+| `tokenId`, `transactionHash` | string | Blank until verified minting; then the Sepolia token ID (hex) and original mint transaction hash. |
 | `status` | string | Current flows use `VALID`, `LISTED_FOR_RESALE`, and `USED`. |
-| `mintingStatus` | string | Current checkout writes `PENDING`; a real minting integration may write `MINTED` or `FAILED`. |
+| `mintingStatus` | string | Checkout writes `PENDING`; verified Sepolia minting writes `MINTED`. Reverted chain operations do not mark a ticket minted. |
+| `chainId`, `contractAddress` | number, string | `11155111` and the verified Sepolia ticket contract after confirmed publication. |
+| `blockchainLastTransactionHash`, `blockchainLastOperationId` | string | Latest confirmed mint/transfer/resale hash and blockchain ledger record ID. The original mint hash stays in `transactionHash`. |
+| `blockchainStatus`, `blockchainNetwork`, `blockchainWalletAddress` | string | Last confirmed chain state, Sepolia network and last published token owner wallet. Firebase ownership may be ahead while records are queued. |
 | `qrData` | string | Current opaque ticket payload. Production scanners must continue to rely on server-side ticket/event/status validation. |
 | `usedAt` | ISO 8601 string | Entry-use time, otherwise empty. |
 | `transferHistory` | array | Backend-created ownership history. |
@@ -231,33 +274,71 @@ Immutable backend audit trail. The browser cannot create, change, or delete thes
 
 The callable Functions write audit records for inventory reservation/release, checkout, transfer, resale lifecycle changes, and ticket scanning in the same trusted workflow as the associated mutation.
 
+For `ticket_transferred`, `details.recipientUid` identifies the receiver and
+`details.transfer` stores a safe receipt snapshot: ticket/event IDs, event name,
+event date/time, venue, category, section/seat, sender/receiver display names and
+wallets, and transfer time. `transferTicket` returns the audit document ID as
+`transferId`. The read-only `getTicketTransfers` backend filters by the caller's
+participation and returns an explicit allowlist of receipt fields, never raw
+audit records, email addresses or QR data. Older entries without a snapshot
+remain readable using ticket history and current profile names. AuditLogs rules
+remain unchanged; buyers do not gain direct collection access.
+
 ### `BlockchainTransactions/{transactionId}`
 
 Backend-owned blockchain-operation ledger. The collection records intended mint, transfer, or resale operations; it is not writable from the browser and is readable only by administrators.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `transactionHash` | string | Blank in the current simulation; a real provider-confirmed hash belongs here. |
+| `transactionHash` | string | Blank while queued. The real wallet-returned hash is saved after backend submission/receipt checks. |
 | `walletAddress` | string | Wallet associated with the operation. |
 | `transactionType` | string | Current Functions use `MINT`, `TRANSFER`, or `RESALE`. |
 | `ticketId` | string | Affected ticket. |
 | `relatedEntityType`, `relatedEntityId` | string | Related booking, ticket, or resale listing. |
-| `status` | string | Current simulation writes `PENDING`. |
-| `network` | string | Current simulation labels this as no chain submission. |
+| `status` | string | `PENDING` queue; `SUBMITTED` after a matching transaction is visible; `CONFIRMED` after two verified confirmations; `FAILED` for a confirmed reverted transaction. |
+| `network`, `chainId`, `contractAddress` | string, number, string | Sepolia, `11155111` and the registered contract once submitted/verified. |
+| `operationId`, `recordHash`, `tokenId`, `fromWallet` | string | Deterministic operation ID, SHA-256 record commitment, NFT token ID and preceding chain wallet. No QR or profile data is published. |
+| `verificationVersion`, `confirmations`, `blockNumber`, `blockHash` | number/string | Verified receipt metadata; version `2` plus confirmed status identifies buyer-authorized operations. |
+| `actorUid`, `actorWallet` | string | Backend-recorded responsible buyer: purchaser for mint, sender for transfer, resale buyer for resale. These fields are not accepted from browser input. |
+| `lastCheckedAt`, `confirmedAt` | ISO 8601 string | Last verification and confirmed publication times. |
 | `failureReason` | string | Empty unless a real integration records an error. |
 | `timestamp` | ISO 8601 string | Backend operation time. |
 
-`BlockchainTransactions` is intentionally created by the backend together with the relevant trusted workflow. A simulated `PENDING` record is not evidence that an on-chain transaction was submitted or finalized.
+`BlockchainTransactions` is created by the backend together with each ticket workflow. A queued `PENDING` record is not evidence of chain submission. Buyers approve their own queued operations in MetaMask using short-lived backend-signed permissions. The backend verifies exact calldata, buyer, authorization and canonical receipt event through RPC, then atomically saves confirmed chain metadata without changing ticket entry ownership. Application ownership can precede chain synchronization.
+
+### `BlockchainSettings/sepolia`
+
+Backend-only configuration written after verifying deployment of the checked-in
+contract bytecode on Sepolia: `chainId`, `network`, `contractAddress`,
+`contractVersion: 2`, `operatorAddress` (setup administrator), `signerAddress`
+(backend authorization public key), `deploymentHash`, `deploymentBlock`, `configuredBy` and
+`configuredAt`. The default deny rule protects this collection; no browser
+read/write permission is added. Active admins manage setup without email verification; verified buyers and
+organizers receive only public contract settings through the
+authenticated `getBlockchainSettings` backend. The registered contract cannot
+be replaced through the UI.
+
+### `BlockchainAuthorizations/{calldataHash}`
+
+Backend-only EIP-712 permission snapshots: responsible `actorUid`, recorded
+`actorWallet`, blockchain record ID, exact operation and calldata, signer public
+address, deadline and creation time. The document ID is a SHA-256 commitment to
+the calldata. Multiple authorizations permit expiry/recovery without discarding
+an earlier submitted transaction. Default-deny rules keep this collection private.
 
 ## Trusted backend workflows
 
-The callable Functions in `functions/index.js` enforce authenticated, email-verified caller, role/status, event policy, ownership, pricing, and inventory checks. They are deployed to `asia-southeast1`:
+The callable Functions in `functions/index.js` enforce authentication, role/status, event policy, ownership, pricing and inventory checks. Buyers and organizers require verified email; active administrators are exempt. Functions are deployed to `asia-southeast1`:
 
 | Callable | Responsibility |
 | --- | --- |
 | `reserveSeats`, `releaseSeatReservation` | Create/release short-lived caller-owned `EventSeats` reservations. |
 | `checkout` | Validate the buyer, sales window, allocation, price, wallet, and reservation; atomically sell `EventSeats`, create the booking/tickets, and create notification/audit/simulated-chain records. |
 | `transferTicket` | Validate ownership and transfer policy, update ticket ownership/history, and create notification/audit/simulated-chain records. |
+| `getTicketTransfers` | Return safe sent/received receipts for the active, verified buyer, optionally filtered by ticket or transfer ID. |
+| `getBlockchainSettings`, `configureBlockchain` | Public contract details for active roles (buyers/organizers verified); deployment registration restricted to active admins without requiring email verification. |
+| `prepareBlockchainOperation`, `verifyBlockchainOperation` | Responsible buyer-only authorization and receipt verification. Admin/organizer wallets cannot perform buyer operations. |
+| `getBuyerBlockchainOperations`, `getOrganizerBlockchainOperations` | Safe account-scoped buyer activity or event-scoped organizer monitoring; no direct ledger access or write permission is granted. |
 | `createResaleListing`, `updateResalePrice`, `cancelResaleListing`, `suspendResaleListing`, `purchaseResale` | Enforce seller/buyer/admin permission and resale rules while keeping listing and ticket state consistent. |
 | `scanTicket` | Validate an authorized organizer/admin and ticket/event/status, then atomically mark a valid ticket as `USED`. |
 | `syncEmailVerification` | Verify the caller's Firebase Auth ID-token claim and set `Users.emailVerified`; the browser has a Rules-constrained fallback only for Spark-only local demos where this callable is unavailable. |

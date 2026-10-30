@@ -16,6 +16,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/firebase-admin.php';
 require_once __DIR__ . '/password-reset.php';
 require_once __DIR__ . '/event-availability.php';
+require_once __DIR__ . '/seat-picker-policy.php';
+require_once __DIR__ . '/seat-category-policy.php';
+require_once __DIR__ . '/ticket-transfer-history.php';
+require_once __DIR__ . '/blockchain.php';
 
 const BACKEND_SERVICE_CHARGE = 20;
 const BACKEND_MAX_REQUEST_BYTES = 131072;
@@ -56,6 +60,21 @@ function backend_password_reset_is_enabled(): bool
 function backend_checkout_is_enabled(): bool
 {
     return getenv('TICKSECURE_PHP_CHECKOUT') === '1' && backend_is_loopback_request();
+}
+
+function backend_resale_is_enabled(): bool
+{
+    return getenv('TICKSECURE_PHP_RESALE') === '1' && backend_is_loopback_request();
+}
+
+function backend_transfer_is_enabled(): bool
+{
+    return getenv('TICKSECURE_PHP_TRANSFER') === '1' && backend_is_loopback_request();
+}
+
+function backend_blockchain_is_enabled(): bool
+{
+    return getenv('TICKSECURE_PHP_BLOCKCHAIN') === '1' && backend_is_loopback_request();
 }
 
 function backend_fail(int $status, string $message, string $code): never
@@ -129,7 +148,9 @@ function backend_require_price(mixed $value): float
         backend_fail(400, 'Resale price is invalid.', 'invalid-argument');
     }
     $price = backend_number($value, NAN);
-    if (!is_finite($price) || $price <= 0 || $price > 1000000) {
+    if ((is_string($value) && !preg_match('/^\d{1,7}(?:\.\d{1,2})?$/D', trim($value)))
+        || !is_finite($price) || $price <= 0 || $price > 1000000
+        || abs($price * 100 - round($price * 100)) > 0.000001) {
         backend_fail(400, 'Resale price is invalid.', 'invalid-argument');
     }
     return backend_money($price);
@@ -290,8 +311,7 @@ function backend_assert_active_buyer(array $actor): void
 function backend_assert_active_admin(array $actor): void
 {
     if (($actor['role'] ?? '') !== 'admin'
-        || ($actor['status'] ?? '') !== 'active'
-        || ($actor['emailVerified'] ?? false) !== true) {
+        || ($actor['status'] ?? '') !== 'active') {
         backend_fail(403, 'Only administrators can perform this action.', 'permission-denied');
     }
 }
@@ -299,7 +319,7 @@ function backend_assert_active_admin(array $actor): void
 /** @param array<string,mixed> $actor */
 function backend_assert_active_account(array $actor): void
 {
-    if (($actor['status'] ?? '') !== 'active' || ($actor['emailVerified'] ?? false) !== true) {
+    if (($actor['status'] ?? '') !== 'active' || (($actor['role'] ?? '') !== 'admin' && ($actor['emailVerified'] ?? false) !== true)) {
         backend_fail(403, 'An active, verified account is required.', 'permission-denied');
     }
 }
@@ -355,7 +375,8 @@ function backend_simulated_blockchain_record(
     string $walletAddress,
     string $relatedEntityType,
     string $relatedEntityId,
-    string $timestamp
+    string $timestamp,
+    array $context = []
 ): array {
     return [
         'transactionHash' => '',
@@ -365,7 +386,9 @@ function backend_simulated_blockchain_record(
         'relatedEntityType' => $relatedEntityType,
         'relatedEntityId' => $relatedEntityId,
         'status' => 'PENDING',
-        'network' => 'SIMULATED - no chain submission',
+        'network' => 'Sepolia - awaiting buyer submission',
+        'actorUid' => (string)($context['actorUid'] ?? ''),
+        'actorWallet' => (string)($context['actorWallet'] ?? ''),
         'failureReason' => '',
         'timestamp' => $timestamp,
     ];
@@ -396,89 +419,33 @@ function backend_ensure_event_inventory(FirebaseAdminRest $firebase, array $even
 {
     $eventId = backend_require_id($event['id'] ?? null, 'Event ID');
     $venueId = backend_require_id($event['venueId'] ?? null, 'Venue ID');
-    $rawCategories = $event['categories'] ?? [];
-    if (!is_array($rawCategories)) {
-        backend_fail(412, 'This event has no ticket inventory configured.', 'failed-precondition');
-    }
-
-    $categoryEntries = [];
-    if (array_is_list($rawCategories)) {
-        foreach ($rawCategories as $category) {
-            if (!is_array($category)) {
-                continue;
-            }
-            $sectionId = trim((string)($category['sectionId'] ?? $category['section'] ?? $category['id'] ?? ''));
-            $quantity = max(0, (int)floor(backend_number($category['quantity'] ?? $category['available'] ?? 0)));
-            if ($sectionId !== '' && $quantity > 0) {
-                $categoryEntries[$sectionId] = $quantity;
-            }
-        }
-    } else {
-        foreach ($rawCategories as $sectionId => $category) {
-            if (!is_array($category)) {
-                continue;
-            }
-            $sectionId = trim((string)$sectionId);
-            $quantity = max(0, (int)floor(backend_number($category['quantity'] ?? $category['available'] ?? 0)));
-            if ($sectionId !== '' && $quantity > 0) {
-                $categoryEntries[$sectionId] = $quantity;
-            }
-        }
-    }
-    if ($categoryEntries === []) {
-        backend_fail(412, 'This event has no ticket inventory configured.', 'failed-precondition');
-    }
-
     $physicalSeats = $firebase->queryDocuments('Seats', ['venueId' => $venueId]);
-    $physicalBySection = [];
-    foreach ($physicalSeats as $seat) {
-        $sectionId = trim((string)($seat['sectionId'] ?? ''));
-        $seatLabel = trim((string)($seat['seatLabel'] ?? ''));
-        if ($sectionId === '' || $seatLabel === '') {
-            continue;
-        }
-        $physicalBySection[$sectionId] ??= [];
-        $physicalBySection[$sectionId][] = $seat;
-    }
-
+    try { $allocations = category_allocate_seats($event['categories'] ?? [], $physicalSeats); }
+    catch (RuntimeException $error) { backend_fail(412, $error->getMessage(), 'failed-precondition'); }
     $desired = [];
     $timestamp = backend_now();
-    foreach ($categoryEntries as $sectionId => $quantity) {
-        $sectionId = backend_require_id($sectionId, 'Section ID');
-        $sectionSeats = $physicalBySection[$sectionId] ?? [];
-        usort($sectionSeats, static fn (array $left, array $right): int =>
-            strcmp((string)($left['seatLabel'] ?? ''), (string)($right['seatLabel'] ?? ''))
-        );
-        if (count($sectionSeats) < $quantity) {
-            backend_fail(
-                412,
-                "The {$sectionId} allocation exceeds the venue's physical seats.",
-                'failed-precondition'
-            );
-        }
-
-        foreach (array_slice($sectionSeats, 0, $quantity) as $sourceSeat) {
-            $sourceSeatId = backend_require_id($sourceSeat['id'] ?? null, 'Physical seat ID');
-            $eventSeatId = backend_require_id($eventId . '_' . $sourceSeatId, 'Event seat ID');
-            $desired[$eventSeatId] = [
-                'id' => $eventSeatId,
-                'data' => [
-                    'eventId' => $eventId,
-                    'venueId' => $venueId,
-                    'sourceSeatId' => $sourceSeatId,
-                    'sectionId' => $sectionId,
-                    'seatLabel' => (string)$sourceSeat['seatLabel'],
-                    'status' => 'AVAILABLE',
-                    'reservedBy' => '',
-                    'reservedAt' => '',
-                    'reservationExpiry' => '',
-                    'reservationEventId' => '',
-                    'bookingId' => '',
-                    'createdAt' => $timestamp,
-                    'updatedAt' => $timestamp,
-                ],
-            ];
-        }
+    foreach ($allocations as $allocation) {
+        $sectionId = $allocation['sectionId'];
+        $sourceSeat = $allocation['sourceSeat'];
+        $sourceSeatId = backend_require_id($sourceSeat['id'] ?? null, 'Physical seat ID');
+        $eventSeatId = backend_require_id($eventId . '_' . $sourceSeatId, 'Event seat ID');
+        $desired[$eventSeatId] = [
+            'id' => $eventSeatId,
+            'data' => [
+                'eventId' => $eventId,
+                'venueId' => $venueId,
+                'sourceSeatId' => $sourceSeatId,
+                'physicalSectionId' => $sourceSeat['sectionId'],
+                'sectionId' => $sectionId,
+                'seatLabel' => (string)$sourceSeat['seatLabel'],
+                ...(isset($sourceSeat['position']) ? ['position' => $sourceSeat['position']] : []),
+                ...(isset($sourceSeat['rowLabel']) ? ['rowLabel' => $sourceSeat['rowLabel'], 'seatNumber' => $sourceSeat['seatNumber'] ?? ''] : []),
+                'status' => 'AVAILABLE',
+                'reservedBy' => '', 'reservedAt' => '', 'reservationExpiry' => '',
+                'reservationEventId' => '', 'bookingId' => '',
+                'createdAt' => $timestamp, 'updatedAt' => $timestamp,
+            ],
+        ];
     }
 
     foreach (array_chunk(array_values($desired), 200) as $seatChunk) {
@@ -673,7 +640,8 @@ function backend_checkout(FirebaseAdminRest $firebase, string $uid, array $data)
                 $walletAddress,
                 'booking',
                 $bookingId,
-                $timestamp
+                $timestamp,
+                ['actorUid' => $uid, 'actorWallet' => $walletAddress]
             ));
         }
 
@@ -722,6 +690,8 @@ function backend_reserve_seats(FirebaseAdminRest $firebase, string $uid, array $
         $expiryMinutes
     ): array {
         $buyer = backend_get_actor($transaction, $uid);
+        $reservationLockId = hash('sha256', $eventId . '|' . $uid);
+        $reservationLock = $transaction->get('ReservationLocks', $reservationLockId);
         backend_assert_active_buyer($buyer);
         $event = $transaction->get('Events', $eventId);
         if ($event === null) {
@@ -811,6 +781,9 @@ function backend_reserve_seats(FirebaseAdminRest $firebase, string $uid, array $
                 'updatedAt' => $timestamp,
             ]);
         }
+        $lockFields = ['eventId' => $eventId, 'buyerUid' => $uid, 'updatedAt' => $timestamp];
+        if ($reservationLock === null) $transaction->create('ReservationLocks', $reservationLockId, $lockFields);
+        else $transaction->update('ReservationLocks', $reservationLockId, $lockFields);
         $transaction->create('AuditLogs', backend_new_document_id(), backend_audit_doc(
             'seats_reserved',
             'event',
@@ -827,6 +800,71 @@ function backend_reserve_seats(FirebaseAdminRest $firebase, string $uid, array $
             ], $selected),
             'reservationExpiry' => $reservationExpiry,
         ];
+    });
+}
+
+/** Authenticated projection of only the event's offered seats. */
+function backend_get_seat_map(FirebaseAdminRest $firebase, string $uid, array $data): array
+{
+    $eventId = backend_require_id($data['eventId'] ?? null, 'Event ID');
+    $sectionId = backend_require_id($data['sectionId'] ?? null, 'Section ID');
+    backend_assert_active_buyer(backend_get_current_actor($firebase, $uid));
+    $event = $firebase->getDocument('Events', $eventId);
+    if ($event === null || !backend_sales_are_open($event)) backend_fail(412, 'Ticket sales are not open.', 'failed-precondition');
+    $category = backend_category_for_section($event['categories'] ?? [], $sectionId);
+    if (!$category || !trim((string)($category['name'] ?? '')) || !is_numeric($category['price'] ?? null) || $category['price'] <= 0) backend_fail(412, 'This ticket category is not available.', 'failed-precondition');
+    $expected = 0;
+    foreach ($event['categories'] ?? [] as $allocation) $expected += backend_require_positive_integer($allocation['quantity'] ?? $allocation['available'] ?? 0, 'Category allocation', 100000);
+    if ($expected > 5000) backend_fail(413, 'This event is too large for the interactive picker. Use automatic assignment.', 'resource-exhausted');
+    $inventory = $firebase->queryDocuments('EventSeats', ['eventId' => $eventId], [], 5001);
+    if (count($inventory) < $expected) { backend_ensure_event_inventory($firebase, $event); $inventory = $firebase->queryDocuments('EventSeats', ['eventId' => $eventId], [], 5001); }
+    if (count($inventory) > 5000) backend_fail(413, 'This event is too large for the interactive picker. Use automatic assignment.', 'resource-exhausted');
+    $venue = $firebase->getDocument('Venues', $event['venueId']) ?? [];
+    $g = []; $markers = []; $pages = [];
+    foreach ($venue['sections'] ?? [] as $section) {
+        $geometry = $section['geometry'] ?? [];
+        if (!$g && $geometry) $g = $geometry;
+        $page = $geometry['page'] ?? 1;
+        $pages[$page] ??= ['imageWidth' => $geometry['imageWidth'] ?? 104, 'imageHeight' => $geometry['imageHeight'] ?? 106, 'decorations' => []];
+        $pages[$page]['decorations'] = array_merge($pages[$page]['decorations'], $geometry['decorations'] ?? []);
+        if (isset($geometry['numbering']['stagePoint'])) $pages[$page]['stagePoint'] = ['x' => $geometry['numbering']['stagePoint']['x'], 'y' => $geometry['numbering']['stagePoint']['y']];
+        foreach ($geometry['seatMarkers'] ?? [] as $marker) $markers[$section['sectionId'] . '-' . $marker['label']] = $marker + ['page' => $page];
+    }
+    $seats = [];
+    foreach ($inventory as $seat) if (($seat['venueId'] ?? '') === $event['venueId'] && ($seat['sectionId'] ?? '') === $sectionId) $seats[] = picker_visible_seat($seat, $uid, $markers[$seat['seatLabel']] ?? []);
+    return ['eventId' => $eventId, 'venueId' => $event['venueId'], 'eventName' => $event['name'] ?? '', 'venueName' => $venue['name'] ?? $event['venueName'] ?? '',
+        'sectionId' => $sectionId, 'categoryName' => $category['name'], 'unitPrice' => (float)$category['price'], 'maxPerBuyer' => min(20, backend_max_tickets_per_buyer($event)), 'seats' => $seats,
+        'geometry' => ['layoutSeats' => picker_layout_context($venue['sections'] ?? []), 'pages' => (object)$pages, 'imageWidth' => $g['imageWidth'] ?? 104, 'imageHeight' => $g['imageHeight'] ?? 106, 'page' => $g['page'] ?? 1, 'decorations' => $g['decorations'] ?? []]];
+}
+
+function backend_hold_selected_seats(FirebaseAdminRest $firebase, string $uid, array $data): array
+{
+    $eventId = backend_require_id($data['eventId'] ?? null, 'Event ID');
+    $sectionId = backend_require_id($data['sectionId'] ?? null, 'Section ID');
+    $ids = backend_optional_seat_ids($data['seatDocIds'] ?? null);
+    if (!$ids) backend_fail(400, 'Select at least one seat.', 'invalid-argument');
+    backend_ensure_purchasable_event_inventory($firebase, $eventId, $uid);
+    return $firebase->transaction(static function (FirebaseFirestoreTransaction $tx) use ($uid, $eventId, $sectionId, $ids): array {
+        $buyer = backend_get_actor($tx, $uid); backend_assert_active_buyer($buyer);
+        $lockId = hash('sha256', $eventId . '|' . $uid); $lock = $tx->get('ReservationLocks', $lockId);
+        $event = $tx->get('Events', $eventId);
+        if ($event === null || !backend_sales_are_open($event)) backend_fail(412, 'Ticket sales are not open.', 'failed-precondition');
+        if (!backend_category_for_section($event['categories'] ?? [], $sectionId)) backend_fail(412, 'This ticket category is not available.', 'failed-precondition');
+        $records = array_values(array_filter($tx->getMany('EventSeats', $ids)));
+        $selected = picker_check_selected($records, $ids, ['eventId' => $eventId, 'venueId' => $event['venueId'], 'sectionId' => $sectionId, 'uid' => $uid, 'now' => time()]);
+        $owned = array_values(array_filter(backend_event_seats($tx, $eventId), static fn (array $seat): bool => ($seat['reservedBy'] ?? '') === $uid && ($seat['status'] ?? '') === 'RESERVED'));
+        $others = array_filter($owned, static fn (array $seat): bool => backend_reservation_is_active($seat) && $seat['sectionId'] !== $sectionId);
+        if (backend_owned_ticket_count($tx, $eventId, $uid) + count($others) + count($selected) > min(20, backend_max_tickets_per_buyer($event))) backend_fail(412, 'This selection exceeds your ticket limit for the event.', 'failed-precondition');
+        $chosen = array_flip($ids); $timestamp = backend_now();
+        $expiry = (new DateTimeImmutable('@' . (time() + 600)))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\\TH:i:s\\Z');
+        foreach ($owned as $seat) if ($seat['sectionId'] === $sectionId && !isset($chosen[$seat['id']])) $tx->update('EventSeats', $seat['id'], [
+            'status' => 'AVAILABLE', 'reservedBy' => '', 'reservedAt' => '', 'reservationExpiry' => '', 'reservationEventId' => '', 'updatedAt' => $timestamp]);
+        foreach ($selected as $seat) $tx->update('EventSeats', $seat['id'], [
+            'status' => 'RESERVED', 'reservedBy' => $uid, 'reservedAt' => $timestamp, 'reservationExpiry' => $expiry, 'reservationEventId' => $eventId, 'updatedAt' => $timestamp]);
+        $fields = ['eventId' => $eventId, 'buyerUid' => $uid, 'updatedAt' => $timestamp];
+        if ($lock === null) $tx->create('ReservationLocks', $lockId, $fields); else $tx->update('ReservationLocks', $lockId, $fields);
+        $tx->create('AuditLogs', backend_new_document_id(), backend_audit_doc('seats_selected', 'event', $eventId, $buyer, ['sectionId' => $sectionId, 'quantity' => count($ids)]));
+        return ['seats' => array_map(static fn (array $seat): array => ['id' => $seat['id'], 'seatLabel' => $seat['seatLabel'], 'sectionId' => $sectionId], $selected), 'reservationExpiry' => $expiry];
     });
 }
 
@@ -936,23 +974,28 @@ function backend_transfer_ticket(FirebaseAdminRest $firebase, string $uid, array
             'ticket',
             $ticketId
         ));
-        $transaction->create('AuditLogs', backend_new_document_id(), backend_audit_doc(
+        $transferId = backend_new_document_id();
+        $transaction->create('AuditLogs', $transferId, backend_audit_doc(
             'ticket_transferred',
             'ticket',
             $ticketId,
             $actor,
-            ['recipientUid' => (string)$recipient['uid']]
+            ['recipientUid' => (string)$recipient['uid'], 'transfer' => backend_transfer_receipt(
+                array_replace($ticket, ['id' => $ticketId]), $event, $actor, $recipient, $recipientWallet, $timestamp
+            )]
         ));
-        $transaction->create('BlockchainTransactions', backend_new_document_id(), backend_simulated_blockchain_record(
+        $blockchainRecordId = backend_new_document_id();
+        $transaction->create('BlockchainTransactions', $blockchainRecordId, backend_simulated_blockchain_record(
             'TRANSFER',
             $ticketId,
             $recipientWallet,
             'ticket',
             $ticketId,
-            $timestamp
+            $timestamp,
+            ['actorUid' => $uid, 'actorWallet' => (string)($ticket['walletAddress'] ?? '')]
         ));
 
-        return ['ticketId' => $ticketId, 'recipientUid' => (string)$recipient['uid']];
+        return ['ticketId' => $ticketId, 'recipientUid' => (string)$recipient['uid'], 'transferId' => $transferId, 'blockchainRecordId' => $blockchainRecordId];
     });
 }
 
@@ -1055,6 +1098,10 @@ function backend_cancel_resale_listing(FirebaseAdminRest $firebase, string $uid,
         if (($listing['sellerUid'] ?? '') !== $uid || ($listing['status'] ?? '') !== 'ACTIVE') {
             backend_fail(403, 'This listing cannot be cancelled.', 'permission-denied');
         }
+        $ticket = $transaction->get('NFTTickets', (string)($listing['ticketId'] ?? ''));
+        if ($ticket === null || ($ticket['ownerUid'] ?? '') !== $uid || ($ticket['status'] ?? '') !== 'LISTED_FOR_RESALE') {
+            backend_fail(412, 'The listing no longer matches its ticket.', 'failed-precondition');
+        }
         $timestamp = backend_now();
         $ticketId = (string)($listing['ticketId'] ?? '');
         $transaction->update('ResaleListings', $listingId, ['status' => 'CANCELLED', 'updatedAt' => $timestamp]);
@@ -1103,6 +1150,11 @@ function backend_update_resale_price(FirebaseAdminRest $firebase, string $uid, a
                 'failed-precondition'
             );
         }
+
+        $ticket = $transaction->get('NFTTickets', (string)($listing['ticketId'] ?? ''));
+        if ($ticket === null || ($ticket['ownerUid'] ?? '') !== $uid || ($ticket['status'] ?? '') !== 'LISTED_FOR_RESALE') {
+            backend_fail(412, 'The listing no longer matches its ticket.', 'failed-precondition');
+        }
         $timestamp = backend_now();
         $transaction->update('ResaleListings', $listingId, [
             'originalPrice' => $originalPrice,
@@ -1140,12 +1192,16 @@ function backend_suspend_resale_listing(FirebaseAdminRest $firebase, string $uid
         }
         $timestamp = backend_now();
         $ticketId = (string)($listing['ticketId'] ?? '');
+        $ticket = $transaction->get('NFTTickets', $ticketId);
+        $restoreTicket = $ticket !== null
+            && ($ticket['ownerUid'] ?? '') === ($listing['sellerUid'] ?? '')
+            && ($ticket['status'] ?? '') === 'LISTED_FOR_RESALE';
         $transaction->update('ResaleListings', $listingId, [
             'status' => 'SUSPENDED',
             'riskFlag' => $reason,
             'updatedAt' => $timestamp,
         ]);
-        $transaction->update('NFTTickets', $ticketId, ['status' => 'VALID', 'updatedAt' => $timestamp]);
+        if ($restoreTicket) $transaction->update('NFTTickets', $ticketId, ['status' => 'VALID', 'updatedAt' => $timestamp]);
         $sellerUid = (string)($listing['sellerUid'] ?? '');
         if ($sellerUid !== '') {
             $transaction->create('Notifications', backend_new_document_id(), backend_notification(
@@ -1171,7 +1227,8 @@ function backend_suspend_resale_listing(FirebaseAdminRest $firebase, string $uid
 function backend_purchase_resale(FirebaseAdminRest $firebase, string $uid, array $data): array
 {
     $listingId = backend_require_id($data['listingId'] ?? null, 'Listing ID');
-    return $firebase->transaction(static function (FirebaseFirestoreTransaction $transaction) use ($uid, $listingId): array {
+    $expectedPrice = array_key_exists('expectedPrice', $data) ? backend_require_price($data['expectedPrice']) : null;
+    return $firebase->transaction(static function (FirebaseFirestoreTransaction $transaction) use ($uid, $listingId, $expectedPrice): array {
         $buyer = backend_get_actor($transaction, $uid);
         backend_assert_active_buyer($buyer);
         $buyerWallet = backend_require_wallet_address(
@@ -1182,6 +1239,10 @@ function backend_purchase_resale(FirebaseAdminRest $firebase, string $uid, array
         if ($listing === null) {
             backend_fail(404, 'Listing not found.', 'not-found');
         }
+        if (($listing['status'] ?? '') === 'SOLD' && ($listing['buyerUid'] ?? '') === $uid) {
+            return ['listingId' => $listingId, 'ticketId' => $listing['ticketId'],
+                'totalAmount' => backend_money(backend_number($listing['resalePrice'] ?? 0) + BACKEND_SERVICE_CHARGE)];
+        }
         if (($listing['status'] ?? '') !== 'ACTIVE' || ($listing['sellerUid'] ?? '') === $uid) {
             backend_fail(412, 'This listing is no longer available.', 'failed-precondition');
         }
@@ -1190,12 +1251,29 @@ function backend_purchase_resale(FirebaseAdminRest $firebase, string $uid, array
         if ($event === null || !backend_resale_is_open($event)) {
             backend_fail(412, 'Resale is not available for this event.', 'failed-precondition');
         }
+        [, $maximum] = backend_resale_price_limits($event,
+            backend_category_for_section($event['categories'] ?? [], (string)($listing['sectionId'] ?? '')),
+            backend_number($listing['originalPrice'] ?? 0));
+        $price = backend_require_price($listing['resalePrice'] ?? null);
+        if ($price > $maximum || ($listing['ruleCompliance'] ?? '') === 'VIOLATION') {
+            backend_fail(412, 'This listing exceeds the current resale price limit.', 'failed-precondition');
+        }
+        if ($expectedPrice !== null && $expectedPrice !== $price) {
+            backend_fail(412, 'The seller changed the price. Refresh this listing before purchasing.', 'failed-precondition');
+        }
+        $seller = $transaction->get('Users', (string)($listing['sellerUid'] ?? ''));
+        if ($seller === null || ($seller['status'] ?? '') !== 'active' || ($seller['role'] ?? '') !== 'buyer') {
+            backend_fail(412, 'The seller is no longer eligible to sell this ticket.', 'failed-precondition');
+        }
         if (backend_owned_ticket_count($transaction, $eventId, $uid) >= backend_max_tickets_per_buyer($event)) {
             backend_fail(412, 'You already hold the maximum number of tickets for this event.', 'failed-precondition');
         }
         $ticketId = (string)($listing['ticketId'] ?? '');
         $ticket = $ticketId !== '' ? $transaction->get('NFTTickets', $ticketId) : null;
-        if ($ticket === null || ($ticket['status'] ?? '') !== 'LISTED_FOR_RESALE') {
+        if ($ticket === null || ($ticket['status'] ?? '') !== 'LISTED_FOR_RESALE'
+            || ($ticket['ownerUid'] ?? '') !== ($listing['sellerUid'] ?? '')
+            || ($ticket['eventId'] ?? '') !== $eventId
+            || ($ticket['sectionId'] ?? '') !== ($listing['sectionId'] ?? '')) {
             backend_fail(412, 'The ticket is no longer available.', 'failed-precondition');
         }
 
@@ -1248,16 +1326,19 @@ function backend_purchase_resale(FirebaseAdminRest $firebase, string $uid, array
             $buyer,
             ['ticketId' => $ticketId]
         ));
-        $transaction->create('BlockchainTransactions', backend_new_document_id(), backend_simulated_blockchain_record(
+        $blockchainRecordId = backend_new_document_id();
+        $transaction->create('BlockchainTransactions', $blockchainRecordId, backend_simulated_blockchain_record(
             'RESALE',
             $ticketId,
             $buyerWallet,
             'resale',
             $listingId,
-            $timestamp
+            $timestamp,
+            ['actorUid' => $uid, 'actorWallet' => $buyerWallet]
         ));
         return [
             'listingId' => $listingId,
+            'blockchainRecordId' => $blockchainRecordId,
             'ticketId' => $ticketId,
             'totalAmount' => backend_money(backend_number($listing['resalePrice'] ?? 0) + BACKEND_SERVICE_CHARGE),
         ];
@@ -1273,7 +1354,7 @@ function backend_scan_ticket(FirebaseAdminRest $firebase, string $uid, array $da
         $actor = backend_get_actor($transaction, $uid);
         if (!in_array($actor['role'] ?? '', ['admin', 'organizer'], true)
             || ($actor['status'] ?? '') !== 'active'
-            || ($actor['emailVerified'] ?? false) !== true) {
+            || (($actor['role'] ?? '') !== 'admin' && ($actor['emailVerified'] ?? false) !== true)) {
             backend_fail(403, 'Only authorized event personnel can scan tickets.', 'permission-denied');
         }
         $event = $transaction->get('Events', $eventId);
@@ -1554,7 +1635,7 @@ function backend_authorization_header(): string
     return '';
 }
 
-if (!backend_is_enabled() && !backend_password_reset_is_enabled() && !backend_checkout_is_enabled()) {
+if (!backend_is_enabled() && !backend_password_reset_is_enabled() && !backend_checkout_is_enabled() && !backend_resale_is_enabled() && !backend_transfer_is_enabled() && !backend_blockchain_is_enabled()) {
     backend_respond(410, [
         'error' => [
             'code' => 'php_backend_disabled',
@@ -1617,7 +1698,12 @@ try {
     }
 
     if (!backend_is_enabled() && !(backend_checkout_is_enabled()
-        && in_array($action, ['reserveSeats', 'releaseSeatReservation', 'checkout'], true))) {
+        && in_array($action, ['reserveSeats', 'getSeatMap', 'holdSelectedSeats', 'releaseSeatReservation', 'checkout'], true))
+        && !(backend_resale_is_enabled() && in_array($action, [
+            'createResaleListing', 'updateResalePrice', 'cancelResaleListing', 'suspendResaleListing', 'purchaseResale'
+        ], true))
+        && !(backend_transfer_is_enabled() && in_array($action, ['transferTicket', 'getTicketTransfers'], true))
+        && !(backend_blockchain_is_enabled() && in_array($action, ['getBlockchainSettings', 'configureBlockchain', 'prepareBlockchainOperation', 'verifyBlockchainOperation', 'getBuyerBlockchainOperations', 'getOrganizerBlockchainOperations'], true))) {
         backend_fail(410, 'This action is not enabled for this local PHP endpoint.', 'php_backend_disabled');
     }
 
@@ -1635,10 +1721,19 @@ try {
     }
 
     $handlers = [
+        'getBuyerBlockchainOperations' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->listBuyer($uid, $data),
+        'getOrganizerBlockchainOperations' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->listOrganizer($uid, $data),
+        'getBlockchainSettings' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->getSettings($uid),
+        'configureBlockchain' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->configure($uid, $data),
+        'prepareBlockchainOperation' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->prepare($uid, $data),
+        'verifyBlockchainOperation' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->verify($uid, $data),
         'checkout' => static fn (): array => backend_checkout($firebase, $uid, $data),
         'reserveSeats' => static fn (): array => backend_reserve_seats($firebase, $uid, $data),
+        'getSeatMap' => static fn (): array => backend_get_seat_map($firebase, $uid, $data),
+        'holdSelectedSeats' => static fn (): array => backend_hold_selected_seats($firebase, $uid, $data),
         'releaseSeatReservation' => static fn (): array => backend_release_seat_reservation($firebase, $uid, $data),
         'transferTicket' => static fn (): array => backend_transfer_ticket($firebase, $uid, $data),
+        'getTicketTransfers' => static fn (): array => backend_get_ticket_transfers($firebase, $uid, $data),
         'createResaleListing' => static fn (): array => backend_create_resale_listing($firebase, $uid, $data),
         'cancelResaleListing' => static fn (): array => backend_cancel_resale_listing($firebase, $uid, $data),
         'updateResalePrice' => static fn (): array => backend_update_resale_price($firebase, $uid, $data),

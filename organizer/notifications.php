@@ -68,10 +68,27 @@ window.addEventListener('ts-auth-ready', async () => {
                         <div class="ts-table-actions">
                             ${relatedLink(n)}
                             ${!read ? `<button class="ts-btn ts-btn-secondary ts-btn-sm" type="button" data-mark-read="${notificationId}">Mark read</button>` : `<span class="small muted">Read</span>`}
+                            <button class="ts-btn ts-btn-secondary ts-btn-sm" type="button" data-delete-notification="${notificationId}">Delete</button>
                         </div>
                     </div>
                 `;
             }).join('') || '<div class="text-center p-20">No notifications</div>';
+
+            list.querySelectorAll('[data-delete-notification]').forEach(button => {
+                button.addEventListener('click', async () => {
+                    if (button.disabled) return;
+                    button.disabled = true;
+                    const id = decodeURIComponent(button.dataset.deleteNotification);
+                    try {
+                        if (!await window.tsDecision('deleteNotification', 'Notification', [['Message', notifs.find(item => item.id === id)?.message || 'Selected notification']])) return;
+                        await window.tsNotifications.delete(id);
+                        const index = notifs.findIndex(item => item.id === id);
+                        if (index >= 0) notifs.splice(index, 1);
+                        renderList();
+                    } catch (error) { window.alert(error.message); button.disabled = false; }
+                    finally { button.disabled = false; }
+                });
+            });
 
             if (markAllButton) {
                 markAllButton.disabled = !notifs.some(n => !Boolean(n.read ?? n.isRead));

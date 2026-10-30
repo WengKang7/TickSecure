@@ -5,10 +5,11 @@ declare(strict_types=1);
 function backend_event_availability(array $event, array $physicalSeats, array $eventSeats, ?float $currentTime = null): array
 {
     $currentTime ??= microtime(true);
-    $physicalCounts = [];
+    $physicalCounts = []; $physicalLabels = [];
     foreach ($physicalSeats as $seat) {
         if (($seat['venueId'] ?? '') === ($event['venueId'] ?? '')
             && !empty($seat['sectionId']) && trim((string)($seat['seatLabel'] ?? '')) !== '') {
+            $physicalLabels[$seat['seatLabel']] = true;
             $id = (string)$seat['sectionId'];
             $physicalCounts[$id] = ($physicalCounts[$id] ?? 0) + 1;
         }
@@ -33,7 +34,16 @@ function backend_event_availability(array $event, array $physicalSeats, array $e
         if ($id === '') continue;
         $value = $category['quantity'] ?? $category['available'] ?? 0;
         $allocated = is_numeric($value) ? max(0, (int)floor((float)$value)) : 0;
-        $capacity = ($physicalCounts[$id] ?? 0) >= $allocated ? $allocated : 0;
+        $valid = ($physicalCounts[$id] ?? 0) >= $allocated;
+        if (array_key_exists('seatLabels', $category)) {
+            $chosen = $category['seatLabels']; $seen = [];
+            $valid = is_array($chosen) && array_is_list($chosen) && count($chosen) === $allocated;
+            if ($valid) foreach ($chosen as $label) {
+                if (!is_string($label) || !isset($physicalLabels[$label]) || isset($seen[$label])) { $valid = false; break; }
+                $seen[$label] = true;
+            }
+        }
+        $capacity = $valid ? $allocated : 0;
         $categories[] = ['sectionId' => $id, 'allocated' => $allocated, 'remaining' => max(0, $capacity - ($blocked[$id] ?? 0))];
     }
     return ['eventId' => $event['id'], 'checkedAt' => gmdate('Y-m-d\TH:i:s\Z', (int)$currentTime),

@@ -9,11 +9,14 @@ service firebase.storage {
       return signedIn()
         && firestore.exists(/databases/(default)/documents/Users/$(request.auth.uid))
         && firestore.get(/databases/(default)/documents/Users/$(request.auth.uid)).data.status == 'active'
-        && firestore.get(/databases/(default)/documents/Users/$(request.auth.uid)).data.emailVerified == true;
+        && (firestore.get(/databases/(default)/documents/Users/$(request.auth.uid)).data.role == 'admin'
+          || firestore.get(/databases/(default)/documents/Users/$(request.auth.uid)).data.emailVerified == true);
     }
 
     function isAdmin() {
-      return hasActiveProfile()
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/Users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/Users/$(request.auth.uid)).data.status == 'active'
         && firestore.get(/databases/(default)/documents/Users/$(request.auth.uid)).data.role == 'admin';
     }
 
@@ -34,10 +37,15 @@ service firebase.storage {
         && request.resource.contentType.matches('^(image/jpeg|image/png)$');
     }
 
+    function isSupportedBlueprint() {
+      return request.resource.size > 0 && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('^(image/png|application/pdf)$');
+    }
+
     // Venue blueprints are administrative material.
     match /venues/{venueId}/{fileName} {
       allow read: if isAdmin();
-      allow create, update: if isAdmin() && isSupportedUpload();
+      allow create, update: if isAdmin() && isSupportedBlueprint();
       allow delete: if isAdmin();
     }
 

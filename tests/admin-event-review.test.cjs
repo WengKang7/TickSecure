@@ -32,6 +32,13 @@ function page(options = {}) {
         appendChild(child) { this.children.push(child); return child; }
         append(...children) { children.forEach(child => this.appendChild(child)); }
         replaceChildren(...children) { this.children = []; this.append(...children); }
+        get classList() {
+            return { toggle: (name, enabled) => {
+                const names = new Set((this.className || '').split(' ').filter(Boolean));
+                enabled ? names.add(name) : names.delete(name);
+                this.className = [...names].join(' ');
+            } };
+        }
         removeAttribute(name) { delete this.attributes[name]; delete this[name]; }
         addEventListener(type, listener) { this.listeners[type] = listener; }
         focus() { document.activeElement = this; }

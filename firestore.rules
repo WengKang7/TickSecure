@@ -46,11 +46,11 @@ service cloud.firestore {
     function isActiveAccount() {
       return hasProfile()
         && currentStatus() == 'active'
-        && currentEmailVerified();
+        && (currentRole() == 'admin' || currentEmailVerified());
     }
 
     function isAdmin() {
-      return isActiveAccount() && currentRole() == 'admin';
+      return hasProfile() && currentStatus() == 'active' && currentRole() == 'admin';
     }
 
     function isActiveOrganizer() {
@@ -228,6 +228,11 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // The trusted backend serializes each buyer's event reservations here.
+    match /ReservationLocks/{lockId} {
+      allow read, write: if false;
+    }
+
     // -----------------------------------------------------------------------
     // EVENTS
     // -----------------------------------------------------------------------
@@ -266,6 +271,15 @@ service cloud.firestore {
       // They cannot publish, suspend, cancel, reassign, or alter another
       // organizer's event. Admins perform all moderation transitions.
       allow update: if isAdmin()
+        || (
+          isEventOwner()
+          && resource.data.status == 'REJECTED'
+          && request.resource.data.status == 'DRAFT'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'statusHistory', 'updatedAt'
+          ])
+          && request.resource.data.updatedAt is string
+        )
         || (
           isEventOwner()
           && resource.data.status == 'DRAFT'
@@ -320,6 +334,7 @@ service cloud.firestore {
       // completed/cancelled records and admins retain oversight.
       allow get, list: if (isActiveAccount() && resource.data.status == 'ACTIVE')
         || isAdmin()
+        || (isActiveAccount() && 'buyerUid' in resource.data && resource.data.buyerUid == request.auth.uid)
         || (isActiveAccount() && resource.data.sellerUid == request.auth.uid)
         || isOrganizerRecord();
 
@@ -354,10 +369,25 @@ service cloud.firestore {
         && request.resource.data.updatedAt is string
         && hasValidComplaintEvidence();
 
-      // Only administrators may change a case's priority, status, timeline,
-      // or resolution. This prevents self-resolution and evidence tampering.
-      allow update: if isAdmin();
-      allow delete: if false;
+      // Owners can correct an open case before investigation; only admins
+      // may change its status, evidence, identity, timeline or resolution.
+      allow update: if isAdmin()
+        || (isActiveAccount()
+          && resource.data.complainantUid == request.auth.uid
+          && resource.data.status == 'OPEN'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'category', 'description', 'updatedAt'
+          ])
+          && request.resource.data.category is string
+          && request.resource.data.category.size() > 0
+          && request.resource.data.category.size() <= 120
+          && request.resource.data.description is string
+          && request.resource.data.description.size() >= 10
+          && request.resource.data.description.size() <= 5000
+          && request.resource.data.updatedAt is string);
+      allow delete: if isActiveAccount()
+        && resource.data.complainantUid == request.auth.uid
+        && resource.data.status == 'OPEN';
     }
 
     match /Notifications/{notificationId} {

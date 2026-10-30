@@ -14,6 +14,7 @@ class Element {
     removeAttribute(name) { this.attributes.delete(name); }
     set value(value) { this.rawValue = String(value ?? ''); }
     get value() { return this.rawValue; }
+    get options() { return this.children; }
     set innerHTML(value) {
         this.html = value;
         this.buttons = [...value.matchAll(/data-(edit|remove)-category="(\d+)"/g)].map(match => {
@@ -52,6 +53,7 @@ async function configPage(overrides = {}, options = {}) {
     elements.get('configuration-review').hidden = true;
     const window = { location: { search: '?id=event-1', href: 'initial' }, tsCurrentUser: { uid: 'organizer-1' },
         addEventListener(type, callback) { handlers[type] = callback; }, tsShowToast() {}, tsVenueRenderer: { renderBoard() {} },
+        tsDecision: async () => options.cancelDecision ? null : {},
         tsEvents: {
             getEvent: async () => ({ ...event, ...overrides }),
             saveConfigurationDraft: async (id, data) => { calls.drafts.push(clone(data)); },
@@ -61,10 +63,72 @@ async function configPage(overrides = {}, options = {}) {
     };
     const context = vm.createContext({ window, document: { getElementById: id => elements.get(id), querySelector: () => new Element(), createElement: () => new Element() }, URLSearchParams, Intl, Event: class { constructor(type) { this.type = type; } } });
     vm.runInContext(source('event-policy.js'), context);
+    if (options.seatTools) {
+        vm.runInContext(source('seat-category-model.js'), context);
+        vm.runInContext(source('organizer-seat-categories.js'), context);
+    }
     vm.runInContext(source('organizer-configuration.js'), context);
     await handlers['ts-auth-ready']();
     return { elements, calls, window, focused: () => focused, input: async (id, value) => { const element = elements.get(id); element.value = value; await element.dispatchEvent({ type: 'input' }); } };
 }
+
+const positionedVenue = { ...venue, sections: [{ sectionId: 'A', name: 'Main hall', seatCount: 12, geometry: {
+    page: 1, imageWidth: 632, imageHeight: 710,
+    seatMarkers: Array.from({ length: 12 }, (_, i) => ({ label: 'A' + (i + 1), row: 'A', number: String(i + 1), x: 10 + i * 3, y: 40 }))
+} }] };
+async function chooseRange(p, from, to) {
+    await p.input('catSection', 'A');
+    await p.elements.get('catSection').dispatchEvent({ type: 'change' });
+    await p.input('category-from', 'A-' + from); await p.input('category-to', 'A-' + to);
+    await p.elements.get('category-select-range').click();
+}
+test('organizer assigns two exact ranges in the same physical section and submits those seats', async () => {
+    const p = await configPage({ categories: {} }, { venue: positionedVenue, seatTools: true });
+    await chooseRange(p, 'A1', 'A3');
+    await p.input('catName', 'VIP'); await p.input('catPrice', '200');
+    assert.equal(p.elements.get('catQuantity').value, '3');
+    await p.elements.get('add-cat-btn').click();
+    await chooseRange(p, 'A4', 'A12');
+    await p.input('catName', 'Standard'); await p.input('catPrice', '100');
+    await p.elements.get('review-config-btn').click();
+    assert.equal(p.elements.get('configuration-review').hidden, false);
+    await p.elements.get('submit-config-btn').click();
+    assert.equal(p.calls.submits, 1);
+    const cats = p.calls.completed[0].categories;
+    assert.equal(cats.length, 2);
+    assert.notEqual(cats[0].sectionId, cats[1].sectionId);
+    assert.deepEqual(cats[0].seatLabels, ['A-A1','A-A2','A-A3']);
+    assert.deepEqual(cats[1].seatLabels, ['A-A4','A-A5','A-A6','A-A7','A-A8','A-A9','A-A10','A-A11','A-A12']);
+});
+test('unfinished exact-seat category survives Save Draft and reopening, including its colour', async () => {
+    const p = await configPage({ categories: {} }, { venue: positionedVenue, seatTools: true });
+    await chooseRange(p, 'A2', 'A5');
+    await p.input('catName', 'VIP'); await p.input('category-color', '#4c9b98');
+    await p.elements.get('save-config-draft').click();
+    const draft = p.calls.drafts[0];
+    assert.equal(draft.category.price, '');
+    assert.deepEqual(draft.category.seatLabels, ['A-A2','A-A3','A-A4','A-A5']);
+    const restored = await configPage({ categories: {}, configurationDraft: { rules: draft.rules, category: draft.category } }, { venue: positionedVenue, seatTools: true });
+    assert.equal(restored.elements.get('catQuantity').value, '4');
+    assert.equal(restored.elements.get('catName').value, 'VIP');
+    assert.equal(restored.elements.get('category-color').value, '#4c9b98');
+    await restored.elements.get('save-config-draft').click();
+    assert.deepEqual(restored.calls.drafts[0].category.seatLabels, draft.category.seatLabels);
+});
+test('assigned seats are excluded from a new category range and remain editable in their original category', async () => {
+    const category = { name: 'VIP', price: 200, quantity: 3, seatLabels: ['A-A1','A-A2','A-A3'], color: '#9170ca' };
+    const p = await configPage({ categories: { CAT_VIP: category } }, { venue: positionedVenue, seatTools: true });
+    await chooseRange(p, 'A1', 'A5');
+    assert.equal(p.elements.get('catQuantity').value, '2');
+    await p.elements.get('categories-tbody').querySelectorAll('[data-edit-category]')[0].click();
+    assert.equal(p.elements.get('catQuantity').value, '3');
+    await p.input('catPrice', '250');
+    await p.elements.get('add-cat-btn').click();
+    await p.elements.get('save-config-draft').click();
+    assert.equal(p.calls.drafts[0].categories[0].sectionId, 'CAT_VIP');
+    assert.deepEqual(p.calls.drafts[0].categories[0].seatLabels, category.seatLabels);
+    assert.equal(p.calls.drafts[0].categories[0].price, 250);
+});
 
 test('Save Draft preserves unfinished rule/category fields and never submits or navigates', async () => {
     const p = await configPage();
@@ -327,7 +391,7 @@ async function editorPage(existing = null, options = {}) {
         validateMaxLength: (value, length) => ({ valid: value.length <= length }), validateSelect: value => ({ valid: Boolean(value) }),
         validateFileType: () => ({ valid: true }), validateFileSize: () => ({ valid: true }) };
     const window = { location: { search: existing ? '?id=event-1' : '', href: 'http://localhost/ticksecure-ui/organizer/event-new.php' }, history: { replaceState() {} },
-        addEventListener: (_, callback) => { authReady = callback; }, confirm: () => true, tsValidation: V, tsShowToast() {},
+        addEventListener: (_, callback) => { authReady = callback; }, tsDecision: async () => options.cancelDecision ? null : {}, tsValidation: V, tsShowToast() {},
         tsUsers: { getCurrentProfile: async () => ({ id: 'organizer-1', fullName: 'Test organizer' }) },
         tsVenues: { getActiveVenues: async () => [venue, { ...venue, id: 'venue-2', name: 'Second hall' }] },
         tsEvents: { getEvent: async () => existing,
@@ -393,4 +457,15 @@ test('poster failure leaves saved event details intact and retains the selected 
     await p.elements.get('save-event-draft').click();
     assert.equal(attempts, 2);
     assert.match(p.elements.get('event-draft-status').textContent, /Draft saved/);
+});
+
+
+test('cancelling event submission leaves the review open and writes no completed configuration', async () => {
+    const p = await configPage({}, { cancelDecision: true });
+    await p.elements.get('review-config-btn').click();
+    await p.elements.get('submit-config-btn').click();
+    assert.equal(p.calls.submits, 0);
+    assert.equal(p.calls.completed.length, 0);
+    assert.equal(p.elements.get('configuration-review').hidden, false);
+    assert.equal(p.elements.get('submit-config-btn').disabled, false);
 });

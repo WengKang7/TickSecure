@@ -43,6 +43,7 @@ ob_start();
 </div>
 
 <script type="module">
+import { reviseRejectedEvent } from '../assets/js/role-crud.js';
 const esc = value => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -141,6 +142,8 @@ window.addEventListener('ts-auth-ready', async () => {
                 const actions = statusStr === 'DRAFT'
                     ? `<div class="ts-table-actions"><a class="ts-btn ts-btn-secondary ts-btn-sm" href="event-new.php?id=${eventId}">Edit Draft</a><button class="ts-btn ts-btn-danger ts-btn-sm" type="button" data-delete-event="${eventId}">Delete</button></div>`
                     : `<a class="ts-btn ts-btn-secondary ts-btn-sm" href="event-detail.php?id=${eventId}">Open</a>`;
+                const reviseAction = statusStr === 'REJECTED'
+                    ? `<button class="ts-btn ts-btn-primary ts-btn-sm" type="button" data-revise-event="${eventId}">Revise</button>` : '';
 
                 return `
                     <tr>
@@ -151,20 +154,33 @@ window.addEventListener('ts-auth-ready', async () => {
                         <td>${statusHtml}</td>
                         <td>${sold.toLocaleString()} / ${totalAllocated.toLocaleString()}</td>
                         <td>${updated}</td>
-                        <td>${actions}</td>
+                        <td>${actions} ${reviseAction}</td>
                     </tr>
                 `;
             }).join('');
+
+            tbody.querySelectorAll('[data-revise-event]').forEach(button => {
+                button.addEventListener('click', async () => {
+                    if (button.disabled) return;
+                    button.disabled = true;
+                    const id = decodeURIComponent(button.dataset.reviseEvent);
+                    try {
+                        if (!await window.tsDecision('reviseEvent', events.find(item => item.id === id)?.name || 'Rejected event')) return;
+                        await reviseRejectedEvent(id);
+                        window.location.href = `event-new.php?id=${encodeURIComponent(id)}`;
+                    } catch (error) { window.alert(error.message); button.disabled = false; }
+                    finally { button.disabled = false; }
+                });
+            });
 
             tbody.querySelectorAll('[data-delete-event]').forEach(button => {
                 button.addEventListener('click', async () => {
                     const eventId = decodeURIComponent(button.dataset.deleteEvent || '');
                     const event = events.find(item => item.id === eventId);
                     if (!event || String(event.status || '').toUpperCase() !== 'DRAFT') return;
-                    if (!window.confirm(`Delete the draft event “${event.name || 'Untitled event'}”? This cannot be undone.`)) return;
-
                     button.disabled = true;
                     try {
+                        if (!await window.tsDecision('deleteDraft', event.name || 'Untitled event', [['Event date', event.date || 'Not set']])) return;
                         await window.tsEvents.deleteEvent(eventId);
                         await loadData();
                         renderTable();
@@ -173,6 +189,7 @@ window.addEventListener('ts-auth-ready', async () => {
                         window.alert(error?.message || 'The draft event could not be deleted.');
                         button.disabled = false;
                     }
+                    finally { button.disabled = false; }
                 });
             });
         }

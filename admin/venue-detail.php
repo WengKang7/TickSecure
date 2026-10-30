@@ -124,7 +124,8 @@ window.addEventListener('ts-auth-ready', async () => {
                     id: 'sec-' + s.sectionId,
                     name: s.name,
                     letter: s.sectionId,
-                    seats: parseInt(s.seatCount, 10) || 0
+                    seats: parseInt(s.seatCount, 10) || 0,
+                    geometry: s.geometry
                 }));
                 
                 // Render if there are sections, otherwise show a message inside the board container
@@ -132,7 +133,7 @@ window.addEventListener('ts-auth-ready', async () => {
                 if (rendererSections.length > 0) {
                     boardContainer.innerHTML = ''; // clear previous
                     if (window.tsVenueRenderer) {
-                        window.tsVenueRenderer.renderBoard('preview-venue-board', rendererSections);
+                        window.tsVenueRenderer.renderBoard('preview-venue-board', rendererSections, { cleanLayout: true });
                     }
                 } else {
                     boardContainer.innerHTML = '<div class="ts-reusable-venue-plan" style="display:flex;align-items:center;justify-content:center;color:var(--text-muted);">No sections defined yet.</div>';

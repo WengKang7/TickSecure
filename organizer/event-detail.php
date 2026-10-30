@@ -132,7 +132,7 @@ window.addEventListener('ts-auth-ready', async () => {
             tbody.innerHTML = cats.map(c => `
                 <tr>
                     <td>${esc(c.name)}</td>
-                    <td>${esc(c.sectionId)}</td>
+                    <td>${Array.isArray(c.seatLabels) ? `${c.seatLabels.length} selected seats` : esc(c.sectionId)}</td>
                     <td>RM${c.price}</td>
                     <td>${Number(c.quantity) || 0}</td>
                     <td>${Math.max(0, (Number(c.quantity) || 0) - (soldBySection.get(c.sectionId) || 0))}</td>

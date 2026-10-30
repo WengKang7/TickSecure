@@ -35,18 +35,27 @@ function blueprint_require_admin(array $claims, ?array $profile): void
     }
 }
 
-function blueprint_inspect_pdf(string $path, int $size): void
+function blueprint_inspect_file(string $path, int $size): string
 {
     if ($size < 1 || $size > BLUEPRINT_MAX_BYTES) {
-        throw new FirebaseBackendException(413, 'Choose a PDF file no larger than 10 MB.', 'file-too-large');
+        throw new FirebaseBackendException(413, 'Choose a PNG or PDF file no larger than 10 MB.', 'file-too-large');
     }
     if (!class_exists('finfo')) {
-        throw new FirebaseBackendException(503, 'PHP Fileinfo is required for PDF uploads.', 'backend_not_configured');
+        throw new FirebaseBackendException(503, 'PHP Fileinfo is required for blueprint uploads.', 'backend_not_configured');
     }
-    if (!is_file($path) || (new finfo(FILEINFO_MIME_TYPE))->file($path) !== 'application/pdf'
-        || file_get_contents($path, false, null, 0, 5) !== '%PDF-') {
-        throw new FirebaseBackendException(415, 'The selected file is not a valid PDF.', 'invalid-file-type');
+    if (is_file($path)) {
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($path);
+        if ($mime === 'application/pdf' && file_get_contents($path, false, null, 0, 5) === '%PDF-') {
+            return $mime;
+        }
+        if ($mime === 'image/png' && file_get_contents($path, false, null, 0, 8) === "\x89PNG\r\n\x1a\n") {
+            $image = @getimagesize($path);
+            if ($image !== false && $image[0] > 0 && $image[1] > 0 && $image[2] === IMAGETYPE_PNG) {
+                return $mime;
+            }
+        }
     }
+    throw new FirebaseBackendException(415, 'The selected file is not a valid PNG or PDF.', 'invalid-file-type');
 }
 
 function blueprint_storage_directory(): string
@@ -64,7 +73,7 @@ function blueprint_storage_directory(): string
 
 function blueprint_file_path(string $filename): string
 {
-    if (!preg_match('/^[a-f0-9]{40}\.pdf$/D', $filename)) {
+    if (!preg_match('/^[a-f0-9]{40}\.(pdf|png)$/D', $filename)) {
         throw new FirebaseBackendException(404, 'Blueprint not found.', 'not-found');
     }
     $path = blueprint_storage_directory() . DIRECTORY_SEPARATOR . $filename;

@@ -170,8 +170,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const selected = venuesData.find(v => v.id === vId);
             if (selected && window.tsVenueRenderer) {
-                venuePreviewContainer.innerHTML = '<div id="venue-board-preview" class="ts-reusable-venue-plan" style="border-radius:12px; margin-top:20px;"></div>';
-                window.tsVenueRenderer.renderBoard('venue-board-preview', selected.sections || []);
+                venuePreviewContainer.innerHTML = '<div id="venue-board-preview" class="ts-reusable-venue-plan" style="border-radius:12px;"></div>';
+                window.tsVenueRenderer.renderBoard('venue-board-preview', selected.sections || [], { cleanLayout: true, fitContainer: true });
             }
         });
     }
@@ -244,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedVenue = venuesData.find(v => v.id === venueSelect.value);
         const venueChanged = currentEventId && originalVenueId !== venueSelect.value;
         const hasCategories = Object.keys(originalEvent?.categories || {}).length > 0;
-        if (venueChanged && hasCategories && !window.confirm('Changing the venue resets ticket categories because they belong to the old layout. Your other event details and rules will be kept. Continue?')) {
+        if (venueChanged && hasCategories && !await window.tsDecision('changeVenue', V.val(document.getElementById('event-form'), 'eventName') || 'Event draft', [['New venue', selectedVenue?.name || 'No venue selected']])) {
             return null;
         }
         const eventData = {

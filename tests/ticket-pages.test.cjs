@@ -109,6 +109,14 @@ test('ownership history includes transfers and the original issuance without ins
     assert.equal(history[1].children[0].textContent, 'Ticket issued');
 });
 
+test('a Sepolia ticket shows its mint hash and latest confirmed operation, with an honest wallet-sync state', async () => {
+    const hash='0x'+'a'.repeat(64),latest='0x'+'b'.repeat(64);
+    const p=createPage('ticket-detail',{ticket:{...ticket,chainId:11155111,mintingStatus:'MINTED',transactionHash:hash,blockchainLastTransactionHash:latest,blockchainWalletAddress:'0x'+'c'.repeat(40)}});
+    await p.ready();assert.equal(p.elements.get('val-tx').textContent,hash);assert.equal(p.elements.get('val-mint-status').textContent,'Minted');
+    assert.equal(p.elements.get('ticket-chain-latest').hidden,false);assert.equal(p.elements.get('val-chain-latest').children[0].href,'https://sepolia.etherscan.io/tx/'+latest);
+    assert.match(p.elements.get('val-chain-sync').textContent,/awaiting blockchain synchronization/);
+});
+
 test('a different owner and stale signed-out requests cannot display ticket details or an entry QR', async () => {
     const p = createPage('ticket-detail', { ticket: { ...ticket, ownerUid: 'another-buyer' } });
     await p.ready();

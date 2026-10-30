@@ -14,6 +14,7 @@ ob_start();
             </div><a class="ts-btn ts-btn-primary" href="resale-new.php">Create Listing</a>
         </div>
         <div class="ts-tabs mb-24" id="resale-tabs">
+            <a class="ts-btn ts-btn-secondary" href="resale-purchases.php">My resale purchases</a>
             <button class="ts-tab active" data-filter="active">Active</button>
             <button class="ts-tab" data-filter="sold">Sold</button>
             <button class="ts-tab" data-filter="cancelled">Cancelled</button>
@@ -80,7 +81,8 @@ window.addEventListener('ts-auth-ready', async () => {
     };
     
     const cancelListing = async (id) => {
-        if (!window.confirm('Are you sure you want to cancel this listing?')) return;
+        const listing = listings.find(item => item.id === id);
+        if (!await window.tsDecision('cancelListing', listing?.eventName || 'Resale listing', [['Ticket', listing?.ticketId || id]])) return;
         try {
             await window.tsResale.cancelListing(id);
             await loadData();
@@ -96,11 +98,12 @@ window.addEventListener('ts-auth-ready', async () => {
 
         const currentPrice = amount(listing.resalePrice);
         const maximumPrice = amount(listing.maxAllowedPrice);
-        const maximumLabel = maximumPrice > 0 ? ` (maximum RM${maximumPrice.toFixed(2)})` : '';
-        const entered = window.prompt(`Enter a new resale price${maximumLabel}:`, currentPrice.toFixed(2));
-        if (entered === null) return;
+        const decision = await window.tsDecision('repriceListing', listing.eventName || 'Resale listing',
+            [['Current price', currency(currentPrice)], ['Maximum price', maximumPrice > 0 ? currency(maximumPrice) : 'Checked by the server']],
+            { price: currentPrice.toFixed(2), maximum: maximumPrice });
+        if (!decision) return;
 
-        const newPrice = Number(entered);
+        const newPrice = Number(decision.price);
         if (!Number.isFinite(newPrice) || newPrice <= 0) {
             window.alert('Enter a valid resale price greater than RM0.00.');
             return;
