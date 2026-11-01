@@ -70,12 +70,22 @@ test('Pending Review initially contains only awaiting approvals and other status
 test('each status filter works and Review History excludes awaiting submissions and private drafts', async () => {
     const p = page(); await p.ready();
     p.tab('suspended'); assert.deepEqual(p.names(), ['Suspended show']);
+    assert.equal(p.rows()[0].children[5].children[0].textContent, 'UNAVAILABLE');
     p.tab('cancelled'); assert.deepEqual(p.names(), ['Cancelled show']);
     p.tab('history'); assert.equal(p.names().length, 5);
     assert.ok(!p.names().includes('Pending show'));
     assert.ok(!p.names().includes('Private draft'));
     assert.equal(p.tabs.find(tab => tab.dataset.eventFilter === 'history').attributes['aria-pressed'], 'true');
     assert.equal(p.tabs.find(tab => tab.dataset.eventFilter === 'pending').attributes['aria-pressed'], 'false');
+});
+
+test('unavailable events remain in admin records but are excluded from public event browsing', async () => {
+    const p = service();
+    const publicEvents = await p.service.getPublishedEvents();
+    assert.deepEqual(Array.from(publicEvents, event => event.id), ['pub&1']);
+    assert.equal((await p.service.getAdminEvent('suspended')).status, 'SUSPENDED');
+    const html = execFileSync(process.env.PHP_BINARY || 'C:/xampp/php/php.exe', [path.join(root, 'admin/events.php')], { encoding: 'utf8' });
+    assert.match(html, /data-event-filter="suspended"[^>]*>Unavailable</);
 });
 
 test('search and sorting work within the active view using actual submission dates', async () => {

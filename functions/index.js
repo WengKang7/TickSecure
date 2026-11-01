@@ -20,6 +20,8 @@ const { transferReceipt, getTicketTransfers } = require('./ticket-transfer-histo
 const { createBlockchainService } = require('./blockchain');
 const { defineSecret } = require('firebase-functions/params');
 const blockchainSignerSecret = defineSecret('TICKSECURE_BLOCKCHAIN_SIGNER_KEY');
+const { createDemoFundingService } = require('./demo-funding');
+const demoFundingSecret = defineSecret('TICKSECURE_DEMO_FUNDING_KEY');
 
 if (!getApps().length) initializeApp();
 
@@ -45,6 +47,22 @@ const serviceCharge = 20;
 const maxTicketsPerBuyer = 20;
 const maxInventoryPerCategory = 100000;
 const maxCurrencyAmount = 1000000;
+
+const demoFundingService = createDemoFundingService(db, {
+    projectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || db.projectId,
+    fail: (code, message) => { throw new HttpsError(code, message); }
+});
+for (const [name, method] of Object.entries({ getDemoFundingSettings: 'settings', getDemoFundingChallenge: 'challenge', claimDemoFunding: 'claim', retryDemoFunding: 'retryFailed' })) {
+    exports[name] = onCall({ region, enforceAppCheck: false, timeoutSeconds: 120, secrets: [demoFundingSecret] }, async request => {
+        const uid = requireAuth(request), data = requireDataObject(request);
+        if (['challenge', 'claim'].includes(method) && request.auth.token.email_verified !== true) throw new HttpsError('permission-denied', 'Verify your email before requesting demo gas.');
+        try { return await demoFundingService[method](uid, data); }
+        catch (error) {
+            if (error instanceof HttpsError) throw error;
+            throw new HttpsError('unavailable', 'Demo gas funding is temporarily unavailable. Your wallet and tickets are saved.');
+        }
+    });
+}
 
 function now() {
     return new Date().toISOString();

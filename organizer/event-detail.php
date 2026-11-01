@@ -3,7 +3,7 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<?=ts_page_head('Loading...', ' ', '<a class="ts-btn ts-btn-secondary" href="../public/event-detail.php" id="preview-link">'.ts_icon('eye').' Preview Public Page</a> <button class="ts-btn ts-btn-primary" id="edit-event-btn">Edit Event</button>')?>
+<?=ts_page_head('Loading...', ' ', '<a class="ts-btn ts-btn-secondary" href="../public/event-detail.php?preview=1" id="preview-link">'.ts_icon('eye').' Preview Public Page</a> <button class="ts-btn ts-btn-primary" id="edit-event-btn">Edit Event</button>')?>
 <div class="flex gap-8 wrap mb-24" id="status-chips">
     <?=ts_status('Loading', 'neutral')?>
 </div>
@@ -83,7 +83,7 @@ window.addEventListener('ts-auth-ready', async () => {
 
         document.querySelector('.ts-page-title').textContent = event.name;
         document.querySelector('.ts-page-subtitle').textContent = `${event.date ? new Date(event.date).toLocaleDateString() : 'No date'} · ${event.venueName || 'No venue'} · Last updated ${event.updatedAt ? new Date(event.updatedAt).toLocaleDateString() : ''}`;
-        document.getElementById('preview-link').href = `../public/event-detail.php?id=${eventId}`;
+        document.getElementById('preview-link').href = `../public/event-detail.php?id=${encodeURIComponent(eventId)}&preview=1`;
 
         const normalizedStatus = String(event.status || 'DRAFT').toUpperCase();
         const editButton = document.getElementById('edit-event-btn');

@@ -26,6 +26,25 @@ The backend creates only missing `EventSeats` documents, so a later request cann
 
 ## Collections
 
+### Backend-only demo gas funding
+
+`DemoFundingChallenges/{sha256(uid)}` holds a project/account/wallet-bound
+five-minute signature challenge. `DemoFundingClaims/{sha256(uid)}` retains the
+single account allowance, recipient, fixed amount, funding-wallet nonce, signed
+raw transaction, transaction hash and `PENDING`, `FUNDED` or `FAILED` status.
+`DemoFundingWallets/{sha256(lowercaseWallet)}` independently prevents the same
+wallet claiming through another user. `DemoFundingState/sepolia` serializes one
+pending transfer and preserves the next nonce. `DemoFundingBudgets/{YYYY-MM-DD}`
+stores reserved transfer-plus-maximum-gas wei as a decimal string, with days in
+UTC+8. Only the trusted backend accesses these collections; browser access is
+denied. Retries use the committed transaction hash/raw bytes rather than issuing
+another transfer. New allowances are 0.002 SepoliaETH once per account and wallet;
+the hard daily budget is 0.02 SepoliaETH including gas. Existing claims retain
+their original amounts and are never reissued by a policy change. Challenges
+also store their allowance in `amountWei` so outdated signatures are rejected.
+No real-chain funding is
+supported. See `blockchain/README.md` for setup and recovery behavior.
+
 ### `Users/{uid}`
 
 The base authenticated-user profile.

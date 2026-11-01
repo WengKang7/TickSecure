@@ -1541,10 +1541,14 @@ function backend_moderate_event(FirebaseAdminRest $firebase, string $uid, array 
     $eventId = backend_require_id($data['eventId'] ?? null, 'Event ID');
     $status = strtoupper(backend_require_text($data['status'] ?? null, 'Event status', 1, 32));
     $reason = is_string($data['reason'] ?? null) ? substr(trim($data['reason']), 0, 1000) : '';
+    $restoring = ($data['restore'] ?? false) === true;
+    if ($restoring && $status !== 'PUBLISHED') {
+        backend_fail(400, 'Restoring availability must publish the event.', 'invalid-argument');
+    }
     $allowedTransitions = [
-        'PUBLISHED' => ['PENDING_REVIEW'],
+        'PUBLISHED' => $restoring ? ['SUSPENDED'] : ['PENDING_REVIEW'],
         'REJECTED' => ['PENDING_REVIEW'],
-        'SUSPENDED' => ['PUBLISHED'],
+        'SUSPENDED' => ['PUBLISHED', 'APPROVED'],
         'CANCELLED' => ['PUBLISHED', 'SUSPENDED'],
     ];
     if (!isset($allowedTransitions[$status])) {
@@ -1556,6 +1560,7 @@ function backend_moderate_event(FirebaseAdminRest $firebase, string $uid, array 
         $eventId,
         $status,
         $reason,
+        $restoring,
         $allowedTransitions
     ): array {
         $admin = backend_get_actor($transaction, $uid);
@@ -1582,7 +1587,7 @@ function backend_moderate_event(FirebaseAdminRest $firebase, string $uid, array 
         }
         $transaction->update('Events', $eventId, $updates);
         $action = [
-            'PUBLISHED' => 'event_approved',
+            'PUBLISHED' => $restoring ? 'event_restored' : 'event_approved',
             'REJECTED' => 'event_rejected',
             'SUSPENDED' => 'event_suspended',
             'CANCELLED' => 'event_cancelled',
@@ -1597,9 +1602,11 @@ function backend_moderate_event(FirebaseAdminRest $firebase, string $uid, array 
         $organizerUid = (string)($event['organizerUid'] ?? '');
         if ($organizerUid !== '') {
             $message = match ($status) {
-                'PUBLISHED' => 'Your event "' . (string)($event['name'] ?? '') . '" has been approved and published!',
+                'PUBLISHED' => $restoring
+                    ? 'Your event "' . (string)($event['name'] ?? '') . '" is available again under its existing sales rules.'
+                    : 'Your event "' . (string)($event['name'] ?? '') . '" has been approved and published!',
                 'REJECTED' => 'Your event "' . (string)($event['name'] ?? '') . '" was rejected: ' . $reason,
-                'SUSPENDED' => 'Your event "' . (string)($event['name'] ?? '') . '" has been suspended: ' . $reason,
+                'SUSPENDED' => 'Your event "' . (string)($event['name'] ?? '') . '" has been made unavailable: ' . $reason,
                 default => 'Your event "' . (string)($event['name'] ?? '') . '" has been cancelled: ' . $reason,
             };
             $transaction->create('Notifications', backend_new_document_id(), backend_notification(
@@ -1703,7 +1710,7 @@ try {
             'createResaleListing', 'updateResalePrice', 'cancelResaleListing', 'suspendResaleListing', 'purchaseResale'
         ], true))
         && !(backend_transfer_is_enabled() && in_array($action, ['transferTicket', 'getTicketTransfers'], true))
-        && !(backend_blockchain_is_enabled() && in_array($action, ['getBlockchainSettings', 'configureBlockchain', 'prepareBlockchainOperation', 'verifyBlockchainOperation', 'getBuyerBlockchainOperations', 'getOrganizerBlockchainOperations'], true))) {
+        && !(backend_blockchain_is_enabled() && in_array($action, ['getBlockchainSettings', 'configureBlockchain', 'prepareBlockchainOperation', 'verifyBlockchainOperation', 'getBuyerBlockchainOperations', 'getOrganizerBlockchainOperations', 'getDemoFundingSettings', 'getDemoFundingChallenge', 'claimDemoFunding', 'retryDemoFunding'], true))) {
         backend_fail(410, 'This action is not enabled for this local PHP endpoint.', 'php_backend_disabled');
     }
 
@@ -1719,8 +1726,15 @@ try {
     if ($uid === '') {
         backend_fail(401, 'The authentication token is invalid.', 'unauthenticated');
     }
+    if (in_array($action, ['getDemoFundingChallenge', 'claimDemoFunding'], true) && ($claims['email_verified'] ?? false) !== true) {
+        backend_fail(403, 'Verify your email before requesting demo gas.', 'permission-denied');
+    }
 
     $handlers = [
+        'getDemoFundingSettings' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->fundingSettings($uid),
+        'getDemoFundingChallenge' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->fundingChallenge($uid, $data),
+        'claimDemoFunding' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->fundingClaim($uid, $data),
+        'retryDemoFunding' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->fundingRetry($uid, $data),
         'getBuyerBlockchainOperations' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->listBuyer($uid, $data),
         'getOrganizerBlockchainOperations' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->listOrganizer($uid, $data),
         'getBlockchainSettings' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->getSettings($uid),

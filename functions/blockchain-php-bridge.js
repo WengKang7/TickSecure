@@ -5,7 +5,8 @@ const path=require('node:path');
 const {initializeApp,cert}=require('firebase-admin/app');
 const {getFirestore}=require('firebase-admin/firestore');
 const {createBlockchainService}=require('./blockchain');
-const methods=['getSettings','configure','prepare','verify','listBuyer','listOrganizer'];
+const {createDemoFundingService}=require('./demo-funding');
+const methods=['getSettings','configure','prepare','verify','listBuyer','listOrganizer','fundingSettings','fundingChallenge','fundingClaim','fundingRetry'];
 let input='',db;process.stdin.on('data',chunk=>{input+=chunk;if(input.length>150000)process.exit(1);});
 process.stdin.on('end',async()=>{
     try{
@@ -15,8 +16,10 @@ process.stdin.on('end',async()=>{
         if(credentials.toLowerCase().startsWith(webroot.toLowerCase()+path.sep))throw Error('Credentials must remain outside the web root.');
         initializeApp({projectId:request.projectId,credential:cert(JSON.parse(fs.readFileSync(credentials,'utf8')))});
         const fail=(code,message)=>{throw Object.assign(Error(message),{code});};
-        db=getFirestore();const service=createBlockchainService(db,{projectId:request.projectId,fail});
-        const result=await service[request.method](request.uid,request.data||{});process.stdout.write(JSON.stringify({data:result}));
+        db=getFirestore();
+        const funding={fundingSettings:'settings',fundingChallenge:'challenge',fundingClaim:'claim',fundingRetry:'retryFailed'};
+        const service=funding[request.method]?createDemoFundingService(db,{projectId:request.projectId,fail}):createBlockchainService(db,{projectId:request.projectId,fail});
+        const result=await service[funding[request.method]||request.method](request.uid,request.data||{});process.stdout.write(JSON.stringify({data:result}));
     }catch(error){
         const known=['permission-denied','not-found','invalid-argument','failed-precondition','unavailable'];
         process.stdout.write(JSON.stringify({error:{code:known.includes(error.code)?error.code:'unavailable',

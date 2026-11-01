@@ -38,7 +38,7 @@ function modal() {
 
 test('all important action types show their target and a specific confirmation button', async () => {
     const p = modal();
-    for (const action of ['approveEvent', 'rejectEvent', 'suspendEvent', 'approveOrganizer', 'rejectOrganizer', 'suspendUser', 'reactivateUser', 'deleteVenue', 'updateVenue', 'confirmSections', 'activateLayout', 'replaceBlueprint', 'suspendListing', 'investigateComplaint', 'rejectComplaint', 'resolveComplaint']) {
+    for (const action of ['approveEvent', 'rejectEvent', 'suspendEvent', 'restoreEvent', 'approveOrganizer', 'rejectOrganizer', 'suspendUser', 'reactivateUser', 'deleteVenue', 'updateVenue', 'confirmSections', 'activateLayout', 'replaceBlueprint', 'suspendListing', 'investigateComplaint', 'rejectComplaint', 'resolveComplaint']) {
         const result = p.open(action, 'Example record', [['Email', 'example@test.com']]);
         assert.equal(p.elements.dialog.open, true, action);
         assert.equal(p.elements.subject.textContent, 'Example record');

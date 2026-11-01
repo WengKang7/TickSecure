@@ -42,9 +42,13 @@ ob_start();
                         </div>
                     </div>
                 </div>
+                <div class="ts-alert ts-alert-info mt-24 text-left" id="confirmation-mint-panel" hidden>
+                    <div><strong>Ticket NFT setup</strong><p id="confirmation-mint-status" role="status" aria-live="polite">Preparing your ticket NFTs...</p>
+                    <button class="ts-btn ts-btn-secondary ts-btn-sm" id="confirmation-mint-retry" type="button" hidden>Continue NFT setup</button></div>
+                </div>
                 <div class="flex justify-center gap-12 wrap mt-24"><a class="ts-btn ts-btn-primary"
                         href="bookings.php" id="btn-view-booking" hidden>View Booking</a><a class="ts-btn ts-btn-secondary"
-                        href="tickets.php">View My Tickets</a><a class="ts-btn ts-btn-primary" id="confirmation-chain-link" href="blockchain.php">Mint ticket NFTs</a><a class="ts-btn ts-btn-tertiary"
+                        href="tickets.php">View My Tickets</a><a class="ts-btn ts-btn-secondary" id="confirmation-chain-link" href="blockchain.php">NFT details</a><a class="ts-btn ts-btn-tertiary"
                         href="../public/events.php">Back to Events</a></div>
             </div>
             <div class="ts-accordion" style="margin:0 22px 22px"><button class="ts-accordion-trigger">Technical
@@ -69,6 +73,7 @@ ob_start();
     </div>
 </main>
 
+<script src="<?=ts_asset_url('assets/js/blockchain-wallet.js', '..')?>"></script>
 <script type="module" src="<?=ts_asset_url('assets/js/booking-confirmation.js', '..')?>"></script>
 
 <?php

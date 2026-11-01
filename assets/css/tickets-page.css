@@ -1,0 +1,74 @@
+/* Simple, readable ticket collection. All styles stay within this page. */
+.ts-tickets-page {
+  color:#283b30;
+  background:#fdfcf9;
+  min-height:calc(100vh - 70px);
+  padding:42px 0 60px;
+  font-size:16px;
+}
+.ts-tickets-page > .ts-container { width:min(1280px,calc(100% - 64px)); }
+.tickets-heading { display:flex; align-items:center; justify-content:space-between; gap:32px; margin-bottom:32px; }
+.tickets-heading > div:first-child { max-width:630px; }
+.tickets-heading .ts-section-eyebrow { font-size:12px; font-weight:600; color:#8d714b; letter-spacing:.12em; margin-bottom:12px; }
+.tickets-heading .ts-section-title { font-family:inherit; font-size:36px; font-weight:650; line-height:1.2; letter-spacing:-.035em; margin:0 0 12px; color:#283b30; }
+.tickets-heading .ts-section-copy { margin:0; color:#63705f; font-size:16px; line-height:1.7; }
+.tickets-heading-actions { display:flex; flex-wrap:wrap; gap:10px; flex-shrink:0; }
+.tickets-heading-actions .ts-btn { min-height:46px; padding:12px 18px; border-radius:8px; font-size:15px; font-weight:550; gap:9px; box-shadow:none; }
+.tickets-heading-actions .ts-btn-primary { background:#2c4937; border-color:#2c4937; color:#fff; }
+.tickets-heading-actions .ts-btn-primary:hover { background:#3c5a43; }
+.tickets-heading-actions .ts-btn-secondary { background:#fff; border-color:#d9ddcf; color:#455d41; }
+.tickets-heading-actions .ts-icon { width:18px; height:18px; }
+.tickets-workspace { display:block; }
+.ts-tickets-page #ticket-tabs { display:flex; flex-wrap:wrap; gap:8px; padding:0 0 22px; margin:0 0 28px; border:0; border-bottom:1px solid #e1e3d8; overflow:visible; }
+.ts-tickets-page #ticket-tabs .ts-tab { display:inline-flex; align-items:center; justify-content:center; gap:9px; padding:12px 17px; min-height:46px; border-radius:8px; border:1px solid transparent; background:transparent; color:#65715b; font-size:15px; font-weight:500; line-height:1.4; white-space:normal; }
+.ts-tickets-page #ticket-tabs .ts-tab:after { display:none; }
+.ts-tickets-page #ticket-tabs .ts-tab .ts-icon { width:18px; height:18px; flex-shrink:0; color:#8b987a; }
+.ts-tickets-page #ticket-tabs .ts-tab:hover { background:#f0f2e9; color:#314b32; }
+.ts-tickets-page #ticket-tabs .ts-tab.active { background:#e8efe0; border-color:#dce5d2; color:#385a32; font-weight:600; }
+.ts-tickets-page #ticket-tabs .ts-tab.active .ts-icon { color:#5e7e4d; }
+.tickets-collection { min-width:0; }
+.ts-tickets-page .ts-ticket-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.ts-tickets-page .ts-ticket-card { display:grid; grid-template-columns:64px minmax(0,1fr); min-height:174px; border:1px solid #dee2d4; background:#fff; border-radius:10px; overflow:hidden; box-shadow:none; transition:border-color .2s,box-shadow .2s; }
+.ts-tickets-page .ts-ticket-card:hover { border-color:#9aaf87; box-shadow:0 5px 18px #2c493708; }
+.ts-tickets-page .ts-ticket-thumb { display:grid; place-items:center; padding:12px; background:#eef2e7; color:transparent; font-size:0; border:0; }
+.ts-tickets-page .ts-ticket-thumb:before { content:''; width:28px; height:28px; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='none'%3E%3Cpath d='M5 12a4 4 0 0 1 0 8v6h24v-6a4 4 0 0 1 0-8V6H5v6Z' stroke='%2382966d' stroke-width='1.5'/%3E%3Cpath d='M19 6v4m0 4v4m0 4v4' stroke='%2382966d' stroke-width='1.5'/%3E%3C/svg%3E") center/contain no-repeat; }
+.ts-tickets-page .ts-ticket-card-body { min-width:0; padding:23px 24px; }
+.ts-tickets-page .ts-ticket-card-body > .flex { align-items:flex-start; gap:16px; }
+.ts-tickets-page .ts-ticket-card-body .ts-card-title { min-width:0; color:#2d4431; font-size:20px; font-weight:600; line-height:1.4; letter-spacing:-.02em; overflow-wrap:anywhere; }
+.ts-tickets-page .ts-ticket-card-body .ts-chip { flex-shrink:0; padding:4px 9px; font-size:13px; font-weight:500; line-height:1.5; }
+.ts-tickets-page .ts-ticket-card-body .ts-chip-success { color:#53753c; background:#edf4e5; }
+.ts-tickets-page .ts-ticket-card-body > .secondary { color:#707d65; font-size:15px; line-height:1.6; margin-top:12px; }
+.ts-tickets-page .ts-ticket-card-body > .mt-16 { font-size:15px; line-height:1.65; color:#4a6040; margin-top:15px; overflow-wrap:anywhere; }
+.ts-tickets-page .ts-ticket-card-body strong { font-weight:550; }
+.ts-tickets-page .ts-ticket-list > p { grid-column:1/-1; display:flex; align-items:center; justify-content:center; margin:0; min-height:180px; border:1px dashed #d8dfcc; border-radius:10px; background:#f5f7ee; color:#78866a; font-size:16px; }
+.ts-tickets-page a:focus-visible,.ts-tickets-page button:focus-visible { outline:2px solid #8c9d71; outline-offset:4px; }
+@media(max-width:1100px) {
+  .tickets-heading { flex-wrap:wrap; gap:22px; }
+  .tickets-heading > div:first-child { max-width:720px; }
+  .ts-tickets-page .ts-ticket-card-body > .flex { flex-wrap:wrap; gap:8px; }
+  .ts-tickets-page .ts-ticket-card-body .ts-card-title { flex:1 1 100%; }
+}
+@media(max-width:760px) {
+  .ts-tickets-page { padding-top:30px; }
+  .ts-tickets-page > .ts-container { width:calc(100% - 40px); }
+  .tickets-heading .ts-section-title { font-size:32px; }
+  .tickets-heading .ts-section-copy { font-size:15px; }
+  .tickets-heading-actions .ts-btn { font-size:14px; }
+  .ts-tickets-page #ticket-tabs { gap:7px; padding-bottom:20px; margin-bottom:24px; }
+  .ts-tickets-page #ticket-tabs .ts-tab { font-size:14px; padding:11px 13px; }
+  .ts-tickets-page .ts-ticket-list { grid-template-columns:minmax(0,1fr); gap:16px; }
+  .ts-tickets-page .ts-ticket-card-body > .flex { flex-wrap:nowrap; }
+  .ts-tickets-page .ts-ticket-card-body .ts-card-title { flex:0 1 auto; }
+}
+@media(max-width:450px) {
+  .tickets-heading { margin-bottom:26px; }
+  .tickets-heading-actions { width:100%; }
+  .tickets-heading-actions .ts-btn { flex:1; padding:11px 12px; }
+  .ts-tickets-page #ticket-tabs .ts-tab { flex:1 1 calc(50% - 8px); justify-content:flex-start; padding:11px 12px; }
+  .ts-tickets-page .ts-ticket-card { grid-template-columns:minmax(0,1fr); min-height:0; }
+  .ts-tickets-page .ts-ticket-thumb { display:none; }
+  .ts-tickets-page .ts-ticket-card-body { padding:22px; }
+  .ts-tickets-page .ts-ticket-card-body > .flex { flex-wrap:wrap; gap:9px; }
+  .ts-tickets-page .ts-ticket-card-body .ts-card-title { flex:1 1 100%; font-size:20px; }
+}
+@media(prefers-reduced-motion:reduce) { .ts-tickets-page .ts-ticket-card { transition:none; } }

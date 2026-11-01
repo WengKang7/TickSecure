@@ -122,6 +122,8 @@ window.addEventListener('ts-auth-ready', async () => {
                 completed = true;
                 clearInterval(timer);
                 try { sessionStorage.removeItem(storageKey); } catch (_) {}
+                // A one-use intent: viewing an old confirmation must not open MetaMask.
+                try { sessionStorage.setItem(`ts-auto-mint:${user.uid}:${booking.id}`, String(Date.now())); } catch (_) {}
                 window.location.href = `booking-confirmation.php?bookingId=${encodeURIComponent(booking.id)}`;
             } catch (failure) {
                 error(failure.message || 'Demo checkout could not be completed. You can retry.');

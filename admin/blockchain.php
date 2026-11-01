@@ -15,6 +15,12 @@ ob_start();
     <p class="small secondary mt-12">Verify after two confirmations. Paste a deployment hash to recover interrupted setup. Clear the field to start a new attempt only if the previous deployment was cancelled or reverted.</p>
   </div>
 </section>
+<section class="ts-card ts-card-pad mb-24" aria-labelledby="demo-funding-heading">
+  <div class="ts-chain-heading"><h2 id="demo-funding-heading">Automatic buyer demo gas</h2><button class="ts-btn ts-btn-secondary" id="demo-funding-refresh" type="button">Refresh funding</button></div>
+  <p class="small secondary" id="demo-funding-message" role="status">Loading demo funding wallet...</p>
+  <dl class="ts-chain-config" id="demo-funding-details" hidden><div><dt>Dedicated Sepolia funding address</dt><dd class="ts-chain-code" id="demo-funding-address"></dd></div><div><dt>Available test ETH</dt><dd id="demo-funding-balance"></dd></div><div><dt>Today's reserved budget (includes gas)</dt><dd id="demo-funding-budget"></dd></div></dl>
+  <div id="demo-funding-failures" class="ts-list mt-16"></div>
+</section>
 <div class="ts-kpi-grid mb-24">
   <?=ts_kpi('All records', '<span id="tx-total-kpi">…</span>', 'check')?><?=ts_kpi('Awaiting confirmation', '<span id="tx-pending-kpi">…</span>', 'clock')?><?=ts_kpi('Confirmed on Sepolia', '<span id="tx-confirmed-kpi">…</span>', 'check')?><?=ts_kpi('Failed', '<span id="tx-failed-kpi">…</span>', 'alert')?>
 </div>
@@ -26,6 +32,7 @@ ob_start();
 </div>
 <script src="<?=ts_asset_url('assets/js/blockchain-wallet.js', '..')?>"></script>
 <script type="module" src="<?=ts_asset_url('assets/js/admin-blockchain.js', '..')?>"></script>
+<script type="module" src="<?=ts_asset_url('assets/js/admin-demo-funding.js', '..')?>"></script>
 <?php
 $content = ob_get_clean();
 render_dashboard_page('admin', 'Blockchain Transactions', 'blockchain', $content, '..', '');

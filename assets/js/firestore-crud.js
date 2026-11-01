@@ -816,6 +816,40 @@ export const EventService = {
         if (evt) await NotificationService.create(evt.organizerUid, `Your event "${evt.name}" has been approved and published!`, 'event_approved', 'event', eventId);
     },
 
+    async restoreEvent(eventId) {
+        const id = String(eventId || '').trim();
+        if (!id) throw new Error('Select an event to make available.');
+        if (usingLocalPhpBackend()) {
+            return invokeCallable({ eventId: id, status: 'PUBLISHED', restore: true }, { name: 'moderateEvent' });
+        }
+        const actorUid = uid();
+        const eventRef = doc(db, 'Events', id);
+        const notificationRef = doc(collection(db, 'Notifications'));
+        await runTransaction(db, async transaction => {
+            const actor = await transaction.get(doc(db, 'Users', actorUid));
+            const snapshot = await transaction.get(eventRef);
+            if (!actor.exists() || actor.data().role !== 'admin' || actor.data().status !== 'active') {
+                throw new Error('Only an active administrator can make an event available.');
+            }
+            if (!snapshot.exists() || snapshot.data().status !== 'SUSPENDED') {
+                throw new Error('Only unavailable events can be made available. Refresh the event and try again.');
+            }
+            const event = snapshot.data();
+            const timestamp = iso();
+            transaction.update(eventRef, {
+                status: 'PUBLISHED', updatedAt: timestamp,
+                statusHistory: arrayUnion({ from: 'SUSPENDED', to: 'PUBLISHED', changedBy: actorUid, timestamp })
+            });
+            if (event.organizerUid) transaction.set(notificationRef, {
+                recipientUid: event.organizerUid,
+                message: `Your event "${event.name}" is available again under its existing sales rules.`,
+                type: 'event_restored', relatedEntityType: 'event', relatedEntityId: id,
+                read: false, createdAt: timestamp
+            });
+        });
+        return { eventId: id, status: 'PUBLISHED' };
+    },
+
     async rejectEvent(eventId, reason) {
         if (usingLocalPhpBackend()) {
             return invokeCallable({
@@ -849,7 +883,7 @@ export const EventService = {
             updatedAt: iso()
         });
         await AuditService.log('event_suspended', 'event', eventId, { reason });
-        if (evt) await NotificationService.create(evt.organizerUid, `Your event "${evt.name}" has been suspended: ${reason}`, 'event_suspended', 'event', eventId);
+        if (evt) await NotificationService.create(evt.organizerUid, `Your event "${evt.name}" has been made unavailable: ${reason}`, 'event_suspended', 'event', eventId);
     },
 
     async cancelEvent(eventId, reason) {

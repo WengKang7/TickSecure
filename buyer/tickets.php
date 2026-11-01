@@ -3,27 +3,33 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<main class="ts-section-tight">
+<link rel="stylesheet" href="<?=ts_asset_url('assets/css/tickets-page.css', '..')?>">
+<main class="ts-tickets-page">
     <div class="ts-container">
-        <div class="ts-section-title-row">
+        <header class="tickets-heading">
             <div>
                 <div class="ts-section-eyebrow">Digital ticket wallet</div>
                 <h1 class="ts-section-title">My Tickets</h1>
                 <p class="ts-section-copy">View active, transferred, used and resale-listed NFT tickets owned by your
                     connected wallet.</p>
-            </div><a class="ts-btn ts-btn-primary" href="blockchain.php">My blockchain</a><a class="ts-btn ts-btn-secondary"
-                href="wallet.php"><?=ts_icon('wallet')?>
-                Wallet 0x12A4…8F92</a>
-        </div>
-        <div class="ts-tabs mb-24" id="ticket-tabs">
-            <button class="ts-tab active" data-filter="valid">Active</button>
-            <button class="ts-tab" data-filter="listed">Listed for Resale</button>
-            <a class="ts-tab" href="ticket-transfers.php">Sent &amp; received</a>
-            <button class="ts-tab" data-filter="used">Used</button>
-            <button class="ts-tab" data-filter="cancelled">Cancelled / Expired</button>
-        </div>
-        <div class="ts-ticket-list" id="ticket-list">
-             <p class="secondary" style="padding:40px; text-align:center">Loading...</p>
+            </div>
+            <div class="tickets-heading-actions"><a class="ts-btn ts-btn-secondary" href="wallet.php"><?=ts_icon('wallet')?> Manage wallet</a><a class="ts-btn ts-btn-primary" href="blockchain.php">My blockchain <?=ts_icon('arrow-right')?></a></div>
+        </header>
+        <div class="tickets-workspace">
+            <aside class="tickets-sidebar" aria-label="Ticket navigation">
+                <nav class="ts-tabs" id="ticket-tabs" aria-label="Ticket status">
+                    <button type="button" class="ts-tab active" data-filter="valid"><?=ts_icon('ticket')?> Active</button>
+                    <button type="button" class="ts-tab" data-filter="listed"><?=ts_icon('layers')?> Listed for Resale</button>
+                    <a class="ts-tab" href="ticket-transfers.php"><?=ts_icon('arrow-right')?> Sent &amp; received</a>
+                    <button type="button" class="ts-tab" data-filter="used"><?=ts_icon('scanner')?> Used</button>
+                    <button type="button" class="ts-tab" data-filter="cancelled"><?=ts_icon('clock')?> Cancelled / Expired</button>
+                </nav>
+            </aside>
+            <section class="tickets-collection" aria-label="Your tickets">
+                <div class="ts-ticket-list" id="ticket-list">
+                    <p class="secondary" style="padding:40px; text-align:center">Loading...</p>
+                </div>
+            </section>
         </div>
     </div>
 </main>

@@ -73,7 +73,7 @@ export async function invokeTrustedBackend(request, config) {
         && ['getEventAvailability', 'getSeatMap', 'holdSelectedSeats', 'reserveSeats', 'releaseSeatReservation', 'checkout',
             'createResaleListing', 'updateResalePrice', 'cancelResaleListing', 'suspendResaleListing', 'purchaseResale', 'transferTicket', 'getTicketTransfers',
             'getBlockchainSettings', 'configureBlockchain', 'prepareBlockchainOperation', 'verifyBlockchainOperation',
-            'getBuyerBlockchainOperations', 'getOrganizerBlockchainOperations'].includes(config.name);
+            'getBuyerBlockchainOperations', 'getOrganizerBlockchainOperations', 'getDemoFundingSettings', 'getDemoFundingChallenge', 'claimDemoFunding', 'retryDemoFunding'].includes(config.name);
     if (config.backend === 'php' || usingLocalPhpBackend() || localDemoCheckout) {
         return invokeLocalPhpBackend(request, config);
     }

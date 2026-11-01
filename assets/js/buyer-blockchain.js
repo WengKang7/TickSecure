@@ -1,4 +1,5 @@
 import { sepolia } from './blockchain-client.js?v=20261030-buyer-chain-v2';
+import { fundDemoWallet } from './demo-funding-client.js?v=20261101-demo-funding';
 const el=id=>document.getElementById(id),D=window.tsBlockchainDisplay,role=document.querySelector('[data-chain-role]').dataset.chainRole;
 const params=new URLSearchParams(window.location.search),filters={};for(const key of ['ticketId','bookingId'])if(params.get(key))filters[key]=params.get(key);
 let uid='',version=0,busy=false,records=[],configured=false,timer;
@@ -33,11 +34,22 @@ async function verify(record,hash,v,attempt=0){const result=await sepolia.verify
     else{message('Submitted. Waiting for two Sepolia confirmations. You can keep this page open or return and verify the same hash.');clearTimeout(timer);if(attempt<24)timer=setTimeout(()=>{if(v===version&&active()&&!busy)run(next=>verify(record,hash,next,attempt+1));},5000);}
 }
 async function publish(record,v){
+    const locks=window.navigator?.locks;
+    if(locks?.request)return locks.request(`ticksecure:buyer-chain:${uid}`,{ifAvailable:true},lock=>{
+        if(!lock)throw Error('An NFT transaction is already running in another tab. Continue there.');
+        return publishUnlocked(record,v);
+    });
+    return publishUnlocked(record,v);
+}
+async function publishUnlocked(record,v){
     const hash=knownHash(record);if(D.hash(hash))return verify(record,hash,v);
     const prepared=await sepolia.prepare(record.id);if(v!==version||!active())return;
     if(prepared.alreadyRecorded){if(D.hash(prepared.transactionHash))return verify(record,prepared.transactionHash,v);throw Error('This operation already exists on Sepolia. Recover it using the transaction hash from your wallet.');}
     const wallet=await window.tsChainWallet.connect();if(v!==version||!active())return;
     if(wallet!==prepared.actorWallet.toLowerCase())throw Error('Select the buyer wallet required for this operation: '+prepared.actorWallet);
+    const funding=await fundDemoWallet({walletAddress:wallet,onlyIfNeeded:true,isActive:()=>v===version&&active(),onStatus:text=>message(text)});
+    if(v!==version||!active())return;
+    if(['PENDING','BUSY'].includes(funding?.status))throw Error('Demo gas is still confirming. Retry this NFT operation shortly.');
     const confirmation=await window.tsConfirmDecision({title:record.transactionType==='MINT'?'Mint your ticket NFT?':'Complete this ticket NFT transaction?',label:'Continue to MetaMask',subject:record.eventName||record.ticketId,
         message:'You will submit this transaction from your own wallet on Sepolia and pay test ETH gas.',details:[['Action',record.transactionType],['Your wallet',wallet],['Receiver',prepared.walletAddress],['Ticket',record.ticketId],['Network','Sepolia (11155111)']]});
     if(!confirmation||v!==version||!active())return;

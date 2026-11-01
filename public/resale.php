@@ -3,13 +3,39 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<main class="ts-section-tight"><div class="ts-container">
-  <div class="ts-section-title-row"><div><div class="ts-section-eyebrow">Official secondary market</div><h1 class="ts-section-title">Verified resale tickets</h1><p class="ts-section-copy">Buy tickets from verified current owners within organizer-defined resale rules.</p></div></div>
-  <div class="ts-card mb-24"><div class="ts-filter-bar"><div class="ts-input-wrap ts-search"><?=ts_icon('search')?><input class="ts-input" id="resale-search" placeholder="Search event or ticket category"></div><select class="ts-select" id="resale-event-filter"><option value="">All events</option></select><select class="ts-select" id="resale-category-filter"><option value="">All categories</option></select><select class="ts-select" id="resale-price-sort"><option value="">Newest first</option><option value="asc">Lowest price</option><option value="desc">Highest price</option></select></div></div>
-  <div class="ts-grid-3" id="resale-grid">
-    <div class="text-center secondary" style="grid-column:1/-1; padding:40px;">Loading listings...</div>
-  </div>
-  <div class="flex gap-12 mt-24"><a class="ts-btn ts-btn-secondary" href="../buyer/resale.php">My listings</a><a class="ts-btn ts-btn-secondary" href="../buyer/resale-purchases.php">My resale purchases</a></div>
+<link rel="stylesheet" href="<?=ts_asset_url('assets/css/resale-page.css', '..')?>">
+<main class="ts-resale-page"><div class="ts-container">
+  <header class="resale-intro">
+    <div class="resale-intro-copy">
+      <p class="resale-eyebrow">Official secondary market</p>
+      <h1>Great moments.<br><em>Second chances.</em></h1>
+      <p class="resale-lead">Buy tickets from verified current owners within organizer-defined resale rules.</p>
+      <div class="resale-benefits"><span><?=ts_icon('shield')?> Verified ownership</span><span><?=ts_icon('ticket')?> Controlled resale</span></div>
+    </div>
+    <div class="resale-illustration" aria-hidden="true">
+      <div class="resale-orbit resale-orbit-one"></div><div class="resale-orbit resale-orbit-two"></div>
+      <div class="resale-paper-ticket">
+        <div class="resale-ticket-top"><span>TICKSECURE</span><?=ts_icon('ticket')?></div>
+        <div class="resale-ticket-title">A new plan.<br><em>Your moment.</em></div>
+        <div class="resale-ticket-bottom"><span><?=ts_icon('shield')?> Verified ownership</span><div class="resale-ticket-bars"></div></div>
+      </div>
+      <div class="resale-verified-seal"><?=ts_icon('shield')?><span>Another way<br><strong>to be there.</strong></span></div>
+    </div>
+  </header>
+  <nav class="resale-account-links" aria-label="Your resale activity"><span>Your resale space</span><div><a href="../buyer/resale.php"><?=ts_icon('ticket')?> My listings <?=ts_icon('arrow-right')?></a><a href="../buyer/resale-purchases.php"><?=ts_icon('wallet')?> My resale purchases <?=ts_icon('arrow-right')?></a></div></nav>
+  <section class="resale-market" aria-labelledby="resale-results-heading">
+    <div class="resale-results-heading"><div><p class="resale-eyebrow">Find your way in</p><h2 id="resale-results-heading">Verified resale tickets<span>.</span></h2></div><span class="resale-market-note"><?=ts_icon('shield')?> Organizer rules apply</span></div>
+    <div class="resale-filters" role="search" aria-label="Find resale tickets">
+      <div class="resale-filter resale-filter-search"><label for="resale-search">Search tickets</label><div class="ts-input-wrap"><?=ts_icon('search')?><input class="ts-input" id="resale-search" type="search" placeholder="Event or ticket category"></div></div>
+      <div class="resale-filter"><label for="resale-event-filter">Event</label><select class="ts-select" id="resale-event-filter"><option value="">All events</option></select></div>
+      <div class="resale-filter"><label for="resale-category-filter">Category</label><select class="ts-select" id="resale-category-filter"><option value="">All categories</option></select></div>
+      <div class="resale-filter"><label for="resale-price-sort">Sort by</label><select class="ts-select" id="resale-price-sort"><option value="">Newest first</option><option value="asc">Lowest price</option><option value="desc">Highest price</option></select></div>
+    </div>
+    <div class="ts-grid-3" id="resale-grid">
+      <div class="text-center secondary" style="grid-column:1/-1; padding:40px;">Loading listings...</div>
+    </div>
+  </section>
+  <footer class="resale-signoff"><span>TickSecure</span><p>Good experiences deserve another chance.</p></footer>
 </div></main>
 
 <script type="module">

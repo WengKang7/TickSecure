@@ -11,7 +11,13 @@ final class TickSecureBlockchain
         $config=firebase_backend_config();
         $node=getenv('TICKSECURE_NODE_PATH') ?: (PHP_OS_FAMILY==='Windows'?'C:/Program Files/nodejs/node.exe':'node');
         $command=[$node,__DIR__.'/../functions/blockchain-php-bridge.js'];
-        $pipes=[];$process=proc_open($command,[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,__DIR__.'/../functions',null,['bypass_shell'=>true,'create_no_window'=>true]);
+        // Apache SetEnv values are request-local and may not be inherited by
+        // child processes. Forward only server-configured funding overrides.
+        $environment=getenv();if(!is_array($environment))$environment=[];
+        foreach(['TICKSECURE_DEMO_FUNDING','TICKSECURE_DEMO_FUNDING_KEY_FILE','TICKSECURE_SEPOLIA_RPC_URL'] as $name){
+            $value=getenv($name);if($value!==false)$environment[$name]=$value;
+        }
+        $pipes=[];$process=proc_open($command,[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,__DIR__.'/../functions',$environment,['bypass_shell'=>true,'create_no_window'=>true]);
         if(!is_resource($process))throw new FirebaseBackendException(503,'The blockchain server process could not start.','unavailable');
         fwrite($pipes[0],json_encode(['method'=>$method,'uid'=>$uid,'projectId'=>$this->projectId,'serviceAccountPath'=>$config['serviceAccountPath'],'data'=>$data],JSON_THROW_ON_ERROR));fclose($pipes[0]);
         $output=stream_get_contents($pipes[1]);fclose($pipes[1]);$stderr=stream_get_contents($pipes[2]);fclose($pipes[2]);proc_close($process);
@@ -29,4 +35,8 @@ final class TickSecureBlockchain
     public function verify(string $uid,array $data): array { return $this->invoke('verify',$uid,$data); }
     public function listBuyer(string $uid,array $data): array { return $this->invoke('listBuyer',$uid,$data); }
     public function listOrganizer(string $uid,array $data): array { return $this->invoke('listOrganizer',$uid,$data); }
+    public function fundingSettings(string $uid): array { return $this->invoke('fundingSettings',$uid); }
+    public function fundingChallenge(string $uid,array $data): array { return $this->invoke('fundingChallenge',$uid,$data); }
+    public function fundingClaim(string $uid,array $data): array { return $this->invoke('fundingClaim',$uid,$data); }
+    public function fundingRetry(string $uid,array $data): array { return $this->invoke('fundingRetry',$uid,$data); }
 }

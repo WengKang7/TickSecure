@@ -3,10 +3,11 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<?=ts_page_head('Loading event...', 'Review the submitted details before making a decision.', '<a class="ts-btn ts-btn-secondary" href="events.php">Back to Events</a><div id="action-buttons" class="flex gap-8" hidden><button id="btn-suspend" class="ts-btn ts-btn-secondary" hidden>Suspend</button><button id="btn-reject" class="ts-btn ts-btn-danger" hidden>Reject</button><button id="btn-approve" class="ts-btn ts-btn-success" hidden>Approve</button></div>')?>
+<?=ts_page_head('Loading event...', 'Review the submitted details before making a decision.', '<a class="ts-btn ts-btn-secondary" href="events.php">Back to Events</a><div id="action-buttons" class="flex gap-8" hidden><button id="btn-restore" class="ts-btn ts-btn-primary" hidden>Make available</button><button id="btn-suspend" class="ts-btn ts-btn-secondary" hidden>Make unavailable</button><button id="btn-reject" class="ts-btn ts-btn-danger" hidden>Reject</button><button id="btn-approve" class="ts-btn ts-btn-success" hidden>Approve</button></div>')?>
 <div id="review-error" class="ts-alert ts-alert-error mb-24" role="alert" tabindex="-1" hidden></div>
 <button id="review-retry" type="button" class="ts-btn ts-btn-secondary mb-24" hidden>Reload Event</button>
 <div id="review-notice" class="ts-alert ts-alert-warning mb-24" role="status" hidden></div>
+<div id="event-availability-notice" class="ts-alert ts-alert-warning mb-24" role="status" hidden>This event is unavailable to buyers. Its records have been kept. Use Make available to publish it again under its existing sales rules.</div>
 <div id="event-detail-container" class="ts-review-layout" hidden>
     <div class="ts-review-main">
         <section class="ts-card ts-card-pad" aria-labelledby="review-overview-heading">
@@ -72,7 +73,7 @@ ob_start();
                 <div><dt>Submitted for approval</dt><dd id="val-submitted"></dd></div>
                 <div><dt>Last updated</dt><dd id="val-updated"></dd></div>
             </dl>
-            <p class="small secondary mt-20">Approving publishes the event. Buyers can purchase during its configured sales window. Rejection and suspension require a reason.</p>
+            <p class="small secondary mt-20">Approving publishes the event. Making it unavailable blocks ticket activity and keeps its existing records. Rejection and making an event unavailable require a reason.</p>
         </section>
         <section class="ts-card ts-card-pad" aria-labelledby="review-organizer-heading">
             <h2 class="ts-card-title" id="review-organizer-heading">Organizer Contact</h2>

@@ -1,0 +1,179 @@
+/* Presentation only. Event discovery, search and saved-event behaviour stay in events.js. */
+.ts-events-page {
+  --discover-ink: #263d33;
+  --discover-gold: #9a7c4d;
+  background: #fdfcf9;
+  padding: 38px 0 30px;
+}
+.ts-events-page > .ts-container { width: min(1280px, calc(100% - 80px)); }
+.ts-events-page .ts-events-intro {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  grid-template-columns: 1.4fr 1fr;
+  align-items: end;
+  gap: 50px;
+  padding: 42px 48px 46px;
+  border: 1px solid #294239;
+  border-radius: 12px;
+  background: #1c342b;
+  margin-bottom: 30px;
+}
+.ts-events-page .ts-events-intro::before {
+  content: '';
+  position: absolute;
+  z-index: -2;
+  inset: 0 0 0 33%;
+  background: url('../images/live-stage.svg') center 40% / cover no-repeat;
+  opacity: .42;
+}
+.ts-events-page .ts-events-intro::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(90deg, #1c342b 13%, #1c342be8 39%, #1c342b33 100%);
+}
+.ts-events-page .ts-events-intro .ts-section-eyebrow {
+  color: #d3bc92;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: .2em;
+  margin-bottom: 24px;
+}
+.ts-events-page .ts-events-intro h1 {
+  color: #f9f6ea;
+  font: 400 clamp(36px, 4.1vw, 58px)/1.06 Georgia, 'Times New Roman', serif;
+  letter-spacing: -.045em;
+}
+.ts-events-page .ts-events-intro h1 em { color: #d8c09a; font-weight: 400; }
+.ts-events-page .ts-events-intro-copy { max-width: 290px; padding: 0 0 3px; }
+.ts-events-page .ts-events-intro-copy p { color: #e3e9dd; font-size: 13px; line-height: 1.9; margin-bottom: 24px; }
+.ts-events-page .ts-events-intro-copy > span { color: #e2cda8; font-size: 10px; gap: 9px; }
+.ts-events-page .ts-events-intro-copy .ts-icon { width: 16px; height: 16px; }
+.ts-events-page .ts-events-toolbar {
+  gap: 22px;
+  padding: 10px 11px 10px 17px;
+  margin-bottom: 37px;
+  border-color: #e4dfd3;
+  border-radius: 9px;
+  background: #fffefa;
+  box-shadow: 0 4px 16px #24362b03;
+}
+.ts-events-page .ts-events-toolbar .ts-search { max-width: 680px; }
+.ts-events-page .ts-events-toolbar .ts-input { min-height: 42px; color: var(--discover-ink); font-size: 12px; }
+.ts-events-page .ts-events-toolbar .ts-input::placeholder { color: #8b9188; opacity: 1; }
+.ts-events-page .ts-events-toolbar .ts-search > .ts-icon { color: #839080; width: 18px; height: 18px; }
+.ts-events-page .ts-events-toolbar .ts-input:focus { box-shadow: inset 0 -2px #9d875f; }
+.ts-events-page .ts-events-toolbar .ts-event-view-switch { padding: 4px; gap: 3px; border-radius: 7px; background: #f0eee7; }
+.ts-events-page .ts-events-toolbar .ts-event-view-switch .ts-btn {
+  min-height: 38px;
+  padding: 9px 19px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 5px;
+  color: #70786b;
+}
+.ts-events-page .ts-events-toolbar .ts-event-view-switch .ts-btn[aria-pressed='true'] {
+  color: #faf8ee;
+  border-color: #2c4437;
+  background: #2c4437;
+  box-shadow: 0 2px 5px #1c342b0c;
+}
+.ts-events-page .ts-events-toolbar .ts-event-view-switch .ts-icon { width: 14px; height: 14px; }
+.ts-events-page .ts-events-results-head { margin-bottom: 22px; align-items: center; }
+.ts-events-page .ts-events-results-head h2 { color: var(--discover-ink); font: 400 29px/1.2 Georgia, 'Times New Roman', serif; letter-spacing: -.035em; }
+.ts-events-page .ts-events-results-head #events-count { color: #7a8275; font-size: 10px; padding-right: 2px; }
+.ts-events-page .ts-event-grid { gap: 27px; }
+.ts-events-page .ts-event-card { background: #fffefa; border: 1px solid #e5e0d6; border-radius: 9px; box-shadow: none; transition: transform .28s ease, box-shadow .28s ease, border-color .28s ease; }
+.ts-events-page .ts-event-card:hover { transform: translateY(-5px); border-color: #cec1aa; box-shadow: 0 13px 32px #20352b0c; }
+.ts-events-page .ts-event-card:focus-visible { outline: 2px solid #9a7c4d; outline-offset: 5px; }
+.ts-events-page .ts-event-art { height: 254px; background: #1c342b; }
+.ts-events-page .ts-event-art::after { inset: 15px; border-color: #eadcba; opacity: .25; border-radius: 2px; }
+.ts-events-page .ts-events-cover {
+  padding: 26px 28px;
+  background: linear-gradient(0deg, #0d261ce0, #163b261a 75%), url('../images/live-stage.svg') center 38% / cover no-repeat;
+}
+.ts-events-page .ts-events-cover::after { display: none; }
+.ts-events-page .ts-event-card:nth-child(3n + 2) .ts-events-cover { background: linear-gradient(0deg, #302721e8, #4a302a18 80%), url('../images/live-stage.svg') 35% 40% / cover no-repeat; }
+.ts-events-page .ts-event-card:nth-child(3n + 3) .ts-events-cover { background: linear-gradient(0deg, #182832eb, #233c4d0d 80%), url('../images/live-stage.svg') 70% 38% / cover no-repeat; }
+.ts-events-page .ts-events-cover-brand { font-size: 7px; color: #e5d8b4; letter-spacing: .2em; }
+.ts-events-page .ts-events-cover-type { align-self: flex-start; margin-top: auto; margin-bottom: 15px; font-size: 36px; line-height: 1; font-weight: 400; }
+.ts-events-page .ts-events-cover-type i { color: #dbc6a0; }
+.ts-events-page .ts-events-cover-line { font-size: 7px; color: #e5d8b4; letter-spacing: .17em; }
+.ts-events-page .ts-events-poster { transition: transform .65s ease; }
+.ts-events-page .ts-event-card:hover .ts-events-poster { transform: scale(1.035); }
+.ts-events-page .ts-events-date-stamp { top: 20px; right: 20px; width: 49px; min-height: 59px; padding: 7px 3px; border-radius: 5px; background: #fffdf5f5; border-color: #fff8e6; box-shadow: 0 3px 14px #0b27151a; color: #294034; }
+.ts-events-page .ts-events-date-stamp strong { font: 400 26px/1 Georgia, 'Times New Roman', serif; letter-spacing: -.045em; }
+.ts-events-page .ts-events-date-stamp > span { font-size: 8px; letter-spacing: .13em; margin-top: 5px; }
+.ts-events-page .ts-events-saved-mark { bottom: 20px; right: 20px; font-size: 9px; padding: 5px 9px; color: #715c39; }
+.ts-events-page .ts-event-body { padding: 25px 25px 23px; }
+.ts-events-page .ts-events-card-type { color: #94774c; font-size: 8px; font-weight: 600; letter-spacing: .17em; }
+.ts-events-page .ts-event-name { color: #293b30; font-size: 21px; font-weight: 550; letter-spacing: -.035em; line-height: 1.35; margin: 11px 0 16px; }
+.ts-events-page .ts-event-date { font-size: 11px; color: #737e71; gap: 6px 12px; }
+.ts-events-page .ts-event-date > span { color: #8a9184; }
+.ts-events-page .ts-event-meta { font-size: 11px; color: #737e71; gap: 6px; margin-top: 9px; }
+.ts-events-page .ts-event-meta svg { width: 14px; height: 14px; color: #9d835b; }
+.ts-events-page .ts-event-foot { border-color: #eae5d9; padding-top: 18px; gap: 12px; }
+.ts-events-page .ts-event-meta + .ts-event-foot { margin-top: 25px; }
+.ts-events-page .ts-events-card-price { gap: 4px; }
+.ts-events-page .ts-events-card-price > span { font-size: 9px; color: #8b9184; }
+.ts-events-page .ts-events-card-price strong { color: #2e4637; font-size: 18px; font-weight: 600; }
+.ts-events-page .ts-events-card-action { font-size: 10px; color: #7b785c; font-weight: 500; gap: 9px; }
+.ts-events-page .ts-events-card-action > span { background: transparent; width: 32px; height: 32px; border-color: #dbd6c7; color: #4d6650; transition: background .2s, color .2s, border-color .2s; }
+.ts-events-page .ts-events-card-action svg { width: 14px; height: 14px; }
+.ts-events-page .ts-event-card:hover .ts-events-card-action > span { background: #2c4437; border-color: #2c4437; color: #fff9e8; }
+.ts-events-page .ts-events-empty { border-radius: 9px; border-color: #dcd7c9; padding: 60px 24px; background: #f7f5ee; color: #78806e; font-size: 13px; }
+.ts-events-page .ts-events-signoff { margin-top: 42px; padding-top: 23px; font-size: 10px; color: #8b9184; border-color: #e5e0d4; }
+.ts-events-page .ts-events-signoff > span:first-child { font-weight: 600; letter-spacing: .12em; color: #9a815a; }
+.ts-events-page .ts-event-grid[data-single='true'] .ts-event-art { min-height: 330px; }
+.ts-events-page .ts-event-grid[data-single='true'] .ts-event-body { padding: 35px 40px; }
+.ts-events-page .ts-events-toolbar button:focus-visible { outline: 2px solid #a58b5d; outline-offset: 4px; }
+@media (max-width: 1000px) {
+  .ts-events-page > .ts-container { width: calc(100% - 48px); }
+  .ts-events-page .ts-events-intro { gap: 30px; padding: 34px 32px 38px; }
+  .ts-events-page .ts-events-intro h1 { font-size: 46px; }
+  .ts-events-page .ts-events-intro-copy p { font-size: 12px; }
+  .ts-events-page .ts-event-grid { gap: 22px; }
+}
+@media (max-width: 760px) {
+  .ts-events-page { padding: 25px 0; }
+  .ts-events-page .ts-events-intro { grid-template-columns: 1fr; gap: 25px; padding: 32px 30px; margin-bottom: 22px; }
+  .ts-events-page .ts-events-intro::before { left: 5%; opacity: .26; }
+  .ts-events-page .ts-events-intro h1 { font-size: clamp(36px, 7vw, 48px); }
+  .ts-events-page .ts-events-intro-copy { max-width: 360px; }
+  .ts-events-page .ts-events-intro-copy p { font-size: 12px; margin-bottom: 0; line-height: 1.8; }
+  .ts-events-page .ts-events-toolbar { padding: 8px; gap: 8px; margin-bottom: 29px; }
+  .ts-events-page .ts-events-toolbar .ts-event-view-switch { width: 100%; }
+  .ts-events-page .ts-events-toolbar .ts-event-view-switch .ts-btn { flex: 1; }
+  .ts-events-page .ts-events-results-head h2 { font-size: 26px; }
+  .ts-events-page .ts-event-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+  .ts-events-page .ts-event-art { height: 210px; }
+  .ts-events-page .ts-events-cover { padding: 24px; }
+  .ts-events-page .ts-events-cover-type { font-size: 30px; }
+  .ts-events-page .ts-event-body { padding: 21px; }
+  .ts-events-page .ts-event-name { font-size: 19px; }
+  .ts-events-page .ts-event-grid[data-single='true'] .ts-event-art { min-height: 0; height: 260px; }
+  .ts-events-page .ts-event-grid[data-single='true'] .ts-event-body { padding: 24px; }
+}
+@media (max-width: 560px) {
+  .ts-events-page > .ts-container { width: calc(100% - 36px); }
+  .ts-events-page .ts-events-intro { padding: 30px 25px; border-radius: 9px; gap: 22px; }
+  .ts-events-page .ts-events-intro .ts-section-eyebrow { font-size: 8px; margin-bottom: 20px; }
+  .ts-events-page .ts-events-intro h1 { font-size: clamp(31px, 8.8vw, 44px); }
+  .ts-events-page .ts-events-intro-copy p { font-size: 11px; max-width: 300px; }
+  .ts-events-page .ts-events-toolbar .ts-input { font-size: 11px; }
+  .ts-events-page .ts-events-results-head { gap: 10px; margin-bottom: 19px; }
+  .ts-events-page .ts-events-results-head h2 { font-size: 25px; }
+  .ts-events-page .ts-events-results-head #events-count { font-size: 9px; }
+  .ts-events-page .ts-event-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .ts-events-page .ts-event-art { height: 255px; }
+  .ts-events-page .ts-events-cover-type { font-size: 38px; }
+  .ts-events-page .ts-event-body { padding: 23px; }
+  .ts-events-page .ts-event-name { font-size: 21px; }
+  .ts-events-page .ts-events-signoff { font-size: 9px; gap: 15px; margin-top: 30px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ts-events-page .ts-event-card, .ts-events-page .ts-events-poster, .ts-events-page .ts-events-card-action > span { transition: none; }
+  .ts-events-page .ts-event-card:hover, .ts-events-page .ts-event-card:hover .ts-events-poster { transform: none; }
+}

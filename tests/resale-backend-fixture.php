@@ -27,6 +27,11 @@ class FirebaseFirestoreTransaction {
         if ($this->writing) throw new RuntimeException('Read after write');
         return $this->records[$collection . '/' . $id] ?? null;
     }
+    public function getMany(string $collection, array $ids): array {
+        $result = [];
+        foreach ($ids as $id) $result[$id] = $this->get($collection, $id);
+        return $result;
+    }
     public function query(string $collection, array $filters = [], array $orderBy = [], ?int $limit = null): array {
         if ($this->writing) throw new RuntimeException('Read after write');
         $items = [];
@@ -63,6 +68,8 @@ foreach ($cases as $case) {
     $firebase = new FirebaseAdminRest($case['records']);
     try {
         $result = match ($case['action']) {
+            'moderateEvent' => backend_moderate_event($firebase, $case['uid'], $case['data']),
+            'checkout' => backend_checkout($firebase, $case['uid'], $case['data']),
             'transferTicket' => backend_transfer_ticket($firebase, $case['uid'], $case['data']),
             'getTicketTransfers' => backend_get_ticket_transfers($firebase, $case['uid'], $case['data']),
             'scanTicket' => backend_scan_ticket($firebase, $case['uid'], $case['data']),

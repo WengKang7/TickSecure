@@ -3,7 +3,7 @@
     if (!el('event-detail-container')) return;
     const eventId = new URLSearchParams(window.location.search).get('id');
     const statuses = { DRAFT: 'Draft', PENDING_REVIEW: 'Pending review', PUBLISHED: 'Published',
-        APPROVED: 'Approved', REJECTED: 'Rejected', SUSPENDED: 'Suspended', CANCELLED: 'Cancelled' };
+        APPROVED: 'Approved', REJECTED: 'Rejected', SUSPENDED: 'Unavailable', CANCELLED: 'Cancelled' };
     const tones = { PENDING_REVIEW: 'warning', PUBLISHED: 'success', APPROVED: 'info',
         REJECTED: 'error', SUSPENDED: 'warning', CANCELLED: 'error' };
     const statusName = value => statuses[value] || String(value || 'Not provided').replaceAll('_', ' ');
@@ -20,7 +20,7 @@
     const date = value => window.tsEventPolicy.date(value);
     const timestamp = value => window.tsEventPolicy.timestamp(value);
     let initialized = false, busy = false, currentEventName = 'Selected event', currentEventStatus = null;
-    const allowedActions = { approve: ['PENDING_REVIEW'], reject: ['PENDING_REVIEW'], suspend: ['PUBLISHED', 'APPROVED'] };
+    const allowedActions = { approve: ['PENDING_REVIEW'], reject: ['PENDING_REVIEW'], suspend: ['PUBLISHED', 'APPROVED'], restore: ['SUSPENDED'] };
 
     function error(message) {
         text('review-error', message);
@@ -100,12 +100,12 @@
         const timeline = el('review-history');
         timeline.replaceChildren();
         const labels = { DRAFT: 'Event saved as draft', PENDING_REVIEW: 'Submitted for approval',
-            PUBLISHED: 'Approved and published', REJECTED: 'Event rejected', SUSPENDED: 'Event suspended', CANCELLED: 'Event cancelled' };
+            PUBLISHED: 'Approved and published', REJECTED: 'Event rejected', SUSPENDED: 'Event made unavailable', CANCELLED: 'Event cancelled' };
         if (!history.length) timeline.appendChild(node('p', 'No submission or decision history recorded.', 'small secondary'));
         history.forEach((entry, index) => {
             const item = document.createElement('div');
             item.className = 'ts-timeline-item' + (index === history.length - 1 ? ' current' : '');
-            item.appendChild(node('div', labels[entry.to] || statusName(entry.to), 'ts-timeline-title'));
+            item.appendChild(node('div', entry.from === 'SUSPENDED' && entry.to === 'PUBLISHED' ? 'Event made available' : labels[entry.to] || statusName(entry.to), 'ts-timeline-title'));
             let actor = '';
             if (entry.changedBy && entry.changedBy === event.organizerUid) actor = organizer?.fullName || event.organizerName || 'Organizer';
             else if (entry.changedBy && entry.changedBy === window.tsCurrentUser?.uid) actor = 'Your administrator account';
@@ -131,6 +131,7 @@
         badges.replaceChildren(node('span', statusName(status), `ts-chip ts-chip-${tones[status] || 'neutral'}`));
         if (event.eventCategory) badges.appendChild(node('span', event.eventCategory, 'ts-chip ts-chip-neutral'));
         text('val-status', statusName(status));
+        el('event-availability-notice').hidden = status !== 'SUSPENDED';
         text('val-schedule', event.date && event.time ? date(`${event.date}T${event.time}`)
             : event.date ? `${date(event.date).split(',')[0]} · Start time not set` : 'Not set');
         text('val-category', event.eventCategory);
@@ -157,16 +158,17 @@
         el('venue-link').hidden = !venue;
         if (venue) el('venue-link').href = `venue-layout.php?id=${encodeURIComponent(event.venueId)}`;
         renderHistory(event, organizer);
-        el('action-buttons').hidden = !['PENDING_REVIEW', 'PUBLISHED', 'APPROVED'].includes(status);
+        el('action-buttons').hidden = !['PENDING_REVIEW', 'PUBLISHED', 'APPROVED', 'SUSPENDED'].includes(status);
         el('btn-approve').hidden = el('btn-reject').hidden = status !== 'PENDING_REVIEW';
         el('btn-suspend').hidden = !['PUBLISHED', 'APPROVED'].includes(status);
+        el('btn-restore').hidden = status !== 'SUSPENDED';
         el('event-detail-container').hidden = false;
     }
 
     async function loadEvent() {
         currentEventStatus = null;
         el('action-buttons').hidden = true;
-        el('review-error').hidden = el('review-retry').hidden = el('review-notice').hidden = true;
+        el('review-error').hidden = el('review-retry').hidden = el('review-notice').hidden = el('event-availability-notice').hidden = true;
         try {
             const event = await window.tsEvents.getAdminEvent(eventId);
             if (!event || !['PENDING_REVIEW', 'PUBLISHED', 'APPROVED', 'REJECTED', 'SUSPENDED', 'CANCELLED'].includes(event.status)) {
@@ -198,7 +200,7 @@
     async function moderate(action) {
         if (busy || !allowedActions[action]?.includes(currentEventStatus)) return;
         busy = true;
-        const buttons = ['btn-approve', 'btn-reject', 'btn-suspend'].map(el);
+        const buttons = ['btn-approve', 'btn-reject', 'btn-suspend', 'btn-restore'].map(el);
         try {
             const decision = await window.tsAdminConfirm(action + 'Event', currentEventName);
             if (!decision) return;
@@ -212,6 +214,7 @@
             }
             if (action === 'approve') await window.tsEvents.approveEvent(eventId);
             else if (action === 'reject') await window.tsEvents.rejectEvent(eventId, decision.reason);
+            else if (action === 'restore') await window.tsEvents.restoreEvent(eventId);
             else await window.tsEvents.suspendEvent(eventId, decision.reason);
             await loadEvent();
         } catch (failure) {
@@ -225,6 +228,7 @@
     el('btn-approve').addEventListener('click', () => moderate('approve'));
     el('btn-reject').addEventListener('click', () => moderate('reject'));
     el('btn-suspend').addEventListener('click', () => moderate('suspend'));
+    el('btn-restore').addEventListener('click', () => moderate('restore'));
     el('review-retry').addEventListener('click', loadEvent);
     function ready() {
         if (initialized || window.tsCurrentUser?.role !== 'admin' || window.tsCurrentUser.status !== 'active') return;

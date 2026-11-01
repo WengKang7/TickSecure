@@ -3,6 +3,7 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
+<link rel="stylesheet" href="<?=ts_asset_url('assets/css/events-page.css', '..')?>">
 <main class="ts-events-page">
   <div class="ts-container">
     <header class="ts-events-intro">

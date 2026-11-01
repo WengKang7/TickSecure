@@ -75,6 +75,11 @@ function page(options = {}) {
                 currentEvent.status = 'PUBLISHED';
             },
             rejectEvent: async (id, reason) => { calls.push(['reject', id, reason]); currentEvent.status = 'REJECTED'; currentEvent.rejectReason = reason; },
+            restoreEvent: async id => {
+                calls.push(['restore', id]);
+                currentEvent.status = 'PUBLISHED';
+                currentEvent.statusHistory = [...(currentEvent.statusHistory || []), { from: 'SUSPENDED', to: 'PUBLISHED', changedBy: 'admin-1', timestamp: '2026-11-01T12:00:00Z' }];
+            },
             suspendEvent: async (id, reason) => { calls.push(['suspend', id, reason]); currentEvent.status = 'SUSPENDED'; currentEvent.suspendReason = reason; }
         },
         tsVenues: { getVenue: async () => { if (options.failVenue) throw new Error('Venue unavailable'); return options.venue === undefined ? venue : options.venue; } },
@@ -196,8 +201,21 @@ test('approval preserves existing confirmation and service behavior, then refres
     assert.deepEqual(p.confirmations[0], { action: 'approveEvent', subject: event.name });
     await p.get('btn-suspend').click();
     assert.deepEqual(p.calls.at(-2), ['suspend', 'event&1', 'A clear reason']);
-    assert.equal(p.get('action-buttons').hidden, true);
+    assert.equal(p.get('action-buttons').hidden, false);
+    assert.equal(p.get('btn-restore').hidden, false);
+    assert.equal(p.text('val-status'), 'Unavailable');
+    assert.equal(p.get('event-availability-notice').hidden, false);
     assert.match(p.text('review-history'), /Current decision reason: A clear reason/);
+});
+
+test('cancelling Make unavailable keeps the event published and performs no status write', async () => {
+    const p = page({ event: { ...event, status: 'PUBLISHED' }, confirm: false });
+    await p.ready();
+    await p.get('btn-suspend').click();
+    assert.equal(p.calls.some(call => call[0] === 'suspend'), false);
+    assert.equal(p.text('val-status'), 'Published');
+    assert.equal(p.get('event-availability-notice').hidden, true);
+    assert.match(php, /id="btn-suspend"[^>]*>Make unavailable</);
 });
 
 test('rejection requires a reason and displays the stored decision; cancelled decisions do not write', async () => {
@@ -313,9 +331,40 @@ test('reviewed and cancelled records expose no approval or rejection controls', 
     for (const status of ['REJECTED', 'SUSPENDED', 'CANCELLED']) {
         const p = page({ event: { ...event, status } });
         await p.ready();
-        assert.equal(p.get('action-buttons').hidden, true);
+        assert.equal(p.get('action-buttons').hidden, status !== 'SUSPENDED');
+        assert.equal(p.get('btn-restore').hidden, status !== 'SUSPENDED');
         await p.get('btn-approve').click();
         await p.get('btn-reject').click();
         assert.equal(p.confirmations.length, 0);
     }
+});
+
+test('Make available restores only an unavailable event after confirmation and refreshes the action buttons', async () => {
+    const p = page({ event: { ...event, status: 'SUSPENDED' } });
+    await p.ready();
+    assert.equal(p.get('btn-restore').hidden, false);
+    assert.equal(p.get('btn-suspend').hidden, true);
+    await p.get('btn-restore').click();
+    assert.deepEqual(p.calls.at(-2), ['restore', 'event&1']);
+    assert.equal(p.confirmations[0].action, 'restoreEvent');
+    assert.equal(p.text('val-status'), 'Published');
+    assert.equal(p.get('event-availability-notice').hidden, true);
+    assert.equal(p.get('btn-restore').hidden, true);
+    assert.equal(p.get('btn-suspend').hidden, false);
+    assert.match(p.text('review-history'), /Event made available/);
+    assert.match(php, /id="btn-restore"[^>]*>Make available</);
+});
+
+test('cancelled or stale availability restoration never writes', async () => {
+    const cancelled = page({ event: { ...event, status: 'SUSPENDED' }, confirm: false });
+    await cancelled.ready();
+    await cancelled.get('btn-restore').click();
+    assert.equal(cancelled.calls.some(call => call[0] === 'restore'), false);
+    const stale = page({ event: { ...event, status: 'SUSPENDED' } });
+    await stale.ready();
+    stale.setStatus('CANCELLED');
+    await stale.get('btn-restore').click();
+    assert.equal(stale.calls.some(call => call[0] === 'restore'), false);
+    assert.equal(stale.get('btn-restore').hidden, true);
+    assert.match(stale.text('review-error'), /status has changed/);
 });

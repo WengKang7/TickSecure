@@ -23,11 +23,11 @@ class Element {
 function page(name, options = {}) {
     const php = fs.readFileSync(path.join(root, 'buyer', name + '.php'), 'utf8');
     const elements = new Map([...php.matchAll(/id="([^"]+)"/g)].map(match => [match[1], new Element()]));
-    const calls = { bookings: [], releases: [], profiles: [], reservations: [], confirmations: [] };
+    const calls = { bookings: [], releases: [], profiles: [], reservations: [], confirmations: [], mints: [] };
     const state = { now: Date.now() };
     let ready;
     const ticks = [];
-    const user = { uid: 'buyer-1', walletAddress: wallet, ...options.user };
+    const user = { uid: 'buyer-1', role: 'buyer', status: 'active', walletAddress: wallet, ...options.user };
     const location = new URL('http://localhost/ticksecure-ui/buyer/' + name + '.php?' + (options.query ?? query.toString()));
     const window = {
         location: { href: location.href, search: location.search, hostname: location.hostname, origin: location.origin },
@@ -56,15 +56,21 @@ function page(name, options = {}) {
         },
         ethereum: options.ethereum
     };
-    const storage = new Map();
-    vm.runInNewContext(fs.readFileSync(path.join(root, 'assets/js', name + '.js'), 'utf8'), {
+    const storage = new Map(options.autoMint ? [['ts-auto-mint:buyer-1:booking-1', String(options.intentTime ?? state.now)]] : []);
+    vm.runInNewContext(fs.readFileSync(path.join(root, 'assets/js', name + '.js'), 'utf8').replace(/^import .*;\r?\n/gm, ''), {
+        fundDemoWallet: async () => ({ status: 'UNAVAILABLE' }),
+        sepolia: {}, createBookingMinter: ({ isActive, onUpdate }) => ({ run: async (id, uid) => {
+            assert.ok(isActive(uid)); calls.mints.push({ id, uid });
+            if (options.mintError) throw options.mintError;
+            onUpdate({ state: 'complete', total: 2, confirmed: 2, hashes: ['0x' + 'a'.repeat(64)], message: 'All ticket NFTs are confirmed on Sepolia.' });
+        } }),
         window, document: { getElementById: id => elements.get(id), createElement: () => new Element() }, URL, URLSearchParams,
         Date: class extends Date { static now() { return state.now; } },
         sessionStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) },
         setInterval: callback => { ticks.push(callback); return ticks.length; }, clearInterval() {}, console: { error() {}, warn() {} }
     });
     window.tsCurrentUser = user;
-    return { elements, calls, window, user, state, ticks, ready: () => ready({ detail: user }) };
+    return { elements, calls, window, user, state, ticks, storage, ready: () => ready({ detail: user }) };
 }
 
 test('failed reservation shows an error state and retry rather than claiming a seat is reserved', async () => {
@@ -166,6 +172,7 @@ test('demo checkout requires consent, supports decline without creating a bookin
     assert.equal('totalAmount' in p.calls.bookings[0], false, 'prices are calculated on the server');
     assert.match(p.window.location.href, /booking-confirmation\.php\?bookingId=booking-1/);
     assert.equal(e.get('btn-pay').disabled, true);
+    assert.ok(p.storage.has('ts-auto-mint:buyer-1:booking-1'));
 });
 
 test('expired, invalid and wallet-less checkout cannot submit payment', async () => {
@@ -219,6 +226,35 @@ test('confirmation displays simulated payment truthfully and rejects an unavaila
         await denied.ready();
         assert.equal(denied.elements.get('confirmation-title').textContent, 'Booking confirmation unavailable');
     }
+});
+
+test('fresh checkout starts minting automatically once and consumes its intent', async () => {
+    const p = page('booking-confirmation', { query: 'bookingId=booking-1', autoMint: true });
+    await p.ready(); await p.ready();
+    assert.equal(p.calls.mints.length, 1);
+    assert.equal(p.storage.has('ts-auto-mint:buyer-1:booking-1'), false);
+    assert.equal(p.elements.get('val-nft-status').textContent, '2 of 2 NFTs confirmed');
+    assert.equal(p.elements.get('val-tx-status').textContent, 'Confirmed on Sepolia');
+});
+
+test('historical or stale confirmation visits never open the wallet automatically', async () => {
+    for (const options of [{}, { autoMint: true, intentTime: Date.now() - 16 * 60 * 1000 }]) {
+        const p = page('booking-confirmation', { query: 'bookingId=booking-1', ...options });
+        await p.ready(); assert.equal(p.calls.mints.length, 0);
+        assert.equal(p.elements.get('confirmation-mint-retry').hidden, false);
+    }
+    const denied = page('booking-confirmation', { query: 'bookingId=booking-1', autoMint: true,
+        booking: { buyerUid: 'other', status: 'CONFIRMED' } });
+    await denied.ready(); assert.equal(denied.calls.mints.length, 0);
+});
+
+test('cancelled automatic mint keeps booking confirmed and offers continuation', async () => {
+    const p = page('booking-confirmation', { query: 'bookingId=booking-1', autoMint: true,
+        mintError: Object.assign(Error('Cancelled'), { code: 4001 }) });
+    await p.ready();
+    assert.equal(p.elements.get('confirmation-title').textContent, 'Demo booking confirmed');
+    assert.match(p.elements.get('confirmation-mint-status').textContent, /booking and tickets are saved/);
+    assert.equal(p.elements.get('confirmation-mint-retry').hidden, false);
 });
 
 

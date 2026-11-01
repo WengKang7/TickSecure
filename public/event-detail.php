@@ -1,10 +1,17 @@
 <?php
 require_once __DIR__ . '/../shared/ui.php';
+$viewOnly = ($_GET['preview'] ?? '') === '1';
 ob_start();
 ?>
 
-<main class="ts-event-detail-page">
+<?php if ($viewOnly): ?>
+<link rel="stylesheet" href="<?=ts_asset_url('assets/css/event-preview.css', '..')?>">
+<?php endif; ?>
+<main class="ts-event-detail-page<?=$viewOnly ? ' ts-event-preview' : ''?>">
   <div class="ts-container">
+    <?php if ($viewOnly): ?>
+    <div class="ts-event-preview-alert" role="status"><?=ts_icon('eye')?><div><strong>FOR VIEWING ONLY</strong><p>This is an event preview. All buttons and actions are disabled.</p></div></div>
+    <?php endif; ?>
     <a class="ts-event-back small secondary" href="events.php">&larr; Back to events</a>
     <div class="ts-event-heading">
       <img id="event-poster" class="ts-event-poster-thumb" alt="Event poster" hidden>
@@ -65,7 +72,7 @@ ob_start();
             <div class="ts-summary-row total"><span>Total</span><strong id="ticket-total">&mdash;</strong></div>
           </div>
           <a class="ts-btn ts-btn-primary w-full" id="category-book-btn" href="../auth/login.php" data-book-event aria-disabled="true">Sign in to book <?=ts_icon('arrow-right')?></a>
-          <p class="small secondary ts-event-booking-note">Choose your seats on the next screen. Seats are held for 10 minutes after reservation.</p>
+          <p class="small secondary ts-event-booking-note"><?=$viewOnly ? 'Event preview only. No tickets can be selected, reserved or purchased here.' : 'Choose your seats on the next screen. Seats are held for 10 minutes after reservation.'?></p>
         </div>
       </aside>
     </div>
@@ -87,6 +94,9 @@ ob_start();
     </div>
   </div>
 </main>
+<?php if ($viewOnly): ?>
+<script src="<?=ts_asset_url('assets/js/event-preview.js', '..')?>"></script>
+<?php endif; ?>
 <script src="<?=ts_asset_url('assets/js/venue-renderer.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/seat-category-model.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/event-policy.js', '..')?>"></script>

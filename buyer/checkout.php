@@ -17,7 +17,7 @@ ob_start();
                 <div class="ts-card ts-card-pad">
                     <div class="ts-card-title">Payment method</div>
                     <p class="secondary">This is a demo payment. No money is charged and no card details are collected.</p>
-                    <div class="ts-alert ts-alert-info mt-20"><?=ts_icon('lock')?><div><strong>Simulated payment</strong><div class="small mt-8">Confirming creates a demo booking and tickets in your account. Blockchain minting is not performed.</div></div></div>
+                    <div class="ts-alert ts-alert-info mt-20"><?=ts_icon('lock')?><div><strong>Simulated payment and ticket NFTs</strong><div class="small mt-8">Confirming saves your booking and automatically starts NFT setup. MetaMask will ask you to approve one Sepolia transaction per ticket using the wallet connected to this booking. Each transaction uses Sepolia test ETH for gas. Cancelling NFT setup keeps your booking and digital tickets.</div></div></div>
                     <div class="ts-alert ts-alert-error mt-20" id="checkout-error" role="alert" hidden></div>
                     <div class="ts-field mt-20"><label class="ts-label" for="demo-payment-outcome">Demo payment result</label><select class="ts-select" id="demo-payment-outcome"><option value="success">Successful payment</option><option value="decline">Declined payment (test)</option></select></div>
                     <label class="ts-event-demo-consent mt-20"><input type="checkbox" id="demo-payment-consent"> I understand this is a simulated payment.</label>

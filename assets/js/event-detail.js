@@ -1,4 +1,5 @@
 const el = id => document.getElementById(id);
+const previewOnly = new URLSearchParams(window.location.search).get('preview') === '1';
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[char]);
@@ -25,9 +26,9 @@ function renderAvailability() {
         ? `${availability.remaining} seat${availability.remaining === 1 ? '' : 's'} remaining`
         : availabilityLoading ? 'Checking remaining seats...' : 'Remaining seats unavailable';
     el('availability-note').textContent = availability
-        ? 'Excludes sold tickets and active reservations. Updates every 30 seconds.'
+        ? previewOnly ? 'Excludes sold tickets and active reservations. Snapshot for this preview.' : 'Excludes sold tickets and active reservations. Updates every 30 seconds.'
         : availabilityLoading ? 'Sold tickets and active reservations are excluded.' : 'Refresh to try again. Availability is checked when you continue.';
-    el('refresh-availability').disabled = availabilityLoading || !currentEvent;
+    el('refresh-availability').disabled = previewOnly || availabilityLoading || !currentEvent;
     categories.forEach(category => {
         const count = remainingFor(category.sectionId);
         const label = categoryAvailabilityLabels.get(category.sectionId);
@@ -37,7 +38,7 @@ function renderAvailability() {
         }
     });
     el('cat-list').querySelectorAll('[data-category-section]').forEach(card => {
-        card.disabled = categoryLimit(categories.find(category => category.sectionId === card.dataset.categorySection)) < 1;
+        card.disabled = previewOnly || categoryLimit(categories.find(category => category.sectionId === card.dataset.categorySection)) < 1;
     });
     el('ven-board').querySelectorAll('[data-section-id]').forEach(section => {
         const content = section.children[0];
@@ -107,6 +108,15 @@ function categoryLimit(category) {
 }
 
 function updateOrder() {
+    if (previewOnly) {
+        el('event-order').hidden = true;
+        el('quantity-minus').disabled = el('quantity-plus').disabled = true;
+        const button = el('category-book-btn');
+        button.textContent = 'FOR VIEWING ONLY';
+        button.removeAttribute('href');
+        button.setAttribute('aria-disabled', 'true');
+        return;
+    }
     const category = categories.find(item => item.sectionId === selectedSection);
     const limit = categoryLimit(category);
     const salesStatus = salesMessage();
@@ -138,6 +148,7 @@ function showLayoutMessage(message) {
 }
 
 function highlightSection(sectionId) {
+    if (previewOnly) return;
     if (selectedSection !== sectionId) quantity = 1;
     selectedSection = sectionId;
     el('ven-board').querySelectorAll('[data-section-id]').forEach(section => {
@@ -184,7 +195,7 @@ function renderCategories(event) {
         card.className = 'ts-event-category';
         card.dataset.categorySection = category.sectionId;
         card.setAttribute('aria-pressed', 'false');
-        card.disabled = categoryLimit(category) < 1;
+        card.disabled = previewOnly || categoryLimit(category) < 1;
         const info = document.createElement('span');
         const name = document.createElement('strong');
         name.textContent = category.name;
@@ -202,7 +213,7 @@ function renderCategories(event) {
         price.className = 'ts-event-category-price';
         price.textContent = money(category.price);
         card.append(info, price);
-        card.addEventListener('click', () => highlightSection(category.sectionId));
+        if (!previewOnly) card.addEventListener('click', () => highlightSection(category.sectionId));
         return card;
     });
     if (!cards.length) {
@@ -212,8 +223,15 @@ function renderCategories(event) {
         cards.push(empty);
     }
     el('cat-list').replaceChildren(...cards);
-    el('category-count').textContent = `${categories.length} ${categories.length === 1 ? 'category' : 'categories'} · choose your own seats`;
+    el('category-count').textContent = `${categories.length} ${categories.length === 1 ? 'category' : 'categories'} · ${previewOnly ? 'viewing only' : 'choose your own seats'}`;
     el('ev-price').innerHTML = `<strong>From ${esc(startingPrice())}</strong><span>Availability checked at booking</span>`;
+    if (previewOnly) {
+        el('selected-category-label').textContent = 'Tickets from';
+        el('selected-category-price').textContent = startingPrice();
+        el('category-selection-note').textContent = 'For viewing only. Ticket selection and booking are disabled.';
+        updateOrder();
+        return;
+    }
     const params = new URLSearchParams(window.location.search);
     quantity = 1;
     highlightSection(params.get('sectionId'));
@@ -275,7 +293,7 @@ async function loadVenue(event, version) {
         }
         // Same section order, positions, stage, sizes and CSS as the admin layout.
         const mapped = window.tsSeatCategories?.project(venue.sections, categories) || venue.sections;
-        window.tsVenueRenderer.renderBoard('ven-board', mapped, { seatOnly: true, onSectionSelect: highlightSection, onCategorySelect: highlightSection });
+        window.tsVenueRenderer.renderBoard('ven-board', mapped, previewOnly ? { seatOnly: true } : { seatOnly: true, onSectionSelect: highlightSection, onCategorySelect: highlightSection });
         el('ven-name').textContent = venue.name || event.venueName || 'Venue';
         el('ven-address').textContent = venue.address || event.venueLocation || 'Approved physical venue layout';
         el('venue-section-count').textContent = `${venue.sections.length} sections / ${venue.sections.reduce((sum, section) => sum + (Number(section.seatCount) || 0), 0)} physical seats`;
@@ -298,6 +316,7 @@ function updateSaveLabel() {
 }
 
 async function loadFavorite(eventId, version) {
+    if (previewOnly) return;
     const uid = window.tsCurrentUser?.uid || null;
     saved = false;
     updateSaveLabel();
@@ -310,23 +329,24 @@ async function loadFavorite(eventId, version) {
     } catch (error) { console.info('Saved events unavailable:', error); }
 }
 
-el('refresh-availability').addEventListener('click', () => refreshAvailability());
-window.addEventListener('focus', () => { if (!document.hidden) refreshAvailability(); });
+el('refresh-availability').addEventListener('click', () => { if (!previewOnly) return refreshAvailability(); });
+window.addEventListener('focus', () => { if (!previewOnly && !document.hidden) refreshAvailability(); });
 el('event-poster').addEventListener('error', () => { el('event-poster').hidden = true; });
 el('quantity-minus').addEventListener('click', () => {
-    if (el('quantity-minus').disabled) return;
+    if (previewOnly || el('quantity-minus').disabled) return;
     quantity -= 1;
     updateOrder();
 });
 el('quantity-plus').addEventListener('click', () => {
-    if (el('quantity-plus').disabled) return;
+    if (previewOnly || el('quantity-plus').disabled) return;
     quantity += 1;
     updateOrder();
 });
 el('category-book-btn').addEventListener('click', event => {
-    if (el('category-book-btn').getAttribute('aria-disabled') === 'true') event.preventDefault();
+    if (previewOnly || el('category-book-btn').getAttribute('aria-disabled') === 'true') event.preventDefault();
 });
 el('save-event-btn').addEventListener('click', async () => {
+    if (previewOnly) return;
     if (!window.tsCurrentUser?.uid) { window.location.href = '../auth/login.php'; return; }
     if (!currentEvent?.id || el('save-event-btn').disabled) return;
     const uid = window.tsCurrentUser.uid;
@@ -369,10 +389,10 @@ window.addEventListener('ts-auth-ready', async () => {
         if (!event) throw new Error('This event could not be found.');
         renderEvent({ ...event, id: eventId });
         await Promise.allSettled([loadVenue(event, version), loadFavorite(eventId, version), refreshAvailability(version)]);
-        if (version === loadVersion) availabilityTimer = window.setInterval(() => {
+        if (!previewOnly && version === loadVersion) availabilityTimer = window.setInterval(() => {
             if (!document.hidden) refreshAvailability(version);
         }, 30000);
-        if (version === loadVersion) el('save-event-btn').disabled = false;
+        if (version === loadVersion) el('save-event-btn').disabled = previewOnly;
     } catch (error) {
         if (version !== loadVersion) return;
         currentEvent = null;

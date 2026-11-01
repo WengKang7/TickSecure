@@ -64,6 +64,8 @@ function createPage(options = {}) {
     const elements = new Map([...php.matchAll(/id="([^"]+)"/g)].map(match => [match[1], new Element()]));
     let ready;
     let venueReads = 0;
+    let availabilityReads = 0;
+    let favoriteReads = 0;
     const writes = [];
     const context = {
         URL, URLSearchParams,
@@ -79,6 +81,7 @@ function createPage(options = {}) {
             tsEvents: {
                 getEvent: async () => options.missingEvent ? null : options.event || event,
                 getEventAvailability: async () => {
+                    availabilityReads++;
                     if (options.availabilityError) throw Error('Unavailable');
                     if (options.getAvailability) return options.getAvailability();
                     const data = options.event || event;
@@ -94,7 +97,7 @@ function createPage(options = {}) {
                 return options.getVenue ? options.getVenue() : venue;
             } },
             tsUsers: {
-                getFavoriteEventIds: async () => options.favorites || [],
+                getFavoriteEventIds: async () => { favoriteReads++; return options.favorites || []; },
                 setFavoriteEvent: async (id, saved) => writes.push({ id, saved })
             }
         }
@@ -103,8 +106,39 @@ function createPage(options = {}) {
     vm.runInContext(fs.readFileSync(path.join(root, 'assets/js/venue-renderer.js'), 'utf8'), context);
     vm.runInContext(fs.readFileSync(path.join(root, 'assets/js/event-policy.js'), 'utf8'), context);
     vm.runInContext(fs.readFileSync(path.join(root, 'assets/js/event-detail.js'), 'utf8'), context);
-    return { elements, context, writes, ready: () => ready(), venueReads: () => venueReads };
+    return { elements, context, writes, ready: () => ready(), venueReads: () => venueReads,
+        availabilityReads: () => availabilityReads, favoriteReads: () => favoriteReads };
 }
+
+test('explicit organizer preview loads event information but cannot save, select, book or change quantity', async () => {
+    const page = createPage({ search: '?id=event-1&preview=1&sectionId=A&qty=3' });
+    await page.ready();
+    assert.equal(page.elements.get('ev-title').textContent, event.name);
+    assert.equal(page.elements.get('selected-category-price').textContent, 'RM188.00');
+    assert.equal(page.elements.get('category-book-btn').textContent, 'FOR VIEWING ONLY');
+    assert.equal(page.elements.get('category-book-btn').getAttribute('aria-disabled'), 'true');
+    assert.equal(page.elements.get('category-book-btn').href, undefined);
+    assert.equal(page.elements.get('save-event-btn').disabled, true);
+    assert.equal(page.elements.get('refresh-availability').disabled, true);
+    assert.equal(page.elements.get('event-order').hidden, true);
+    assert.ok(page.elements.get('cat-list').children.every(card => card.disabled && !card.listeners.click));
+    const sections = page.elements.get('ven-board').querySelectorAll('[data-section-id]');
+    assert.equal(sections.length, 4);
+    assert.ok(sections.every(section => section.tagName === 'div' && !section.listeners.click));
+    await page.elements.get('save-event-btn').listeners.click();
+    page.elements.get('quantity-plus').listeners.click();
+    page.elements.get('quantity-minus').listeners.click();
+    let prevented = false;
+    page.elements.get('category-book-btn').listeners.click({ preventDefault() { prevented = true; } });
+    assert.equal(prevented, true);
+    assert.equal(page.writes.length, 0);
+    assert.equal(page.favoriteReads(), 0);
+    assert.equal(page.context.window.location.href, '');
+    assert.equal(page.context.pollAvailability, undefined, 'preview does not start a polling timer');
+    assert.equal(page.availabilityReads(), 1);
+    await page.elements.get('refresh-availability').listeners.click();
+    assert.equal(page.availabilityReads(), 1, 'disabled refresh cannot invoke another request');
+});
 
 test('remaining seats appear per category and section and constrain quantity', async () => {
     const page = createPage({ remaining: { A: 2, B: 0 } });

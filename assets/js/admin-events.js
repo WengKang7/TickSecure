@@ -58,7 +58,7 @@
             [event.name || 'Untitled event', event.organizerName || 'Not provided', event.venueName || 'Not provided', formatDate(event.date), formatDate(submittedAt(event))]
                 .forEach((value, index) => row.appendChild(node('td', value, index === 0 ? 'cell-title' : '')));
             const statusCell = document.createElement('td');
-            statusCell.appendChild(node('span', event.status.replaceAll('_', ' '), `ts-chip ts-chip-${tones[event.status]}`));
+            statusCell.appendChild(node('span', event.status === 'SUSPENDED' ? 'UNAVAILABLE' : event.status.replaceAll('_', ' '), `ts-chip ts-chip-${tones[event.status]}`));
             const actionCell = document.createElement('td');
             const link = node('a', event.status === 'PENDING_REVIEW' ? 'Review' : 'View Details', 'ts-btn ts-btn-primary ts-btn-sm');
             link.href = 'event-review.php?id=' + encodeURIComponent(event.id);

@@ -3,11 +3,11 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<?=ts_page_head('Event Oversight', 'Review event submissions, monitor approved events and manage suspension/cancellation when required.', '')?>
+<?=ts_page_head('Event Oversight', 'Review submissions and make published events unavailable while keeping their bookings, tickets and history.', '')?>
 <nav class="ts-tabs mb-24" id="admin-event-filters" aria-label="Filter events by status">
     <button type="button" class="ts-tab active" data-event-filter="pending" aria-pressed="true">Pending Review</button>
     <button type="button" class="ts-tab" data-event-filter="all" aria-pressed="false">All Submitted Events</button>
-    <button type="button" class="ts-tab" data-event-filter="suspended" aria-pressed="false">Suspended</button>
+    <button type="button" class="ts-tab" data-event-filter="suspended" aria-pressed="false">Unavailable</button>
     <button type="button" class="ts-tab" data-event-filter="cancelled" aria-pressed="false">Cancelled</button>
     <button type="button" class="ts-tab" data-event-filter="history" aria-pressed="false">Review History</button>
 </nav>

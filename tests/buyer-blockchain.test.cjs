@@ -13,9 +13,9 @@ function page(options={}){
     const sepolia={listBuyer:options.load|| (async()=>({records:rows,configured:true})),listOrganizer:async()=>({records:rows.map(r=>({...r,canSubmit:false})),configured:true}),
         prepare:async id=>{calls.prepare.push(id);return {recordId:id,actorWallet:wallet,walletAddress:wallet,contractAddress:contract,calldata:'0x1234',deadline:2000000000};},
         verify:async(id,txHash)=>{calls.verify.push({id,hash:txHash});const status=options.pending?'SUBMITTED':'CONFIRMED';rows=rows.map(r=>({...r,status,transactionHash:txHash,chainId:11155111,verificationVersion:status==='CONFIRMED'?2:0}));return {status};}};
-    const context=vm.createContext({window,sepolia,URLSearchParams,document:{getElementById:id=>elements.get(id),createElement:()=>new Element(),querySelector:()=>({dataset:{chainRole:role}})},
+    const context=vm.createContext({window,sepolia,fundDemoWallet:async()=>({status:'SUFFICIENT'}),URLSearchParams,document:{getElementById:id=>elements.get(id),createElement:()=>new Element(),querySelector:()=>({dataset:{chainRole:role}})},
         localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){}});
-    vm.runInContext(fs.readFileSync('assets/js/blockchain-display.js','utf8'),context);vm.runInContext(fs.readFileSync('assets/js/buyer-blockchain.js','utf8').replace(/^import .*;\r?\n/,''),context);
+    vm.runInContext(fs.readFileSync('assets/js/blockchain-display.js','utf8'),context);vm.runInContext(fs.readFileSync('assets/js/buyer-blockchain.js','utf8').replace(/^import .*;\r?\n/gm,''),context);
     return {window,elements,calls,storage,events,ready:async()=>{window.tsCurrentUser={uid:role,role,status:'active'};await events['ts-auth-ready']();},
         button:()=>elements.get('buyer-chain-list').children[0].children.find(child=>child.listeners?.click)};
 }

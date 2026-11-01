@@ -1,4 +1,8 @@
+import { fundDemoWallet } from './demo-funding-client.js?v=20261101-demo-funding';
 const el = id => document.getElementById(id);
+let leftWalletPage = false;
+window.addEventListener('pagehide', () => { leftWalletPage = true; });
+window.addEventListener('pageshow', () => { leftWalletPage = false; });
 const validAddress = value => /^0x[a-fA-F0-9]{40}$/.test(String(value || ''));
 let initialized = false;
 window.addEventListener('ts-auth-ready', () => {
@@ -107,6 +111,15 @@ window.addEventListener('ts-auth-ready', () => {
                 const chain = await window.ethereum.request({ method: 'eth_chainId' });
                 el('wallet-network').textContent = `Connected network: ${chain}. Demo payment does not send a blockchain transaction.`;
             } catch (_) { /* Connecting the address is enough for this demo. */ }
+            try {
+                await fundDemoWallet({ walletAddress: address,
+                    isActive: () => !leftWalletPage && window.tsCurrentUser?.uid === user.uid && user.walletAddress === address,
+                    onStatus: text => { el('wallet-funding-status').textContent = text; } });
+            } catch (fundingError) {
+                if (!leftWalletPage && window.tsCurrentUser?.uid === user.uid) el('wallet-funding-status').textContent = fundingError.code === 4001
+                    ? 'Demo gas verification was cancelled. Your wallet is saved; reconnect to try funding again.'
+                    : fundingError.message || 'Demo gas funding is unavailable. Your wallet connection is saved.';
+            }
         } catch (error) {
             el('wallet-error').hidden = false;
             el('wallet-error').textContent = error.code === 4001 ? 'Wallet connection was cancelled. You can try again.'

@@ -43,6 +43,128 @@ erase its history.
 
 ## Application state and recovery
 
+### Automatic demo gas funding
+
+Verified, active buyers receive a one-time allowance of **0.002 SepoliaETH** when
+they connect/save and prove control of a standard MetaMask wallet. The browser
+requests a readable `personal_sign` challenge bound to the project, buyer UID,
+wallet, chain, random nonce and five-minute expiry. This is a gas-free wallet
+proof, not permission to spend assets. The backend verifies the signature and
+profile again inside the allocation transaction. A wallet cannot claim through
+multiple accounts, and changing wallets does not reset an account's allowance.
+
+Create the separate local funding wallet with:
+
+```text
+node scripts/setup-demo-funding.cjs --apply
+```
+
+It writes `C:/xampp/private/ticksecure-demo-funding.json` by default, prints only
+the public address, and never overwrites existing keys. Send **Sepolia test ETH
+only** to that address, for example 0.05 SepoliaETH for a small demonstration.
+The administrator's existing MetaMask remains their own wallet; no MetaMask key
+is requested or copied. Neither the NFT authorization signer nor the registered
+contract administrator wallet can serve as the funding wallet. The deployed
+ticket contract does not change or need redeployment.
+
+Apache's `.htaccess` enables `TICKSECURE_DEMO_FUNDING=1` locally. The funding key
+can be overridden by server-only `TICKSECURE_DEMO_FUNDING_KEY_FILE`. Set the flag
+to `0` in the effective server configuration to disable new funding. Node reads
+the private file outside htdocs. Private keys, signed transfers, challenge
+documents and claim ledgers are never available through browser Firestore reads.
+Apache request-local funding settings are forwarded to the Node bridge.
+
+On **Admin → Blockchain**, Automatic buyer demo gas shows the public treasury
+address, balance and today's reserved budget. **Buyer → Wallet** requests funding
+after connection, with progress/cancellation messages. Fresh checkout minting
+and manual NFT operations also offer the allowance to previously connected
+buyers whose wallet lacks a small gas balance. Already funded wallets can use
+NFT operations without depending on the funding service.
+
+The hard daily budget is **0.02 SepoliaETH including maximum reserved gas**, using
+UTC+8 calendar days. Native transfers use a live gas estimate plus a 20% safety
+margin, with a 500,000 execution-gas cap and an economical tip. Do not assume
+21,000 gas: first-time account funding can require substantially more gas on
+the current testnet. The full estimated allowance is included in reservations;
+the maximum fee is capped at 0.1 gwei. Fees above the cap pause funding. Because
+the budget includes gas, it allows fewer than ten full 0.002 allowances per day.
+Budget reservations are deliberately retained on failure and across retries.
+This is a bounded FYP allowance, not unlimited automatic wallet refilling.
+This allowance is a transfer to the buyer, not gas consumed by the network.
+Existing claims keep their recorded amounts; pending transfers retain their
+original signed bytes and old allowances are not automatically sent again.
+Changing the allowance invalidates unclaimed challenges for the previous amount.
+
+Claims persist a signed raw transaction, nonce and deterministic hash in one
+Firestore transaction **before** broadcasting. A single pending transfer and
+persisted next nonce serialize the treasury across PHP/Functions processes.
+Retries rebroadcast identical bytes and confirm the same hash; they never create
+a second allowance. Success requires a canonical receipt and two confirmations.
+A reverted transfer keeps that allowance reserved and needs administrator review.
+The admin funding panel lists failed grants and offers one explicitly confirmed
+**Retry failed funding** action. The backend requires a canonical failed receipt
+with two confirmations, rechecks buyer eligibility and daily budget, and signs a
+new transfer with a fresh estimated gas limit and nonce. Its previous failed hash
+is retained. Pending/unknown/successful transfers cannot be retried through this
+action, and no grant can receive more than one administrative retry. Buyers do
+not trigger this retry automatically. The browser stops NFT submission when demo
+funding is FAILED instead of continuing to a misleading insufficient-gas error.
+An uncertain/pending transfer keeps its budget/nonce reserved and pauses new
+transfers until reconciled. Keep these private ledger records in backups.
+
+In deployed Functions, configure the separate Secret Manager secret
+`TICKSECURE_DEMO_FUNDING_KEY` and the environment flag before deploying
+`getDemoFundingSettings`, `getDemoFundingChallenge`, `claimDemoFunding`, and
+`retryDemoFunding`.
+This setup does not deploy anything. Do not enable public automatic funding
+without reviewing abuse controls and the intentionally small server-side caps.
+No live funding transfer is performed by the unit tests.
+
+For read-only local diagnostics, run
+`node scripts/inspect-demo-funding.cjs BUYER_PUBLIC_WALLET_ADDRESS`. It reads the
+claim and public receipt/balances/transfer estimate without returning credentials,
+signatures or raw transfers, modifying Firestore, or broadcasting anything.
+
+### Economy gas fees
+
+The shared MetaMask sender requests the 10th-percentile priority-fee rewards
+from five recent Sepolia blocks and uses their median. It keeps the tip between
+0.001 and 0.01 gwei, with a maximum fee per gas of twice the projected next-block
+base fee plus that tip. These are economy suggestions; MetaMask can display or
+allow the buyer to change them, and a low tip can take longer to confirm.
+Actual cost is gas used times the effective gas price, not the full maximum.
+No fixed SepETH amount or guaranteed minimum fee is promised.
+Before opening MetaMask for an NFT operation, the app also checks the quoted
+maximum (buffered gas limit times maximum fee per gas). It pauses requests above
+**0.0001 SepoliaETH** and asks the buyer to retry when fees are lower. This cap
+does not apply to deployment, which has different execution requirements. Wallet
+fee edits remain under the user's control. The policy favors economy over speed.
+
+Transactions are simulated with `eth_estimateGas` before wallet submission.
+A 20% gas-limit allowance avoids cutting execution short; unused gas is not
+spent. Missing fee data and failed simulations stop before submission rather
+than silently using an expensive fallback. The existing contract and artifact
+are unchanged, so an already registered deployment remains valid. This does
+not batch NFTs: the registered contract still requires one transaction per
+ticket operation. Reusing known hashes for verification avoids duplicate sends.
+
+After a successful checkout, the booking confirmation automatically starts the
+new booking's ticket NFT mint requests. Buyers do not need to open My blockchain
+or click Mint for each new ticket. MetaMask still requires the buyer's approval
+and Sepolia test ETH for each transaction; multiple tickets are processed in
+sequence, waiting for confirmation before requesting the next one. Checkout
+explains these requests before purchase. The server wallet does not submit or
+pay for buyer operations.
+
+Opening an old booking confirmation or reloading it does not automatically ask
+for another wallet approval. A cancelled request, missing setup, or unavailable
+provider keeps the booking confirmed and offers Continue NFT setup. Submitted
+hashes use the same local recovery storage as My blockchain, so continuation
+verifies a known hash rather than resubmitting. NFT details remains available
+for manual recovery and for existing transfer/resale operations. Browser Web
+Locks serialize automatic and manual NFT requests for the same buyer across
+tabs when supported.
+
 The existing Firebase booking, handover and simulated resale payment workflows
 queue separate NFT work. Application ownership can be ahead of chain ownership
 until the responsible buyer approves and confirms the NFT operation. The buyer

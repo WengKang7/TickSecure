@@ -66,7 +66,7 @@ test('admin email verification is optional; role, active status and other roles 
         await assert.rejects(service(database(state)).s.getSettings(uid),e=>e.code==='permission-denied');}
 });
 test('MetaMask sends only on Sepolia, transfers zero ETH value and rejects a changed wallet',async()=>{
-    const calls=[],account={value:alice},chain={value:'0xaa36a7'},window={ethereum:{request:async request=>{calls.push(request);return request.method==='eth_chainId'?chain.value:request.method==='eth_sendTransaction'?hash:[account.value];}}};
+    const calls=[],account={value:alice},chain={value:'0xaa36a7'},window={ethereum:{request:async request=>{calls.push(request);return request.method==='eth_chainId'?chain.value:request.method==='eth_sendTransaction'?hash:request.method==='eth_feeHistory'?{baseFeePerGas:['0x0','0x0'],reward:[['0x0']]}:request.method==='eth_estimateGas'?'0x186a0':[account.value];}}};
     vm.runInContext(fs.readFileSync('assets/js/blockchain-wallet.js','utf8'),vm.createContext({window}));await window.tsChainWallet.connect();await window.tsChainWallet.send({from:alice,to:contract,data:'0x1234'});
     assert.equal(calls.find(r=>r.method==='eth_sendTransaction').params[0].value,'0x0');account.value=bob;await assert.rejects(window.tsChainWallet.send({from:alice,to:contract,data:'0x1234'}),/wallet changed/);
     account.value=alice;chain.value='0x1';await assert.rejects(window.tsChainWallet.send({from:alice,to:contract,data:'0x1234'}),/network changed/);assert.equal(calls.filter(r=>r.method==='eth_sendTransaction').length,1);

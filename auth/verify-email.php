@@ -145,7 +145,6 @@ ob_start();
 
         returnButton?.addEventListener('click', async (event) => {
             event.preventDefault();
-            if (currentUser() && !await window.tsDecision('logout', 'Your email verification session')) return;
             returnButton.setAttribute('aria-disabled', 'true');
             returnButton.style.pointerEvents = 'none';
             message.textContent = 'Returning to sign in...';
@@ -164,7 +163,7 @@ ob_start();
                 } catch (_) {
                     /* no-op */ }
             }
-            window.location.replace('login.php?verified=1');
+            window.location.replace('login.php');
         });
     });
 </script>
