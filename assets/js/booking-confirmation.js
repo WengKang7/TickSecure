@@ -1,9 +1,38 @@
-import { sepolia } from './blockchain-client.js?v=20261030-buyer-chain-v2';
-import { createBookingMinter } from './booking-mint.js?v=20261101-auto-mint';
-import { fundDemoWallet } from './demo-funding-client.js?v=20261101-demo-funding';
+import { sepolia } from './blockchain-client.js?v=20261102-organizer-chain';
+import { createBookingMinter } from './booking-mint.js?v=20261102-organizer-chain';
+import { fundDemoWallet } from './demo-funding-client.js?v=20261102-organizer-chain';
 const el = id => document.getElementById(id);
 let initialized = false;
 let leftPage = false;
+const navigation = ['btn-view-booking', 'confirmation-tickets-link', 'confirmation-chain-link', 'confirmation-events-link'].map(el);
+const navigationTargets = new Map();
+let navigationBusy = false;
+function setNavigationBusy(busy) {
+    navigationBusy = busy;
+    el('confirmation-navigation').setAttribute('aria-busy', String(busy));
+    for (const link of navigation) {
+        if (busy) {
+            if (!navigationTargets.has(link)) navigationTargets.set(link, { href: link.getAttribute('href') || link.href, tabindex: link.getAttribute('tabindex') });
+            link.removeAttribute('href');
+            link.setAttribute('aria-disabled', 'true');
+            link.setAttribute('tabindex', '-1');
+        } else {
+            const target = navigationTargets.get(link);
+            if (target?.href) link.setAttribute('href', target.href);
+            if (target?.tabindex != null) link.setAttribute('tabindex', target.tabindex);
+            else link.removeAttribute('tabindex');
+            link.removeAttribute('aria-disabled');
+            navigationTargets.delete(link);
+        }
+        link.classList.toggle('disabled', busy);
+    }
+}
+for (const link of navigation) for (const type of ['click', 'auxclick', 'keydown']) link.addEventListener(type, event => {
+    if (navigationBusy && (type !== 'keydown' || ['Enter', ' '].includes(event.key))) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+    }
+});
 window.addEventListener('pagehide', () => { leftPage = true; });
 window.addEventListener('pageshow', () => { leftPage = false; });
 async function loadConfirmation() {
@@ -49,15 +78,17 @@ async function loadConfirmation() {
         if (leftPage || window.tsCurrentUser?.uid !== uid) return;
         const isActive = expected => !leftPage && window.tsCurrentUser?.uid === expected
             && window.tsCurrentUser?.role === 'buyer' && window.tsCurrentUser?.status === 'active';
+        let setupPending = false;
         const minter = createBookingMinter({ client: sepolia, wallet: window.tsChainWallet,
             storage: { getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value), removeItem: key => localStorage.removeItem(key) },
             locks: window.navigator?.locks, isActive,
-            ensureFunding: async address => {
-                const funding = await fundDemoWallet({ walletAddress: address, onlyIfNeeded: true, isActive: () => isActive(uid),
+            ensureFunding: async (address, expectedUid, recordId) => {
+                const funding = await fundDemoWallet({ walletAddress: address, recordId, onlyIfNeeded: true, isActive: () => isActive(uid),
                     onStatus: text => { el('confirmation-mint-status').textContent = text; } });
                 if (['PENDING', 'BUSY'].includes(funding?.status)) throw Error('Demo gas is still confirming. Continue NFT setup shortly.');
             },
             onUpdate: progress => {
+                setupPending = progress.state === 'pending';
                 el('confirmation-mint-status').textContent = progress.message;
                 el('confirmation-mint-retry').hidden = !['pending'].includes(progress.state);
                 el('val-nft-status').textContent = `${progress.confirmed} of ${progress.total} NFTs confirmed`;
@@ -69,6 +100,8 @@ async function loadConfirmation() {
         async function continueMinting() {
             if (mintBusy || !isActive(uid)) return;
             mintBusy = true;
+            setupPending = false;
+            setNavigationBusy(true);
             el('confirmation-mint-panel').hidden = false;
             el('confirmation-mint-retry').hidden = true;
             el('confirmation-mint-status').textContent = 'Preparing your ticket NFTs...';
@@ -80,7 +113,7 @@ async function loadConfirmation() {
                     : (failure.message || 'NFT setup could not finish. Your booking and tickets are saved.');
                 el('val-tx-status').textContent = 'NFT setup needs attention';
                 el('confirmation-mint-retry').hidden = false;
-            } finally { mintBusy = false; }
+            } finally { mintBusy = false; setNavigationBusy(setupPending && isActive(uid)); }
         }
         el('confirmation-mint-retry').addEventListener('click', continueMinting);
         let intent = 0;

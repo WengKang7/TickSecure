@@ -202,7 +202,7 @@ function ts_sidebar_links(string $role, string $active, string $base): string
         $groups = [
           'Overview' => [['dashboard','Dashboard','home','dashboard.php']],
           'Event Management' => [['events','My Events','calendar','events.php'],['create','Create Event','plus','event-new.php']],
-          'Sales' => [['sales','Sales & Revenue','chart','sales.php'],['nft','NFT Tickets','ticket','nft.php'],['blockchain','Blockchain Activity','activity','blockchain.php'],['attendees','Attendees','users','attendees.php'],['secondary','Secondary Market','activity','secondary-market.php']],
+          'Sales' => [['sales','Sales & Revenue','chart','sales.php'],['nft','NFT Tickets','ticket','nft.php'],['blockchain','Blockchain Transactions','activity','blockchain.php'],['attendees','Attendees','users','attendees.php'],['secondary','Secondary Market','activity','secondary-market.php']],
           'Support' => [['complaints','Complaints','message','complaints.php'],['notifications','Notifications','bell','notifications.php']],
           'Account' => [['profile','Organization Profile','building','profile.php']]
         ];
@@ -210,7 +210,7 @@ function ts_sidebar_links(string $role, string $active, string $base): string
         $groups = [
           'Overview' => [['dashboard','Dashboard','home','dashboard.php']],
           'Management' => [['users','Users','users','users.php'],['organizers','Organizer Applications','building','organizers.php'],['events','Events','calendar','events.php'],['venues','Venues & Layouts','layout','venues.php']],
-          'Monitoring' => [['blockchain','Blockchain Transactions','activity','blockchain.php'],['resale','Resale Monitoring','ticket','resale.php'],['audit','Audit Logs','shield','audit.php']],
+          'Monitoring' => [['resale','Resale Monitoring','ticket','resale.php'],['audit','Audit Logs','shield','audit.php']],
           'Support & Governance' => [['complaints','Complaints','message','complaints.php'],['reports','Reports','file','reports.php']],
           'Account' => [['profile','Profile','user','profile.php']]
         ];

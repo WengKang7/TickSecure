@@ -46,10 +46,10 @@ ob_start();
                     <div><strong>Ticket NFT setup</strong><p id="confirmation-mint-status" role="status" aria-live="polite">Preparing your ticket NFTs...</p>
                     <button class="ts-btn ts-btn-secondary ts-btn-sm" id="confirmation-mint-retry" type="button" hidden>Continue NFT setup</button></div>
                 </div>
-                <div class="flex justify-center gap-12 wrap mt-24"><a class="ts-btn ts-btn-primary"
+                <div class="flex justify-center gap-12 wrap mt-24" id="confirmation-navigation"><a class="ts-btn ts-btn-primary"
                         href="bookings.php" id="btn-view-booking" hidden>View Booking</a><a class="ts-btn ts-btn-secondary"
-                        href="tickets.php">View My Tickets</a><a class="ts-btn ts-btn-secondary" id="confirmation-chain-link" href="blockchain.php">NFT details</a><a class="ts-btn ts-btn-tertiary"
-                        href="../public/events.php">Back to Events</a></div>
+                        href="tickets.php" id="confirmation-tickets-link">View My Tickets</a><a class="ts-btn ts-btn-secondary" id="confirmation-chain-link" href="blockchain.php">NFT details</a><a class="ts-btn ts-btn-tertiary"
+                        href="../public/events.php" id="confirmation-events-link">Back to Events</a></div>
             </div>
             <div class="ts-accordion" style="margin:0 22px 22px"><button class="ts-accordion-trigger">Technical
                     transaction details <span

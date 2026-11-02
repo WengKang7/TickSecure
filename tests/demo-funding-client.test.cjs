@@ -7,7 +7,7 @@ vm.runInContext(fs.readFileSync('assets/js/demo-funding-client.js', 'utf8').repl
 function fixture(options = {}) {
     let active = true, count = 0;
     const calls = [], statuses = [], providerCalls = [];
-    const run = () => context.fund({ walletAddress: address, onlyIfNeeded: options.onlyIfNeeded, isActive: () => active, onStatus: text => statuses.push(text), wait: async () => {},
+    const run = () => context.fund({ walletAddress: address, recordId: options.noRecord ? undefined : 'ticket-operation', onlyIfNeeded: options.onlyIfNeeded, isActive: () => active, onStatus: text => statuses.push(text), wait: async () => {},
         provider: { request: async request => {
             providerCalls.push(request);
             if (request.method === 'eth_chainId') return '0xaa36a7';
@@ -62,5 +62,12 @@ test('funded buyers can mint without depending on the demo funding backend', asy
 
 test('a failed funding transfer stops the NFT flow before wallet transaction approval',async()=>{
     const p=fixture({initial:{status:'FAILED',walletAddress:address}});
-    await assert.rejects(p.run(),/administrator.*retry/);assert.equal(p.providerCalls.length,0);
+    await assert.rejects(p.run(),/event organizer.*retry/);assert.equal(p.providerCalls.length,0);
+});
+
+test('wallet connection alone cannot choose or spend an organizer funding allowance',async()=>{
+    const p=fixture({noRecord:true});assert.equal((await p.run()).status,'UNAVAILABLE');assert.equal(p.calls.length,0);assert.equal(p.providerCalls.length,0);
+});
+test('funding requests and polling stay bound to the selected ticket operation',async()=>{
+    const p=fixture();await p.run();assert.ok(p.calls.length>1);for(const call of p.calls)assert.equal(call.data.recordId,'ticket-operation');
 });

@@ -1,23 +1,24 @@
 import { invokeTrustedBackend } from './backend-client.js?v=20261101-demo-funding';
 
-// Funding is automatic after connect; personal_sign proves control of the
+// Funding is offered for the selected ticket operation; personal_sign proves control of the
 // destination wallet without sharing a key or approving token spending.
-export async function fundDemoWallet({ walletAddress, isActive = () => true, onStatus = () => {},
+export async function fundDemoWallet({ walletAddress, recordId, isActive = () => true, onStatus = () => {},
     provider = window.ethereum, invoke = invokeTrustedBackend, onlyIfNeeded = false, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
     const notify = text => { if (isActive()) onStatus(text); };
     const call = (name, data) => invoke(data, { name, region: 'asia-southeast1' });
     if (!isActive()) return;
+    if (!recordId) { notify('Your wallet is saved. Demo gas comes from the event organizer when you mint or receive a ticket NFT.'); return {status:'UNAVAILABLE'}; }
     if (onlyIfNeeded && provider?.request) {
         try {
             if (await provider.request({ method: 'eth_chainId' }) === '0xaa36a7'
-                && BigInt(await provider.request({ method: 'eth_getBalance', params: [walletAddress, 'pending'] })) >= 1000000000000000n) {
+                && BigInt(await provider.request({ method: 'eth_getBalance', params: [walletAddress, 'pending'] })) >= 100000000000000n) {
                 return { status: 'SUFFICIENT' };
             }
         } catch (_) { /* Funding lookup can still explain unavailable balances. */ }
     }
     if (!isActive()) return;
     notify('Checking your one-time demo gas allowance...');
-    let result = await call('getDemoFundingChallenge', { walletAddress });
+    let result = await call('getDemoFundingChallenge', { walletAddress, recordId });
     if (!isActive()) return;
     let signature;
     if (result.status === 'SIGN') {
@@ -32,13 +33,13 @@ export async function fundDemoWallet({ walletAddress, isActive = () => true, onS
         const message = '0x' + Array.from(new TextEncoder().encode(result.message), byte => byte.toString(16).padStart(2, '0')).join('');
         signature = await provider.request({ method: 'personal_sign', params: [message, walletAddress] });
         if (!isActive()) return;
-        result = await call('claimDemoFunding', { walletAddress, signature });
+        result = await call('claimDemoFunding', { walletAddress, recordId, signature });
     }
     for (let attempt = 0; isActive() && ['PENDING', 'BUSY'].includes(result.status) && attempt < 20; attempt++) {
         notify(result.status === 'PENDING' ? 'Your free demo gas transfer is confirming on Sepolia...' : result.message);
         await wait(3000);
         if (!isActive()) return;
-        result = await call('claimDemoFunding', { walletAddress, ...(signature ? { signature } : {}) });
+        result = await call('claimDemoFunding', { walletAddress, recordId, ...(signature ? { signature } : {}) });
     }
     if (!isActive()) return;
     if (result.walletAddress && result.walletAddress.toLowerCase() !== walletAddress.toLowerCase()) {
@@ -47,7 +48,7 @@ export async function fundDemoWallet({ walletAddress, isActive = () => true, onS
     else if (result.status === 'PENDING' || result.status === 'BUSY') {
         notify('Demo gas is still pending. Return shortly to check it; no second funding transfer will be created.');
     } else if (result.status === 'FAILED') {
-        const message = 'Your demo gas transfer failed, so the NFT transaction has not been submitted. Ask the administrator to review and retry the failed funding transfer under Automatic buyer demo gas.';
+        const message = 'Your demo gas transfer failed, so the NFT transaction has not been submitted. Ask the event organizer to review and retry the failed funding transfer under Automatic buyer demo gas.';
         notify(message);
         throw Error(message);
     }

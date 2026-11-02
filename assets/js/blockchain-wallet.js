@@ -50,9 +50,10 @@
         transaction.gas=hex((estimate*120n+99n)/100n);
         // Keep execution allowance intact. Pause expensive NFT requests rather
         // than risk wasting gas by cutting the gas limit below execution needs.
-        // Deployment has different gas requirements and is not an NFT operation.
-        if(to&&quantity(transaction.gas)*quantity(transaction.maxFeePerGas)>100000000000000n){
-            throw Error('The quoted maximum NFT fee exceeds the 0.0001 SepoliaETH demo budget. No transaction was submitted. Retry when network fees are lower.');
+        // Deployment has a separate 0.001 SepoliaETH maximum quote.
+        const feeCap=to?100000000000000n:1000000000000000n;
+        if(quantity(transaction.gas)*quantity(transaction.maxFeePerGas)>feeCap){
+            throw Error('The quoted maximum '+(to?'NFT fee exceeds the 0.0001':'deployment fee exceeds the 0.001')+' SepoliaETH demo budget. No transaction was submitted. Retry when network fees are lower.');
         }
         // RPC estimation may take time. Recheck identity immediately before submission.
         const current=await wallet.request({method:'eth_accounts'});
@@ -62,5 +63,13 @@
         if(!/^0x[0-9a-fA-F]{64}$/.test(String(hash)))throw Error('MetaMask did not return a transaction hash. Check wallet activity before retrying.');
         return hash.toLowerCase();
     }
-    window.tsChainWallet={connect,send};
+    async function signMessage({from,message}){
+        const wallet=provider();
+        const accounts=await wallet.request({method:'eth_accounts'});
+        if(!address(from)||accounts?.[0]?.toLowerCase()!==from.toLowerCase())throw Error('Select the organizer wallet that deployed this contract.');
+        if(await wallet.request({method:'eth_chainId'})!==chainId)throw Error('Select Sepolia in MetaMask.');
+        const encoded='0x'+Array.from(new TextEncoder().encode(message),byte=>byte.toString(16).padStart(2,'0')).join('');
+        return wallet.request({method:'personal_sign',params:[encoded,from]});
+    }
+    window.tsChainWallet={connect,send,signMessage};
 })();

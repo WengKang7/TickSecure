@@ -11,9 +11,11 @@ const event = { id: 'event-1', name: '<Event>', status: 'PUBLISHED', venueId: 'v
     categories: { A: { name: 'VIP', price: 288, quantity: 10 } } };
 
 class Element {
-    constructor() { this.children = []; this.listeners = {}; this.attributes = {}; this.style = {}; this.checked = false; this.value = ''; }
-    setAttribute(key, value) { this.attributes[key] = value; }
-    removeAttribute(key) { delete this.attributes[key]; }
+    get href() { return this.attributes.href; }
+    set href(value) { this.attributes.href = value; }
+    constructor() { this.children = []; this.listeners = {}; this.attributes = {}; this.style = {}; this.checked = false; this.value = ''; const classes = new Set(); this.classList = { toggle: (name, enabled) => enabled ? classes.add(name) : classes.delete(name), contains: name => classes.has(name) }; }
+    setAttribute(key, value) { this.attributes[key] = value; if (key === 'href') this.href = value; }
+    removeAttribute(key) { delete this.attributes[key]; if (key === 'href') delete this.href; }
     getAttribute(key) { return this.attributes[key]; }
     addEventListener(type, callback) { this.listeners[type] = callback; }
     append(...nodes) { this.children.push(...nodes); }
@@ -23,6 +25,10 @@ class Element {
 function page(name, options = {}) {
     const php = fs.readFileSync(path.join(root, 'buyer', name + '.php'), 'utf8');
     const elements = new Map([...php.matchAll(/id="([^"]+)"/g)].map(match => [match[1], new Element()]));
+    for (const [tag] of php.matchAll(/<a\b[^>]*>/g)) {
+        const id = tag.match(/id="([^"]+)"/)?.[1], href = tag.match(/href="([^"]+)"/)?.[1];
+        if (id && href && elements.has(id)) elements.get(id).setAttribute('href', href);
+    }
     const calls = { bookings: [], releases: [], profiles: [], reservations: [], confirmations: [], mints: [] };
     const state = { now: Date.now() };
     let ready;
@@ -61,6 +67,7 @@ function page(name, options = {}) {
         fundDemoWallet: async () => ({ status: 'UNAVAILABLE' }),
         sepolia: {}, createBookingMinter: ({ isActive, onUpdate }) => ({ run: async (id, uid) => {
             assert.ok(isActive(uid)); calls.mints.push({ id, uid });
+            if (options.mintRun) return options.mintRun({ id, uid, onUpdate });
             if (options.mintError) throw options.mintError;
             onUpdate({ state: 'complete', total: 2, confirmed: 2, hashes: ['0x' + 'a'.repeat(64)], message: 'All ticket NFTs are confirmed on Sepolia.' });
         } }),
@@ -281,4 +288,44 @@ test('reservation expiry during the confirmation prevents checkout and releases 
     assert.equal(p.calls.releases.length, 1);
     assert.equal(p.elements.get('btn-pay').disabled, true);
     assert.match(p.elements.get('checkout-error').textContent, /expired/);
+});
+
+const confirmationLinks = ['btn-view-booking','confirmation-tickets-link','confirmation-chain-link','confirmation-events-link'];
+test('NFT setup disables all four navigation links until confirmation, then restores their destinations',async()=>{
+    let finish, started;
+    const running=new Promise(resolve=>{started=resolve;});
+    const p=page('booking-confirmation',{query:'bookingId=booking-1',autoMint:true,mintRun:({onUpdate})=>new Promise(resolve=>{
+        finish=()=>{onUpdate({state:'complete',total:2,confirmed:2,hashes:[],message:'Confirmed'});resolve();};started();
+    })});
+    const ready=p.ready();await running;
+    assert.equal(p.elements.get('confirmation-navigation').getAttribute('aria-busy'),'true');
+    for(const id of confirmationLinks){
+        const link=p.elements.get(id);assert.equal(link.getAttribute('aria-disabled'),'true');assert.equal(link.getAttribute('href'),undefined);assert.equal(link.getAttribute('tabindex'),'-1');assert.equal(link.classList.contains('disabled'),true);
+        for(const [type,key] of [['click'],['auxclick'],['keydown','Enter'],['keydown',' ']]){
+            let prevented=false,stopped=false;link.listeners[type]({key,preventDefault(){prevented=true;},stopImmediatePropagation(){stopped=true;}});assert.equal(prevented,true);assert.equal(stopped,true);
+        }
+    }
+    finish();await ready;
+    for(const id of confirmationLinks){const link=p.elements.get(id);assert.equal(link.getAttribute('aria-disabled'),undefined);assert.ok(link.getAttribute('href'));assert.equal(link.classList.contains('disabled'),false);}
+    assert.equal(p.elements.get('btn-view-booking').href,'booking-detail.php?id=booking-1');
+    assert.equal(p.elements.get('confirmation-tickets-link').href,'tickets.php');
+    assert.equal(p.elements.get('confirmation-chain-link').href,'blockchain.php?bookingId=booking-1');
+    assert.equal(p.elements.get('confirmation-events-link').href,'../public/events.php');
+});
+test('pending blockchain confirmation keeps navigation locked and allows checking the same setup again',async()=>{
+    let attempts=0;
+    const p=page('booking-confirmation',{query:'bookingId=booking-1',autoMint:true,mintRun:async({onUpdate})=>{
+        const pending=++attempts===1;onUpdate({state:pending?'pending':'complete',total:2,confirmed:pending?0:2,hashes:[],message:pending?'Still confirming':'Confirmed'});
+    }});
+    await p.ready();assert.equal(p.elements.get('confirmation-mint-retry').hidden,false);
+    for(const id of confirmationLinks)assert.equal(p.elements.get(id).getAttribute('aria-disabled'),'true');
+    await p.elements.get('confirmation-mint-retry').listeners.click();
+    for(const id of confirmationLinks)assert.ok(p.elements.get(id).getAttribute('href'));
+});
+test('cancelled or failed NFT setup unlocks navigation for recovery',async()=>{
+    for(const mintError of [Object.assign(Error('Cancelled'),{code:4001}),Error('Provider unavailable')]){
+        const p=page('booking-confirmation',{query:'bookingId=booking-1',autoMint:true,mintError});await p.ready();
+        assert.equal(p.elements.get('confirmation-mint-retry').hidden,false);
+        for(const id of confirmationLinks){assert.ok(p.elements.get(id).getAttribute('href'));assert.equal(p.elements.get(id).getAttribute('aria-disabled'),undefined);}
+    }
 });

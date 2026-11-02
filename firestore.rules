@@ -423,6 +423,8 @@ service cloud.firestore {
     match /DemoFundingWallets/{id} { allow read, write: if false; }
     match /DemoFundingBudgets/{id} { allow read, write: if false; }
     match /DemoFundingState/{id} { allow read, write: if false; }
+    match /BlockchainSettings/{id} { allow read, write: if false; }
+    match /BlockchainDeployments/{id} { allow read, write: if false; }
     match /AuditLogs/{logId} {
       allow get, list: if isAdmin();
       allow create, update, delete: if false;

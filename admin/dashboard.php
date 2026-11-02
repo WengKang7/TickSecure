@@ -75,12 +75,6 @@ ob_start();
                         <div class="ts-list-sub">Check pending queue</div>
                     </div><a href="events.php" class="ts-btn ts-btn-secondary ts-btn-sm">Review</a>
                 </div>
-                <div class="ts-list-item">
-                    <div>
-                        <div class="ts-list-title">Blockchain transactions</div>
-                        <div class="ts-list-sub">Inspect alerts</div>
-                    </div><a href="blockchain.php" class="ts-btn ts-btn-secondary ts-btn-sm">Inspect</a>
-                </div>
             </div>
         </div>
     </div>

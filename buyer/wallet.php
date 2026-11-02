@@ -16,7 +16,7 @@ ob_start();
         <div class="ts-card ts-card-pad">
             <div class="ts-alert ts-alert-error mb-20" id="wallet-error" role="alert" hidden></div>
             <p class="small secondary" id="wallet-reservation-note" aria-live="polite"></p>
-            <p class="small secondary" id="wallet-funding-status" role="status" aria-live="polite">Eligible verified buyers can receive a one-time 0.002 SepoliaETH demo gas allowance after connecting and verifying their wallet.</p>
+            <p class="small secondary" id="wallet-funding-status" role="status" aria-live="polite">Eligible verified buyers can receive 0.0001 SepoliaETH once per event organizer when submitting a ticket NFT operation. Your organizer supplies the demo gas.</p>
             <div class="ts-wallet-card">
                 <div class="flex items-center gap-12"><span
                         class="ts-kpi-icon"><?=ts_icon('wallet', 'ts-icon-lg')?></span>

@@ -16,10 +16,10 @@ export function createBookingMinter({ client, wallet, storage, locks, isActive, 
         for (const record of records) {
             if (!isActive(uid)) return;
             if (confirmed(record)) continue;
-            if (!result.configured) throw Error('The administrator must finish Sepolia contract setup. Your tickets are saved; NFT setup can continue later.');
             const key = `ticksecure:buyer-chain:${uid}:${record.id}`;
             let submitted = read(key) || (record.status !== 'FAILED' && hash(record.transactionHash) ? record.transactionHash : '');
             if (!hash(submitted)) {
+                if (record.configured === false || (!result.configured && record.configured !== true)) throw Error('The event organizer must finish their Sepolia contract setup. Your tickets are saved; NFT setup can continue later.');
                 if (!record.canSubmit) throw Error(record.blockedReason || 'This ticket NFT cannot be submitted yet. Open NFT details to continue later.');
                 update('preparing', `Preparing ticket NFT ${progress.confirmed + 1} of ${progress.total}...`);
                 const prepared = await client.prepare(record.id);
@@ -32,7 +32,7 @@ export function createBookingMinter({ client, wallet, storage, locks, isActive, 
                     const address = await wallet.connect();
                     if (!isActive(uid)) return;
                     if (address.toLowerCase() !== String(prepared.actorWallet).toLowerCase()) throw Error('Select the wallet used for this booking in MetaMask: ' + prepared.actorWallet);
-                    await ensureFunding(address, uid);
+                    await ensureFunding(address, uid, record.id);
                     if (!isActive(uid)) return;
                     if (prepared.deadline && Date.now() / 1000 >= prepared.deadline) throw Error('The wallet request expired. Continue NFT setup to get a fresh request.');
                     submitted = await wallet.send({ from: address, to: prepared.contractAddress, data: prepared.calldata });

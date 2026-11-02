@@ -51,20 +51,25 @@ test('legacy records resolve their responsible buyer from bookings, transfer his
     const transfer={...mint,id:'old',transactionType:'TRANSFER',walletAddress:bob,timestamp:'2026-10-30T01:00:00.000Z'};delete transfer.actorUid;delete transfer.actorWallet;before['BlockchainTransactions/old']=transfer;before['NFTTickets/ticket'].ownerUid='bob';before['NFTTickets/ticket'].transferHistory=[{fromUid:'alice',fromWallet:alice,toUid:'bob',toWallet:bob,timestamp:transfer.timestamp}];
     const transferred=await prepared(before,'alice','old');assert.equal(transferred.operation.actorWallet,alice);
 });
-test('admin setup verifies constructor signer and cannot replace a registered contract',async()=>{
-    const state=records();state['Users/admin'].emailVerified=false;delete state['BlockchainSettings/sepolia'];const db=database(state),p=provider(),s=service(db,p).s;
-    const setup=await s.getSettings('admin');assert.equal(setup.deploymentBytecode,artifact.bytecode+policy.word(settings.signerAddress));assert.equal((await s.getSettings('alice')).deploymentBytecode,undefined);
+test('organizer setup proves wallet control and cannot replace a registered contract or claim the legacy deployment',async()=>{
+    const state=records();delete state['BlockchainSettings/organizer_organizer'];delete state['BlockchainSettings/sepolia'];const db=database(state),p=provider(),s=service(db,p).s;
+    const setup=await s.getSettings('organizer');assert.equal(setup.deploymentBytecode,artifact.bytecode+policy.word(settings.signerAddress));assert.equal((await s.getSettings('alice')).deploymentBytecode,undefined);
     const f={tx:{hash,from:issuer,to:null,input:setup.deploymentBytecode,value:'0x0'},receipt:{transactionHash:hash,status:'0x1',contractAddress:contract,blockNumber:'0x10',blockHash:H.blockHash},height:'0x11',block:{hash:H.blockHash}};p.set(f);
-    const result=await s.configure('admin',{transactionHash:hash});assert.equal(result.contractVersion,2);assert.equal(result.signerAddress,settings.signerAddress);
-    const locked=records();locked['BlockchainSettings/sepolia'].contractAddress=bob;const other=service(database(locked),p);await assert.rejects(other.s.configure('admin',{transactionHash:hash}),/already registered/);
+    await assert.rejects(s.configure('organizer',{transactionHash:hash}),e=>e.code==='permission-denied');
+    const walletSignature=await H.issuerWallet.signMessage(setup.registrationMessagePrefix+hash);
+    const result=await s.configure('organizer',{transactionHash:hash,walletSignature});assert.equal(result.organizerUid,'organizer');assert.equal(result.signerAddress,settings.signerAddress);
+    const locked=structuredClone(db.records);locked['BlockchainSettings/organizer_organizer'].contractAddress=bob;const other=service(database(locked),p);await assert.rejects(other.s.configure('organizer',{transactionHash:hash,walletSignature}),/already registered/);
+    const legacy=records();delete legacy['BlockchainSettings/organizer_organizer'];await assert.rejects(service(database(legacy),p).s.configure('organizer',{transactionHash:hash,walletSignature}),/already assigned/);
 });
-test('admin email verification is optional; role, active status and other roles verification remain enforced',async()=>{
-    for(const value of [false,undefined]){const state=records();if(value===undefined)delete state['Users/admin'].emailVerified;else state['Users/admin'].emailVerified=value;
-        const s=service(database(state)).s;assert.equal((await s.getSettings('admin')).configured,true);await assert.rejects(s.prepare('admin',{recordId:'mint'}),e=>e.code==='permission-denied');}
-    for(const patch of [{status:'suspended'},{status:'deleted'},{role:'buyer',emailVerified:false}]){const state=records();Object.assign(state['Users/admin'],patch);await assert.rejects(service(database(state)).s.getSettings('admin'),e=>e.code==='permission-denied');}
-    for(const uid of ['alice','organizer'])for(const value of [false,undefined]){const state=records();if(value===undefined)delete state['Users/'+uid].emailVerified;else state['Users/'+uid].emailVerified=value;
-        await assert.rejects(service(database(state)).s.getSettings(uid),e=>e.code==='permission-denied');}
+
+test('admins cannot configure blockchain; inactive or unverified organizers cannot access setup',async()=>{
+    const s=service(database(records())).s;
+    await assert.rejects(s.getSettings('admin'),e=>e.code==='permission-denied');await assert.rejects(s.configure('admin',{transactionHash:hash}),e=>e.code==='permission-denied');
+    for(const uid of ['alice','organizer'])for(const patch of [{emailVerified:false},{status:'suspended'}]){
+        const state=records();Object.assign(state['Users/'+uid],patch);await assert.rejects(service(database(state)).s.getSettings(uid),e=>e.code==='permission-denied');
+    }
 });
+
 test('MetaMask sends only on Sepolia, transfers zero ETH value and rejects a changed wallet',async()=>{
     const calls=[],account={value:alice},chain={value:'0xaa36a7'},window={ethereum:{request:async request=>{calls.push(request);return request.method==='eth_chainId'?chain.value:request.method==='eth_sendTransaction'?hash:request.method==='eth_feeHistory'?{baseFeePerGas:['0x0','0x0'],reward:[['0x0']]}:request.method==='eth_estimateGas'?'0x186a0':[account.value];}}};
     vm.runInContext(fs.readFileSync('assets/js/blockchain-wallet.js','utf8'),vm.createContext({window}));await window.tsChainWallet.connect();await window.tsChainWallet.send({from:alice,to:contract,data:'0x1234'});

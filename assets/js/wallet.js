@@ -1,4 +1,4 @@
-import { fundDemoWallet } from './demo-funding-client.js?v=20261101-demo-funding';
+import { fundDemoWallet } from './demo-funding-client.js?v=20261102-organizer-chain';
 const el = id => document.getElementById(id);
 let leftWalletPage = false;
 window.addEventListener('pagehide', () => { leftWalletPage = true; });

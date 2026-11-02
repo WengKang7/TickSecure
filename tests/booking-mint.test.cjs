@@ -83,3 +83,9 @@ test('duplicate invocation and another tab holding the booking lock cannot start
     const otherTab = fixture({ locks: { request: async (key, options, callback) => callback(null) } });
     await assert.rejects(otherTab.run(), /another tab/); assert.equal(otherTab.calls.sends.length, 0);
 });
+
+test('a known in-flight hash can recover even before the new organizer contract is configured',async()=>{
+    const saved=new Map([['ticksecure:buyer-chain:buyer:a',tx('a')]]);
+    const p=fixture({configured:false,records:[{...record('a'),configured:false,canSubmit:false}],saved});
+    await p.run();assert.equal(p.calls.sends.length,0);assert.equal(p.calls.prepares.length,0);assert.equal(p.calls.verifies.length,1);
+});

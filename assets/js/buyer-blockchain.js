@@ -1,5 +1,5 @@
-import { sepolia } from './blockchain-client.js?v=20261030-buyer-chain-v2';
-import { fundDemoWallet } from './demo-funding-client.js?v=20261101-demo-funding';
+import { sepolia } from './blockchain-client.js?v=20261102-organizer-chain';
+import { fundDemoWallet } from './demo-funding-client.js?v=20261102-organizer-chain';
 const el=id=>document.getElementById(id),D=window.tsBlockchainDisplay,role=document.querySelector('[data-chain-role]').dataset.chainRole;
 const params=new URLSearchParams(window.location.search),filters={};for(const key of ['ticketId','bookingId'])if(params.get(key))filters[key]=params.get(key);
 let uid='',version=0,busy=false,records=[],configured=false,timer;
@@ -24,7 +24,7 @@ function render(){
     el('buyer-chain-list').replaceChildren(...(cards.length?cards:[D.node('p','ts-transfer-empty','No matching blockchain records for your account.')]));
     const select=el('buyer-chain-recovery-id');if(select){const value=select.value;select.replaceChildren(...records.filter(r=>r.performedByYou).map(r=>{const option=D.node('option','',r.transactionType+' · '+r.ticketId+' · '+r.id);option.value=r.id;return option;}));if(records.some(r=>r.id===value))select.value=value;el('buyer-chain-recover').disabled=busy||!select.children.length;}
 }
-async function refresh(v=version){const result=await(role==='organizer'?sepolia.listOrganizer(filters):sepolia.listBuyer(filters));if(v!==version||!active())return;records=result.records||[];configured=result.configured;render();if(!configured)message('The administrator must finish the buyer-enabled Sepolia contract setup before transactions can be submitted.');}
+async function refresh(v=version){const result=await(role==='organizer'?sepolia.listOrganizer(filters):sepolia.listBuyer(filters));if(v!==version||!active())return;records=result.records||[];configured=result.configured;render();if(!configured)message('The event organizer must finish their Sepolia contract setup before transactions can be submitted.');}
 async function load(){const v=++version;clearTimeout(timer);uid=window.tsCurrentUser?.uid||'';busy=false;records=[];configured=false;message('');message('',true);render();el('buyer-chain-loading').hidden=!active();if(!active())return;
     try{await refresh(v);}catch(error){if(v===version)message(error.message||'Blockchain activity could not be loaded.',true);}finally{if(v===version)el('buyer-chain-loading').hidden=true;}}
 async function run(action){if(busy||!active()||role!=='buyer')return;const v=version;busy=true;message('');message('',true);render();try{await action(v);}catch(error){if(v===version)message(error.code===4001?'The MetaMask request was cancelled. Your NFT operation is still pending.':error.message||'Could not complete the transaction.',true);}finally{if(v===version){busy=false;render();}}}
@@ -47,7 +47,7 @@ async function publishUnlocked(record,v){
     if(prepared.alreadyRecorded){if(D.hash(prepared.transactionHash))return verify(record,prepared.transactionHash,v);throw Error('This operation already exists on Sepolia. Recover it using the transaction hash from your wallet.');}
     const wallet=await window.tsChainWallet.connect();if(v!==version||!active())return;
     if(wallet!==prepared.actorWallet.toLowerCase())throw Error('Select the buyer wallet required for this operation: '+prepared.actorWallet);
-    const funding=await fundDemoWallet({walletAddress:wallet,onlyIfNeeded:true,isActive:()=>v===version&&active(),onStatus:text=>message(text)});
+    const funding=await fundDemoWallet({walletAddress:wallet,recordId:record.id,onlyIfNeeded:true,isActive:()=>v===version&&active(),onStatus:text=>message(text)});
     if(v!==version||!active())return;
     if(['PENDING','BUSY'].includes(funding?.status))throw Error('Demo gas is still confirming. Retry this NFT operation shortly.');
     const confirmation=await window.tsConfirmDecision({title:record.transactionType==='MINT'?'Mint your ticket NFT?':'Complete this ticket NFT transaction?',label:'Continue to MetaMask',subject:record.eventName||record.ticketId,

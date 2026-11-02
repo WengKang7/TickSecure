@@ -1,7 +1,11 @@
-# Buyer-submitted Sepolia ticket NFTs
+# Organizer-managed Sepolia ticket NFTs
 
-Buyers perform NFT transactions in MetaMask. Administrators monitor activity and
-complete the one-time contract setup. Organizers view only their own events.
+Buyers perform NFT transactions in MetaMask. Each verified, active organizer
+deploys one contract for their own events and manages a separate demo gas wallet.
+Administrators have no blockchain setup or wallet controls. Ticket payments stay
+simulated: no ticket-price ETH is sent to an admin or organizer. NFT transactions
+call the event organizer’s contract with zero ETH value; the buyer owns the NFT.
+Network gas is separate from ticket revenue.
 
 | Action | Wallet submitting the transaction |
 | --- | --- |
@@ -25,105 +29,84 @@ publish a buyer's operation. Buyer keys and seed phrases remain in MetaMask.
    C:/xampp/private/ticksecure-blockchain-authorizer.json. It prints only the
    public address, never overwrites an existing key, and needs no gas funds.
    Keep this server key private and back it up.
-3. Open [Admin → Blockchain](http://localhost/ticksecure-ui/admin/blockchain.php)
-   with an active administrator account. Administrator email verification is
-   not required. Buyers and organizers still require verified email.
+3. Open [Organizer → Blockchain Transactions](http://localhost/ticksecure-ui/organizer/blockchain.php)
+   with a verified, active organizer account. Each organizer sees only their own
+   event records, contract and funding wallet.
 4. Connect a setup wallet with Sepolia test ETH, deploy the buyer-enabled
    contract, then verify/register its hash after two confirmations. Its
-   constructor receives the backend signer's public address.
+   constructor receives the backend signer's public address. Confirm a free
+   wallet-control signature to bind the deployment to this organizer. A copied
+   deployment hash cannot register another organizer’s contract. Repeat this
+   setup for each organizer; do not deploy one contract per ticket or event.
 5. Buyers open [My Tickets → My blockchain](http://localhost/ticksecure-ui/buyer/blockchain.php).
    Mint first, then process each ticket's transfers/resales in order. Booking
    confirmation links to mint records; transfer and resale receipts link to
    the responsible buyer's NFT operation.
 
 TICKSECURE_BLOCKCHAIN_SIGNER_KEY_FILE overrides the local server key path.
-Never place it in htdocs. If an earlier admin-published contract was already
-registered, an explicit migration is needed. The app does not replace it or
-erase its history.
+Never place it in htdocs. New mints resolve the event’s organizer on the server
+and require that organizer’s registered contract. There is no fallback to the
+old shared admin contract. Already minted legacy NFTs, and signed in-flight
+operations, retain their original contract and history; an existing NFT cannot
+be moved to a new contract merely by changing its address in the database.
 
 ## Application state and recovery
 
 ### Automatic demo gas funding
 
-Verified, active buyers receive a one-time allowance of **0.002 SepoliaETH** when
-they connect/save and prove control of a standard MetaMask wallet. The browser
-requests a readable `personal_sign` challenge bound to the project, buyer UID,
-wallet, chain, random nonce and five-minute expiry. This is a gas-free wallet
-proof, not permission to spend assets. The backend verifies the signature and
-profile again inside the allocation transaction. A wallet cannot claim through
-multiple accounts, and changing wallets does not reset an account's allowance.
+Verified, active buyers can receive **0.0001 SepoliaETH once per organizer,
+account and wallet** when they submit a ticket NFT operation. Connecting a
+wallet alone does not allocate gas. The server derives the organizer from the
+operation’s ticket and event, checks the responsible buyer, and verifies a free
+`personal_sign` proof bound to the project, organizer, buyer, operation, wallet,
+nonce and five-minute expiry. Browsers cannot choose an organizer to charge.
+Wallets that already hold at least 0.0001 SepoliaETH skip funding.
 
-Create the separate local funding wallet with:
+The existing private server funding key is the root for domain-separated,
+deterministic organizer wallets. Each organizer has a different public address,
+balance, nonce, pending-transfer lock, claim ledger and daily budget. Their funds
+are not pooled. Neither the registered organizer MetaMask nor the authorization
+signer is used as the automatic sender. No MetaMask private key is requested.
+Keep the root key backed up; replacing it changes every organizer funding address.
+
+If the server root has not been configured, create it with:
 
 ```text
 node scripts/setup-demo-funding.cjs --apply
 ```
 
-It writes `C:/xampp/private/ticksecure-demo-funding.json` by default, prints only
-the public address, and never overwrites existing keys. Send **Sepolia test ETH
-only** to that address, for example 0.05 SepoliaETH for a small demonstration.
-The administrator's existing MetaMask remains their own wallet; no MetaMask key
-is requested or copied. Neither the NFT authorization signer nor the registered
-contract administrator wallet can serve as the funding wallet. The deployed
-ticket contract does not change or need redeployment.
+The script never overwrites an existing key. It retains the private file outside
+htdocs (`C:/xampp/private/ticksecure-demo-funding.json`, or the existing server
+override). To inspect an organizer’s public address from the command line, pass
+`--organizer=ORGANIZER_UID`; the normal UI is **Organizer → Blockchain
+Transactions → Automatic buyer demo gas**. Send only Sepolia test ETH to the
+address shown for that organizer. A small initial refill such as 0.001 SepoliaETH
+limits exposure. The old shared funding wallet is not used for new grants; its
+balance and old ledger are left untouched. No balance is automatically moved.
 
-Apache's `.htaccess` enables `TICKSECURE_DEMO_FUNDING=1` locally. The funding key
-can be overridden by server-only `TICKSECURE_DEMO_FUNDING_KEY_FILE`. Set the flag
-to `0` in the effective server configuration to disable new funding. Node reads
-the private file outside htdocs. Private keys, signed transfers, challenge
-documents and claim ledgers are never available through browser Firestore reads.
-Apache request-local funding settings are forwarded to the Node bridge.
+The daily cap is **0.001 SepoliaETH per organizer including maximum reserved
+gas**, resetting at midnight UTC+8. Transfers estimate execution gas with a 20%
+margin, a 500,000 gas limit ceiling and maximum fee of 0.1 gwei. Quotes above the
+limits pause funding. Since gas counts towards the budget, fewer than ten new
+0.0001 grants fit in a day. This allowance is ETH transferred to the buyer; it
+is separate from the gas subsequently consumed by the buyer’s NFT transaction.
 
-On **Admin → Blockchain**, Automatic buyer demo gas shows the public treasury
-address, balance and today's reserved budget. **Buyer → Wallet** requests funding
-after connection, with progress/cancellation messages. Fresh checkout minting
-and manual NFT operations also offer the allowance to previously connected
-buyers whose wallet lacks a small gas balance. Already funded wallets can use
-NFT operations without depending on the funding service.
+Signed transactions are persisted before broadcasting. Each organizer’s pending
+slot and nonce prevent duplicate sends across processes; uncertain responses
+rebroadcast the same bytes. Canonical receipts require two confirmations.
+Failed transfers remain reserved and appear only in the owning organizer’s panel.
+That organizer can explicitly confirm one retry after a proven failed receipt;
+other organizers and admins cannot retry it. Pending or successful transfers
+cannot be retried. Private keys, raw signed transactions and claim records remain
+unreadable through browser Firestore access.
 
-The hard daily budget is **0.02 SepoliaETH including maximum reserved gas**, using
-UTC+8 calendar days. Native transfers use a live gas estimate plus a 20% safety
-margin, with a 500,000 execution-gas cap and an economical tip. Do not assume
-21,000 gas: first-time account funding can require substantially more gas on
-the current testnet. The full estimated allowance is included in reservations;
-the maximum fee is capped at 0.1 gwei. Fees above the cap pause funding. Because
-the budget includes gas, it allows fewer than ten full 0.002 allowances per day.
-Budget reservations are deliberately retained on failure and across retries.
-This is a bounded FYP allowance, not unlimited automatic wallet refilling.
-This allowance is a transfer to the buyer, not gas consumed by the network.
-Existing claims keep their recorded amounts; pending transfers retain their
-original signed bytes and old allowances are not automatically sent again.
-Changing the allowance invalidates unclaimed challenges for the previous amount.
-
-Claims persist a signed raw transaction, nonce and deterministic hash in one
-Firestore transaction **before** broadcasting. A single pending transfer and
-persisted next nonce serialize the treasury across PHP/Functions processes.
-Retries rebroadcast identical bytes and confirm the same hash; they never create
-a second allowance. Success requires a canonical receipt and two confirmations.
-A reverted transfer keeps that allowance reserved and needs administrator review.
-The admin funding panel lists failed grants and offers one explicitly confirmed
-**Retry failed funding** action. The backend requires a canonical failed receipt
-with two confirmations, rechecks buyer eligibility and daily budget, and signs a
-new transfer with a fresh estimated gas limit and nonce. Its previous failed hash
-is retained. Pending/unknown/successful transfers cannot be retried through this
-action, and no grant can receive more than one administrative retry. Buyers do
-not trigger this retry automatically. The browser stops NFT submission when demo
-funding is FAILED instead of continuing to a misleading insufficient-gas error.
-An uncertain/pending transfer keeps its budget/nonce reserved and pauses new
-transfers until reconciled. Keep these private ledger records in backups.
-
-In deployed Functions, configure the separate Secret Manager secret
-`TICKSECURE_DEMO_FUNDING_KEY` and the environment flag before deploying
-`getDemoFundingSettings`, `getDemoFundingChallenge`, `claimDemoFunding`, and
-`retryDemoFunding`.
-This setup does not deploy anything. Do not enable public automatic funding
-without reviewing abuse controls and the intentionally small server-side caps.
-No live funding transfer is performed by the unit tests.
-
-For read-only local diagnostics, run
-`node scripts/inspect-demo-funding.cjs BUYER_PUBLIC_WALLET_ADDRESS`. It reads the
-claim and public receipt/balances/transfer estimate without returning credentials,
-signatures or raw transfers, modifying Firestore, or broadcasting anything.
+Apache’s existing `TICKSECURE_DEMO_FUNDING=1` flag and server-only key overrides
+are retained. In deployed Functions, retain the private root in Secret Manager
+`TICKSECURE_DEMO_FUNDING_KEY` and redeploy the four demo funding callables along
+with the six blockchain callables. Local Apache uses the updated shared Node
+implementation directly. No live transfers are performed by the unit tests.
+Read-only diagnostics remain available through
+`node scripts/inspect-demo-funding.cjs BUYER_PUBLIC_WALLET_ADDRESS`.
 
 ### Economy gas fees
 
@@ -136,8 +119,9 @@ Actual cost is gas used times the effective gas price, not the full maximum.
 No fixed SepETH amount or guaranteed minimum fee is promised.
 Before opening MetaMask for an NFT operation, the app also checks the quoted
 maximum (buffered gas limit times maximum fee per gas). It pauses requests above
-**0.0001 SepoliaETH** and asks the buyer to retry when fees are lower. This cap
-does not apply to deployment, which has different execution requirements. Wallet
+**0.0001 SepoliaETH** and asks the buyer to retry when fees are lower. Deployment
+uses a separate **0.001 SepoliaETH** cap because it has different
+execution requirements. Quotes above either cap stop before submission. Wallet
 fee edits remain under the user's control. The policy favors economy over speed.
 
 Transactions are simulated with `eth_estimateGas` before wallet submission.
@@ -187,7 +171,9 @@ address into a profile grants no access to that buyer's operations.
 | --- | --- |
 | BlockchainTransactions/{id} | actorUid, actorWallet, real transactionHash, status, chainId, contractAddress, tokenId, operationId, recordHash, block/confirmation metadata. verificationVersion 2 identifies this buyer-authorized model. |
 | NFTTickets/{id} | Original mint hash in transactionHash; mintingStatus MINTED, token/contract/chain fields; latest confirmed operation in blockchainLastTransactionHash and its recorded wallet. |
-| BlockchainSettings/sepolia | Contract version 2, contract administrator, backend signing public address, deployment hash/block and setup audit fields. |
+| BlockchainSettings/organizer_{uid} | Organizer UID, contract version 2, organizer wallet, backend signing public address, deployment hash/block and setup audit fields. |
+| BlockchainDeployments/{address} | Organizer assignment; prevents two organizers registering the same deployment. |
+| BlockchainSettings/sepolia | Original shared contract retained only for existing minted/in-flight legacy operations. New mints never fall back to it. |
 | BlockchainAuthorizations/{calldataHash} | Backend-only permission snapshot bound to the responsible buyer and exact calldata. Multiple permissions support safe recovery when an earlier approval expires. |
 
 recordHash is a SHA-256 commitment; transactionHash is the real Ethereum
@@ -224,7 +210,7 @@ In the blockchain directory, run npm.cmd ci --ignore-scripts, npm.cmd run compil
 then npm.cmd test. The public ABI/bytecode artifact is generated in functions.
 From the project root:
 
-    node --test tests/blockchain.test.cjs tests/blockchain-admin.test.cjs tests/buyer-blockchain.test.cjs
+    node --test tests/blockchain.test.cjs tests/organizer-chain.test.cjs tests/blockchain-admin.test.cjs tests/demo-funding.test.cjs tests/buyer-blockchain.test.cjs
 
 The EVM test executes buyer mint, transfer and resale through the real contract
 and shared backend, then verifies receipts and isolated Firestore updates.

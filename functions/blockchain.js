@@ -2,6 +2,8 @@
 const policy=require('./blockchain-policy');
 const artifact=require('./blockchain-ticket-artifact.json');
 const signing=require('./blockchain-signer');
+const {verifyMessage}=require('ethers');
+const organizerChain=require('./organizer-chain');
 async function sepoliaRpc(method,params=[]){
     const url=process.env.TICKSECURE_SEPOLIA_RPC_URL||'https://ethereum-sepolia-rpc.publicnode.com';
     if(!url.startsWith('https://'))throw Object.assign(Error('The Sepolia provider must use HTTPS.'),{code:'failed-precondition'});
@@ -18,7 +20,7 @@ function createBlockchainService(db,{projectId,rpc=sepoliaRpc,fail,signer=signin
     // Administrators are exempt from email verification; all roles still require active accounts.
     function assertAccount(user,roles){if(!user||!roles.includes(user.role)||user.status!=='active'||(user.role!=='admin'&&user.emailVerified!==true))fail('permission-denied','An active, authorized '+roles.join(' or ')+' account is required.');}
     async function account(uid,roles){const user=await read('Users',uid);assertAccount(user,roles);return user;}
-    function assertSetup(config){if(!config?.contractAddress||config.chainId!==11155111||config.contractVersion!==2)fail('failed-precondition','An administrator must finish the buyer-enabled Sepolia setup first.');}
+    function assertSetup(config){if(!config?.contractAddress||config.chainId!==11155111||config.contractVersion!==2)fail('failed-precondition','The event organizer must finish their Sepolia contract setup first.');}
     async function identity(){try{return await signer.identity();}catch(_){fail('failed-precondition','The server authorization signer is not configured. Complete the server setup.');}}
     async function chain(config){
         if(await rpc('eth_chainId')!=='0xaa36a7')fail('failed-precondition','The provider must connect to Sepolia.');
@@ -43,17 +45,23 @@ function createBlockchainService(db,{projectId,rpc=sepoliaRpc,fail,signer=signin
         }
         return null;
     }
-    async function context(uid,recordId){
-        await account(uid,['buyer']);if(!projectId)fail('failed-precondition','The Firebase project ID is not configured.');
-        const [config,record]=await Promise.all([read('BlockchainSettings','sepolia'),read('BlockchainTransactions',id(recordId))]);assertSetup(config);
+    async function responsible(uid,recordId){
+        const record=await read('BlockchainTransactions',id(recordId));
         if(!record)fail('not-found','Blockchain record not found.');
         const ticket=await read('NFTTickets',id(record.ticketId));if(!ticket)fail('not-found','Related ticket not found.');
         const performer=await actor(record,ticket);
         if(performer?.uid!==uid||!policy.address(performer.wallet))fail('permission-denied','Only the buyer responsible for this operation can submit or verify it.');
+        return {record,ticket,performer};
+    }
+    async function context(uid,recordId,submitted){
+        await account(uid,['buyer']);if(!projectId)fail('failed-precondition','The Firebase project ID is not configured.');
+        const {record,ticket,performer}=await responsible(uid,recordId);
         const history=await query('BlockchainTransactions','ticketId',record.ticketId);
+        const scopedRecord=submitted?{...record,status:'SUBMITTED',transactionHash:submitted.hash,contractAddress:submitted.contractAddress}:record;
+        const scope=await organizerChain.ticketSettings(db,ticket,scopedRecord,history,fail),{config}=scope;assertSetup(config);
         const expected={...policy.operation(projectId,config,record,history,artifact,fail),actorWallet:performer.wallet};
         if(expected.actorWallet!==(record.transactionType==='TRANSFER'?expected.fromWallet:expected.walletAddress))fail('failed-precondition','The buyer wallet does not match this operation.');
-        return {config,record,ticket,expected};
+        return {...scope,record,ticket,expected};
     }
     async function canonicalReceipt(hash){
         const [tx,receipt,height]=await Promise.all([rpc('eth_getTransactionByHash',[hash]),rpc('eth_getTransactionReceipt',[hash]),rpc('eth_blockNumber')]);
@@ -63,7 +71,7 @@ function createBlockchainService(db,{projectId,rpc=sepoliaRpc,fail,signer=signin
     async function list(uid,data,organizer=false){
         await account(uid,[organizer?'organizer':'buyer']);
         const filter=data.ticketId?id(data.ticketId):'',bookingId=data.bookingId?id(data.bookingId):'';
-        const config=await read('BlockchainSettings','sepolia'),tickets=new Map(),candidates=new Map(),cache=new Map();
+        const tickets=new Map(),candidates=new Map(),cache=new Map();
         const add=rows=>rows.forEach(row=>{if(!filter||row.ticketId===filter)candidates.set(row.id,row);});
         async function ticketRows(ticketId){if(!cache.has(ticketId))cache.set(ticketId,await query('BlockchainTransactions','ticketId',ticketId));add(cache.get(ticketId));}
         if(organizer){
@@ -80,52 +88,61 @@ function createBlockchainService(db,{projectId,rpc=sepoliaRpc,fail,signer=signin
             for(const log of logs)if(log.action==='ticket_transferred'&&(!filter||log.entityId===filter))await ticketRows(log.entityId);
             for(const listing of resales)if(!filter||listing.ticketId===filter)add(await query('BlockchainTransactions','relatedEntityId',listing.id));
         }
-        const records=[];
+        const records=[];let configured=true;
         for(const record of candidates.values()){
             let ticket=tickets.get(record.ticketId);if(!ticket){ticket=await read('NFTTickets',record.ticketId);if(!ticket)continue;tickets.set(record.ticketId,ticket);}
             if(bookingId&&ticket.bookingId!==bookingId)continue;
             const performer=await actor(record,ticket),isCurrentOwner=ticket.ownerUid===uid;
             if(!organizer&&performer?.uid!==uid&&!isCurrentOwner)continue;
-            let blockedReason='',canSubmit=!organizer&&performer?.uid===uid&&!policy.verified(record,config||{});
-            if(canSubmit){try{assertSetup(config);const history=cache.get(record.ticketId)||await query('BlockchainTransactions','ticketId',record.ticketId);cache.set(record.ticketId,history);policy.operation(projectId,config,record,history,artifact,fail);}
+            const history=cache.get(record.ticketId)||await query('BlockchainTransactions','ticketId',record.ticketId);cache.set(record.ticketId,history);
+            let config=null,organizerUid='',blockedReason='';
+            try{const scope=await organizerChain.ticketSettings(db,ticket,record,history,fail);config=scope.config;organizerUid=scope.organizerUid;assertSetup(config);}catch(error){blockedReason=error.message;}
+            if(!config?.contractAddress)configured=false;
+            let canSubmit=!organizer&&performer?.uid===uid&&!policy.verified(record,config||{});
+            if(canSubmit){try{if(blockedReason)throw Error(blockedReason);policy.operation(projectId,config,record,history,artifact,fail);}
                 catch(error){canSubmit=false;blockedReason=error.message;}}
             const safe={};for(const key of ['transactionType','walletAddress','transactionHash','contractAddress','tokenId','timestamp','failureReason','confirmedAt'])safe[key]=typeof record[key]==='string'?record[key]:'';
-            records.push({...safe,id:record.id,ticketId:record.ticketId,eventName:ticket.eventName||'Ticket',categoryName:ticket.categoryName||'',seatId:ticket.seatId||'',
+            records.push({...safe,id:record.id,ticketId:record.ticketId,organizerUid,eventName:ticket.eventName||'Ticket',categoryName:ticket.categoryName||'',seatId:ticket.seatId||'',
                 actorWallet:performer?.wallet||'',chainId:record.chainId===11155111?11155111:null,network:record.chainId===11155111?'Sepolia':'Not submitted',
                 status:record.status==='CONFIRMED'&&!policy.verified(record,config||{})?'LEGACY':record.status||'PENDING',verificationVersion:record.verificationVersion||0,
-                confirmations:Number(record.confirmations)||0,isCurrentOwner,canSubmit,blockedReason,performedByYou:performer?.uid===uid});
+                confirmations:Number(record.confirmations)||0,isCurrentOwner,canSubmit,configured:!!config?.contractAddress&&config.contractVersion===2,blockedReason,performedByYou:performer?.uid===uid});
         }
         records.sort((a,b)=>a.timestamp<b.timestamp?-1:a.timestamp>b.timestamp?1:a.id<b.id?-1:1);
-        return {records,configured:!!config?.contractAddress&&config.contractVersion===2,network:'Sepolia'};
+        return {records,configured,network:'Sepolia'};
     }
     return {
         async getSettings(uid){
-            const user=await account(uid,['buyer','admin','organizer']),config=await read('BlockchainSettings','sepolia');
+            const user=await account(uid,['buyer','organizer']);
+            const config=user.role==='organizer'?await read('BlockchainSettings',organizerChain.settingsId(uid)):null;
             const result={chainId:11155111,network:'Sepolia',contractVersion:config?.contractVersion||0,confirmationsRequired:2,
                 configured:!!config?.contractAddress&&config.contractVersion===2,migrationRequired:!!config?.contractAddress&&config.contractVersion!==2,
                 contractAddress:config?.contractAddress||'',operatorAddress:config?.operatorAddress||'',signerAddress:config?.signerAddress||'',deploymentHash:config?.deploymentHash||''};
-            if(user.role==='admin'&&!config?.contractAddress){try{const server=await identity();result.signerAddress=server.signerAddress;result.deploymentBytecode=artifact.bytecode+policy.word(server.signerAddress);}catch(error){result.setupMessage=error.message;}}
+            if(user.role==='organizer')result.registrationMessagePrefix=organizerChain.registrationMessage(projectId,uid);
+            if(user.role==='organizer'&&!config?.contractAddress){try{const server=await identity();result.signerAddress=server.signerAddress;result.deploymentBytecode=artifact.bytecode+policy.word(server.signerAddress);}catch(error){result.setupMessage=error.message;}}
             return result;
         },
         async configure(uid,data){
-            await account(uid,['admin']);const server=await identity(),hash=txHash(data.transactionHash);await chain();
+            await account(uid,['organizer']);const server=await identity(),hash=txHash(data.transactionHash);await chain();
             const {tx,receipt,block,height}=await canonicalReceipt(hash);
             if(!tx||!receipt)fail('unavailable','Deployment is pending. Verify the same hash again shortly.');
             if(tx.to!==null||policy.lower(tx.input)!==policy.lower(artifact.bytecode+policy.word(server.signerAddress))||BigInt(tx.value||'0x0')!==0n
                 ||!policy.address(tx.from)||receipt.status!=='0x1'||!policy.address(receipt.contractAddress)||policy.lower(receipt.transactionHash)!==hash
                 ||!block||policy.lower(block.hash)!==policy.lower(receipt.blockHash))fail('invalid-argument','This is not a verified buyer-enabled TickSecure deployment.');
             if(BigInt(height)-BigInt(receipt.blockNumber)+1n<2n)fail('unavailable','Waiting for two Sepolia confirmations. Verify the same hash again shortly.');
-            const config={chainId:11155111,network:'Sepolia',contractVersion:2,contractAddress:policy.lower(receipt.contractAddress),operatorAddress:policy.lower(tx.from),
+            let owner='';try{owner=verifyMessage(organizerChain.registrationMessage(projectId,uid,hash),data.walletSignature).toLowerCase();}catch(_){}
+            if(owner!==policy.lower(tx.from))fail('permission-denied','Verify this organizer deployment with the wallet that deployed it.');
+            const config={organizerUid:uid,chainId:11155111,network:'Sepolia',contractVersion:2,contractAddress:policy.lower(receipt.contractAddress),operatorAddress:policy.lower(tx.from),
                 signerAddress:server.signerAddress,deploymentHash:hash,deploymentBlock:Number(BigInt(receipt.blockNumber)),configuredBy:uid,configuredAt:stamp()};
             await chain(config);
-            await db.runTransaction(async transaction=>{const ref=db.collection('BlockchainSettings').doc('sepolia');
-                const [user,previous]=await Promise.all([transaction.get(db.collection('Users').doc(uid)),transaction.get(ref)]);assertAccount(user.exists?user.data():null,['admin']);
+            await db.runTransaction(async transaction=>{const ref=db.collection('BlockchainSettings').doc(organizerChain.settingsId(uid)),deploymentRef=db.collection('BlockchainDeployments').doc(config.contractAddress);
+                const [user,previous,deployment,legacy]=await Promise.all([transaction.get(db.collection('Users').doc(uid)),transaction.get(ref),transaction.get(deploymentRef),transaction.get(db.collection('BlockchainSettings').doc('sepolia'))]);assertAccount(user.exists?user.data():null,['organizer']);
+                if(policy.lower(legacy.data()?.contractAddress)===config.contractAddress||(deployment.exists&&deployment.data().organizerUid!==uid))fail('failed-precondition','Each organizer must deploy their own contract. This contract is already assigned.');
                 if(previous.exists&&policy.lower(previous.data().contractAddress)!==config.contractAddress)fail('failed-precondition','A contract is already registered. Its records need an explicit migration first.');
-                if(!previous.exists)transaction.create(ref,config);});
+                if(!previous.exists)transaction.create(ref,config);if(!deployment.exists)transaction.create(deploymentRef,{organizerUid:uid,contractAddress:config.contractAddress});});
             return {configured:true,...config};
         },
         async prepare(uid,data){
-            const {config,record,expected}=await context(uid,data.recordId);await chain(config);
+            const {config,record,expected,settingsId,organizerUid,ticket:originalTicket}=await context(uid,data.recordId);await chain(config);
             if(policy.verified(record,config))return {...expected,recordId:record.id,transactionHash:record.transactionHash,alreadyRecorded:true};
             const recorded=policy.lower(await rpc('eth_call',[{to:config.contractAddress,data:artifact.selectors.operations+policy.word(expected.operationId)},'latest']));
             if(recorded!=='0x'+'0'.repeat(64)){
@@ -136,8 +153,9 @@ function createBlockchainService(db,{projectId,rpc=sepoliaRpc,fail,signer=signin
             if(authorization.signerAddress!==config.signerAddress)fail('failed-precondition','The server signer does not match the contract.');
             const ref=db.collection('BlockchainAuthorizations').doc(policy.hash(authorization.calldata).slice(2));
             await db.runTransaction(async transaction=>{
-                const [user,current,previous]=await Promise.all([transaction.get(db.collection('Users').doc(uid)),transaction.get(db.collection('BlockchainTransactions').doc(record.id)),transaction.get(ref)]);
+                const [user,current,previous,setting,event,ticket]=await Promise.all([transaction.get(db.collection('Users').doc(uid)),transaction.get(db.collection('BlockchainTransactions').doc(record.id)),transaction.get(ref),transaction.get(db.collection('BlockchainSettings').doc(settingsId)),transaction.get(db.collection('Events').doc(originalTicket.eventId)),transaction.get(db.collection('NFTTickets').doc(record.ticketId))]);
                 assertAccount(user.exists?user.data():null,['buyer']);if(!current.exists)fail('not-found','Blockchain record not found.');
+                if(setting.data()?.contractAddress!==config.contractAddress||event.data()?.organizerUid!==organizerUid||ticket.data()?.eventId!==originalTicket.eventId)fail('failed-precondition','The organizer contract changed. Refresh before retrying.');
                 for(const key of ['ticketId','transactionType','walletAddress','timestamp','actorUid','actorWallet'])if(current.data()[key]!==record[key])fail('failed-precondition','The blockchain operation changed.');
                 if(!previous.exists)transaction.create(ref,{recordId:record.id,actorUid:uid,...expected,...authorization,createdAt:stamp()});
                 else if(previous.data().actorUid!==uid)fail('permission-denied','Authorization belongs to another buyer.');
@@ -145,10 +163,14 @@ function createBlockchainService(db,{projectId,rpc=sepoliaRpc,fail,signer=signin
             return {...expected,...authorization,recordId:record.id,transactionHash:record.status==='FAILED'?'':record.transactionHash||'',alreadyRecorded:false};
         },
         async verify(uid,data){
-            const hash=txHash(data.transactionHash),{config,record,expected}=await context(uid,data.recordId);await chain(config);
+            await account(uid,['buyer']);
+            await responsible(uid,data.recordId);
+            const hash=txHash(data.transactionHash);
             const {tx,receipt,block,height}=await canonicalReceipt(hash);if(!tx)fail('unavailable','This hash is not visible yet. Verify it again without resubmitting.');
             const authorization=await read('BlockchainAuthorizations',policy.hash(policy.lower(tx.input||tx.data)).slice(2));
-            if(!authorization||authorization.actorUid!==uid||authorization.recordId!==record.id||authorization.recordHash!==expected.recordHash
+            if(!authorization||authorization.actorUid!==uid||authorization.recordId!==data.recordId)fail('permission-denied','This transaction was not authorized for your ticket operation.');
+            const {config,record,expected,settingsId,organizerUid,ticket:originalTicket}=await context(uid,data.recordId,{hash,contractAddress:authorization.contractAddress});await chain(config);
+            if(authorization.recordHash!==expected.recordHash
                 ||authorization.actorWallet!==expected.actorWallet||authorization.contractAddress!==config.contractAddress)fail('invalid-argument','The hash does not match an authorization issued to this buyer.');
             expected.calldata=authorization.calldata;
             const result=policy.verifyTransaction(tx,receipt,block,height,expected,config,artifact,fail);
@@ -157,8 +179,9 @@ function createBlockchainService(db,{projectId,rpc=sepoliaRpc,fail,signer=signin
             if(result.status==='CONFIRMED')patch.confirmedAt=record.confirmedAt||stamp();
             await db.runTransaction(async transaction=>{
                 const ref=db.collection('BlockchainTransactions').doc(record.id),ticketRef=db.collection('NFTTickets').doc(record.ticketId);
-                const [user,current,ticket,setting]=await Promise.all([transaction.get(db.collection('Users').doc(uid)),transaction.get(ref),transaction.get(ticketRef),transaction.get(db.collection('BlockchainSettings').doc('sepolia'))]);
+                const [user,current,ticket,setting,event]=await Promise.all([transaction.get(db.collection('Users').doc(uid)),transaction.get(ref),transaction.get(ticketRef),transaction.get(db.collection('BlockchainSettings').doc(settingsId)),transaction.get(db.collection('Events').doc(originalTicket.eventId))]);
                 assertAccount(user.exists?user.data():null,['buyer']);if(!current.exists||!ticket.exists||setting.data()?.contractAddress!==config.contractAddress)fail('failed-precondition','The operation changed. Refresh before retrying.');
+                if(ticket.data().eventId!==originalTicket.eventId||event.data()?.organizerUid!==organizerUid||(ticket.data().organizerUid&&ticket.data().organizerUid!==organizerUid))fail('failed-precondition','The event organizer changed. Refresh before retrying.');
                 const fresh=current.data();for(const key of ['ticketId','transactionType','walletAddress','timestamp','actorUid','actorWallet'])if(fresh[key]!==record[key])fail('failed-precondition','The blockchain operation changed.');
                 if(policy.verified(fresh,config)){if(policy.lower(fresh.transactionHash)!==hash)fail('failed-precondition','The operation is already confirmed with a different hash.');return;}
                 if(fresh.status==='SUBMITTED'&&fresh.transactionHash&&fresh.transactionHash!==hash&&result.status!=='CONFIRMED')fail('failed-precondition','A replacement must confirm before replacing the submitted hash.');

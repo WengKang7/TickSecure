@@ -36,6 +36,8 @@ test('logout during confirmation cancels submission and stale blockchain data ne
     p.window.tsCurrentUser=null;await p.events['ts-auth-ready']();finish({});await pending;assert.equal(p.calls.send.length,0);assert.equal(p.elements.get('buyer-chain-confirmed').textContent,'0');
     let complete;const late=page({load:()=>new Promise(resolve=>{complete=resolve;})}),loading=late.ready();late.window.tsCurrentUser=null;await late.events['ts-auth-ready']();complete({records:[{id:'secret',eventName:'Private event'}],configured:true});await loading;assert.doesNotMatch(text(late.elements.get('buyer-chain-list')),/Private event/);
 });
-test('organizer blockchain view contains no buyer submission controls',async()=>{
-    const p=page({role:'organizer'});await p.ready();assert.equal(p.button(),undefined);assert.equal(p.calls.prepare.length,0);assert.equal(p.calls.verify.length,0);assert.equal(p.calls.send.length,0);
+test('organizer blockchain view uses its own management page and never loads buyer controls',()=>{
+    const html=fs.readFileSync('organizer/blockchain.php','utf8');
+    assert.match(html,/organizer-blockchain.js/);assert.doesNotMatch(html,/buyer-blockchain.js|buyer-chain-recover/);
+    const admin=fs.readFileSync('admin/blockchain.php','utf8');assert.doesNotMatch(admin,/chain-connect|blockchain-wallet.js/);
 });

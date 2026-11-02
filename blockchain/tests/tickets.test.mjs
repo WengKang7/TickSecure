@@ -14,10 +14,12 @@ test('buyers execute signed mint/transfer/resale on a real EVM; admin, wrong-wal
     const authorizationSigner=Wallet.createRandom(),contract=await new ContractFactory(artifact.abi,artifact.bytecode,admin).deploy(authorizationSigner.address);await contract.waitForDeployment();
     const address=(await contract.getAddress()).toLowerCase(),aliceWallet=(await alice.getAddress()).toLowerCase(),bobWallet=(await bob.getAddress()).toLowerCase();
     assert.ok(H.policy.runtimeMatches(await provider.getCode(address),artifact));
-    const initial=H.records();initial['BlockchainSettings/sepolia']={...H.settings,contractAddress:address,operatorAddress:(await admin.getAddress()).toLowerCase(),signerAddress:authorizationSigner.address.toLowerCase()};
+    const initial=H.records();initial['BlockchainSettings/organizer_organizer']={...H.settings,contractAddress:address,operatorAddress:(await admin.getAddress()).toLowerCase(),signerAddress:authorizationSigner.address.toLowerCase()};
     initial['BlockchainTransactions/mint']={...H.mint,walletAddress:aliceWallet,actorWallet:aliceWallet};
     const db=H.database(initial),signer={identity:async()=>({signerAddress:authorizationSigner.address.toLowerCase()}),authorize:expected=>signing.authorize(expected,authorizationSigner,2000000000)};
     const rpc=(method,params=[])=>connection.provider.request({method,params}),s=createBlockchainService(db,{projectId:'test-project',rpc,fail:H.fail,signer});
+    const otherContract=await new ContractFactory(artifact.abi,artifact.bytecode,admin).deploy(authorizationSigner.address);await otherContract.waitForDeployment();
+    const otherAddress=await otherContract.getAddress();
     const iface=new Interface(artifact.abi);
     for(const [index,type] of ['MINT','TRANSFER','RESALE'].entries()){
         const id=index?'op'+index:'mint',receiver=index===1?bobWallet:aliceWallet;
@@ -27,6 +29,8 @@ test('buyers execute signed mint/transfer/resale on a real EVM; admin, wrong-wal
         await assert.rejects(admin.sendTransaction({to:address,data:prepared.calldata}));
         await assert.rejects(bob.sendTransaction({to:address,data:prepared.calldata}));
         if(index===0){
+            // An organizer A authorization cannot mint on organizer B's contract.
+            await assert.rejects(alice.sendTransaction({to:otherAddress,data:prepared.calldata}));
             const decoded=iface.decodeFunctionData('recordOperation',prepared.calldata),badSignature='0x'+'11'.repeat(65);
             await assert.rejects(alice.sendTransaction({to:address,data:iface.encodeFunctionData('recordOperation',[decoded[0],badSignature])}));
             const expired=await signing.authorize(prepared,authorizationSigner,1);await assert.rejects(alice.sendTransaction({to:address,data:expired.calldata}));

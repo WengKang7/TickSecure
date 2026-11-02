@@ -65,3 +65,8 @@ test('NFT requests above the quoted demo fee budget pause without lowering execu
     assert.equal(p.calls.some(r=>r.method==='eth_sendTransaction'),false);
     assert.equal(p.calls.filter(r=>r.method==='eth_estimateGas').length,1);
 });
+
+test('contract deployment pauses above its separate 0.001 SepoliaETH quote cap',async()=>{
+    const p=fixture({deploy:true,history:{baseFeePerGas:[hex(10000000000),hex(10000000000)],reward:[['0x0']]}});
+    await assert.rejects(p.send(),/0.001 SepoliaETH/);assert.equal(p.calls.some(r=>r.method==='eth_sendTransaction'),false);
+});
