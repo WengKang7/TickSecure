@@ -162,3 +162,40 @@ test('administrator sign-in reaches the dashboard and dashboard authentication g
     assert.equal(dashboard.attributes.get('data-ts-access'), 'granted');
     assert.equal(dashboard.events[0].detail.role, 'admin');
 });
+
+test('signed-in staff opening any homepage URL go to their own dashboard at either deployment base', async () => {
+    for (const base of ['', '/ticksecure-ui', '/another-folder']) {
+        for (const route of ['', '/', '/index.php']) {
+            for (const role of ['admin', 'organizer']) {
+                const result = await visit(route, {
+                    base, user: { ...user, emailVerified: role !== 'admin' }, profile: { ...buyer, role }
+                });
+                assert.deepEqual(result.redirects, [base + '/' + role + '/dashboard.php']);
+                assert.equal(result.events.length, 0);
+            }
+        }
+    }
+});
+
+test('buyers and guests keep the public homepage; staff can still open public event pages', async () => {
+    for (const route of ['/', '/index.php']) {
+        for (const options of [{}, { user, profile: buyer }]) {
+            assert.deepEqual((await visit(route, options)).redirects, []);
+        }
+    }
+    for (const role of ['admin', 'organizer']) {
+        for (const route of ['/public/events.php', '/public/event-detail.php', '/' + role + '/dashboard.php']) {
+            assert.deepEqual((await visit(route, { user, profile: { ...buyer, role } })).redirects, []);
+        }
+    }
+});
+
+test('homepage routing never sends inactive or unverified organizers into a dashboard', async () => {
+    for (const role of ['admin', 'organizer']) {
+        for (const status of ['pending', 'suspended', 'deleted']) {
+            assert.deepEqual((await visit('/', { user, profile: { ...buyer, role, status } })).redirects, []);
+        }
+    }
+    const unverified = await visit('/', { user: { ...user, emailVerified: false }, profile: { ...buyer, role: 'organizer' } });
+    assert.deepEqual(unverified.redirects, []);
+});

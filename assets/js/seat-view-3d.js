@@ -30,9 +30,13 @@
         const camera = firstPerson ? Model.seatCamera(scene, state.viewSeatId, state.look) : Model.overviewCamera(scene, width / height, state.orbit);
         if (!camera) return [];
         ctx.clearRect(0, 0, width, height);
-        const sky = ctx.createLinearGradient(0, 0, 0, height);
-        sky.addColorStop(0, firstPerson ? '#dae5e5' : '#fafaf7'); sky.addColorStop(.6, '#f0f2ed'); sky.addColorStop(1, '#e5eae4');
-        ctx.fillStyle = sky; ctx.fillRect(0, 0, width, height);
+        if (state.whiteBackground) ctx.fillStyle = '#ffffff';
+        else {
+            const sky = ctx.createLinearGradient(0, 0, 0, height);
+            sky.addColorStop(0, firstPerson ? '#dae5e5' : '#fafaf7'); sky.addColorStop(.6, '#f0f2ed'); sky.addColorStop(1, '#e5eae4');
+            ctx.fillStyle = sky;
+        }
+        ctx.fillRect(0, 0, width, height);
         const projected = [], hits = [], focal = height / (2 * Math.tan(camera.fov / 2));
         const projectPolygon = points => Model.clipNear(points.map(p => Model.cameraPoint(p, camera)), camera.near).map(p => Model.screenPoint(p, camera, width, height));
         const panelDepth = Model.cameraPoint([scene.stage.x + scene.stage.front[0] * (-scene.stage.depth / 2 + .1), 2.35,
@@ -185,7 +189,8 @@
         const hint = document.createElement('div'); hint.className = 'ts-seat-3d-hint'; hint.setAttribute('aria-hidden', 'true');
         container.replaceChildren(canvas, tooltip, hint);
         let model, scene, page, frame = 0, disposed = false, hits = [], drag = null, width = 0, height = 0;
-        const state = { selected: [], focusId: null, hoverId: null, viewSeatId: null, orbit: {}, look: {}, showPeople: false, peopleMotion: true, peopleTime: 0 };
+        const state = { selected: [], focusId: null, hoverId: null, viewSeatId: null, orbit: {}, look: {}, showPeople: false, peopleMotion: true, peopleTime: 0,
+            whiteBackground: options.whiteBackground === true };
         const motionPreference = window.matchMedia?.('(prefers-reduced-motion: reduce)');
         let reducedMotion = !!motionPreference?.matches, inViewport = true, dirty = true, lastTime = null, lastPaint = -Infinity;
         let busy = false;

@@ -218,3 +218,33 @@ test('clean legacy layouts also use a rectangular stage instead of a T-shaped st
     assert.equal(p.board.querySelectorAll('path').length, 0);
     assert.ok(p.board.querySelectorAll('text').some(node => node.textContent === 'STAGE'));
 });
+
+test('dense clean maps keep four-digit numbers centered inside uniform seat boxes without changing seat identities', () => {
+    const p = runtime(), section = p.data[1];
+    section.geometry.seatMarkers = [
+        { id: 'a', label: '999', number: '999', x: 30, y: 40, width: .9, height: 1.1 },
+        { id: 'b', label: '1000', number: '1000', x: 31.4, y: 40, width: 1, height: 1 }
+    ];
+    const original = JSON.stringify(section);
+    p.context.window.tsVenueRenderer.renderBoard(p.board.id, p.data, { cleanLayout: true, seatOnly: true });
+    const seats = p.board.querySelectorAll('.ts-ocr-seat');
+    seats.forEach(seat => {
+        const frame = seat.children.find(node => node.className === 'ts-seat-frame');
+        const label = seat.children.find(node => node.tagName === 'text');
+        const width = Number(frame.attributes.width), height = Number(frame.attributes.height);
+        assert.ok(Number(label.attributes['font-size']) * label.textContent.length * .62 <= width * .81);
+        assert.ok(Number(frame.attributes['stroke-width']) <= Math.min(width, height) * .1);
+        assert.equal(Number(label.attributes.x), Number(frame.attributes.x) + width / 2);
+        assert.equal(Number(label.attributes.y), Number(frame.attributes.y) + height / 2);
+    });
+    assert.equal(JSON.stringify(section), original);
+});
+
+test('shape-detected seats explain automatic numbering instead of showing a fabricated zero OCR confidence', () => {
+    const p = runtime();
+    Object.assign(p.data[0].geometry, { source: 'shape-detection', confidence: 0, seatMarkers: [{ id: 'a', label: '1', number: '1', row: 'A', x: 20, y: 30 }] });
+    p.render();
+    const notes = p.side.querySelectorAll('p').map(node => node.textContent).join(' ');
+    assert.match(notes, /Detected from seat shapes/);
+    assert.doesNotMatch(notes, /OCR confidence: 0%/);
+});

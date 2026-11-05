@@ -3,9 +3,9 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<?=ts_page_head('Loading...', ' ', '<button id="btn-toggle-status" class="ts-btn ts-btn-danger" style="display:none;">Suspend Account</button>')?>
+<?=ts_page_head('Loading...', ' ', '<button id="btn-inactivate" class="ts-btn ts-btn-secondary" style="display:none;">Inactivate Account</button> <button id="btn-toggle-status" class="ts-btn ts-btn-danger" style="display:none;">Delete Account</button>')?>
 <div id="user-detail-container" style="display:none;">
-    <div class="mb-24"><a class="ts-btn ts-btn-secondary" id="account-edit-link">Edit / archive account</a></div>
+    <div class="mb-24"><a class="ts-btn ts-btn-secondary" id="account-edit-link">Edit account</a></div>
     <div class="ts-grid-2">
         <div class="ts-card ts-card-pad">
             <div class="flex justify-between">
@@ -109,35 +109,25 @@ window.addEventListener('ts-auth-ready', async () => {
             if (user.walletAddress) document.getElementById('val-wallet').textContent = user.walletAddress;
 
             const btn = document.getElementById('btn-toggle-status');
-            btn.style.display = 'inline-flex';
-            if (user.status === 'deleted') btn.style.display = 'none';
-            if (user.status === 'suspended') {
-                btn.textContent = 'Reactivate Account';
-                btn.className = 'ts-btn ts-btn-success';
-                btn.onclick = async () => {
-                    const decision = await window.tsAdminConfirm('reactivateUser', user.fullName || user.email || 'Selected account', [['Email', user.email || 'Not provided']]);
+            const inactive = document.getElementById('btn-inactivate');
+            const manageable = ['buyer', 'organizer'].includes(user.role) && user.status !== 'deleted';
+            btn.style.display = inactive.style.display = manageable ? 'inline-flex' : 'none';
+            accountLink.hidden = !manageable;
+            const reactivating = ['inactive', 'suspended'].includes(user.status);
+            inactive.textContent = reactivating ? 'Reactivate Account' : 'Inactivate Account';
+            const runAction = async (button, action) => {
+                if (btn.disabled || inactive.disabled) return;
+                btn.disabled = inactive.disabled = true;
+                try {
+                    const decision = await window.tsAdminConfirm(action, user.fullName || user.email || 'Selected account', [['Email', user.email || 'Not provided']]);
                     if (!decision) return;
-                    btn.disabled = true;
-                    try {
-                        await window.tsUsers.reactivateUser(userId);
-                        await loadUser();
-                    } catch (error) { alert(error.message || 'The account could not be reactivated.'); }
-                    finally { btn.disabled = false; }
-                };
-            } else {
-                btn.textContent = 'Suspend Account';
-                btn.className = 'ts-btn ts-btn-danger';
-                btn.onclick = async () => {
-                    const decision = await window.tsAdminConfirm('suspendUser', user.fullName || user.email || 'Selected account', [['Email', user.email || 'Not provided']]);
-                    if (!decision) return;
-                    btn.disabled = true;
-                    try {
-                        await window.tsUsers.suspendUser(userId, decision.reason);
-                        await loadUser();
-                    } catch (error) { alert(error.message || 'The account could not be suspended.'); }
-                    finally { btn.disabled = false; }
-                };
-            }
+                    await window.tsUsers[action](userId);
+                    await loadUser();
+                } catch (error) { alert(error.message || 'The account could not be updated.'); }
+                finally { btn.disabled = inactive.disabled = false; }
+            };
+            btn.onclick = () => runAction(btn, 'deleteUser');
+            inactive.onclick = () => runAction(inactive, reactivating ? 'reactivateUser' : 'inactivateUser');
         } catch (err) {
             console.error(err);
             document.querySelector('.ts-page-title').textContent = 'Error loading user';

@@ -74,3 +74,24 @@ test('isolated stage-letter holes are rejected while the complete chair grid is 
     assert.equal(result.seats.length, 30);
     assert.ok(result.seats.every(seat => seat.y < 300));
 });
+
+test('faint filled chairs with antialiased bridges are separated without filling empty aisle positions', () => {
+    const im = image(), expected = [];
+    for (let row = 0; row < 5; row++) for (let col = 0; col < 10; col++) {
+        if (col === 4) continue; // Real aisle, never a missing chair to invent.
+        const x = 60 + col * 12, y = 70 + row * 22, light = 237 + (row + col) % 6;
+        rectangle(im, x, y, 8, 8, [light, light, light]); expected.push({ x: x + 3.5, y: y + 3.5 });
+        if (col === 1) rectangle(im, x + 8, y + 3, 4, 1, [244, 244, 244]);
+    }
+    const result = detector.detect(cv, im);
+    assert.equal(result.seats.length, expected.length);
+    for (const point of expected) assert.equal(result.seats.filter(s => Math.hypot(s.x - point.x, s.y - point.y) < 2).length, 1);
+});
+
+test('isolated pairs of legend boxes do not become seats in a larger seating plan', () => {
+    const im = image(); circles(im);
+    rectangle(im, 420, 320, 18, 18, [225,225,225]); rectangle(im, 446, 320, 18, 18, [225,225,225]);
+    const result = detector.detect(cv, im);
+    assert.equal(result.seats.length, 30);
+    assert.ok(result.seats.every(seat => seat.y < 300));
+});

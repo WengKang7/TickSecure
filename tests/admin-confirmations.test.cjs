@@ -38,7 +38,7 @@ function modal() {
 
 test('all important action types show their target and a specific confirmation button', async () => {
     const p = modal();
-    for (const action of ['approveEvent', 'rejectEvent', 'suspendEvent', 'restoreEvent', 'approveOrganizer', 'rejectOrganizer', 'suspendUser', 'reactivateUser', 'deleteVenue', 'updateVenue', 'confirmSections', 'activateLayout', 'replaceBlueprint', 'suspendListing', 'investigateComplaint', 'rejectComplaint', 'resolveComplaint']) {
+    for (const action of ['approveEvent', 'rejectEvent', 'suspendEvent', 'restoreEvent', 'approveOrganizer', 'rejectOrganizer', 'suspendUser', 'deleteUser', 'inactivateUser', 'reactivateUser', 'deleteVenue', 'updateVenue', 'confirmSections', 'activateLayout', 'replaceBlueprint', 'suspendListing', 'investigateComplaint', 'rejectComplaint', 'resolveComplaint']) {
         const result = p.open(action, 'Example record', [['Email', 'example@test.com']]);
         assert.equal(p.elements.dialog.open, true, action);
         assert.equal(p.elements.subject.textContent, 'Example record');
@@ -150,8 +150,8 @@ test('shared layout loads the accessible confirmation dialog for admins only', (
     assert.doesNotMatch(render('organizer'), /admin-confirm-dialog|admin-confirmations\.js/);
 });
 
-async function adminPage(file) {
-    const markup = fs.readFileSync(path.join(root, 'admin', file), 'utf8');
+async function adminPage(file, area = 'admin') {
+    const markup = fs.readFileSync(path.join(root, area, file), 'utf8');
     const source = markup.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
     const elements = new Map(), writes = [], confirmations = [], errors = [];
     const control = { decision: null };
@@ -172,12 +172,14 @@ async function adminPage(file) {
         location: { search: '?id=record-1' },
         addEventListener: (_event, callback) => { ready = callback; },
         tsAdminConfirm: async (...args) => { confirmations.push(args); return control.decision; },
+        tsConfirmDecision: async config => { confirmations.push([config.title,config.subject,config]); return control.decision; },
         alert: message => errors.push(message),
         tsUsers: {
             getUser: async () => user, getOrganizerProfile: async () => ({ organizationName: 'Example Events' }),
             approveOrganizer: async (...args) => writes.push(['approveOrganizer', ...args]),
             rejectOrganizer: async (...args) => writes.push(['rejectOrganizer', ...args]),
-            suspendUser: async (...args) => writes.push(['suspendUser', ...args]),
+            deleteUser: async (...args) => { writes.push(['deleteUser', ...args]); user.status = 'deleted'; },
+            inactivateUser: async (...args) => { writes.push(['inactivateUser', ...args]); user.status = 'inactive'; },
             reactivateUser: async (...args) => writes.push(['reactivateUser', ...args])
         },
         tsVenues: {
@@ -200,7 +202,8 @@ async function adminPage(file) {
         window, document: { getElementById: element, querySelector: element, querySelectorAll: selector => selector === '.delete-btn' ? [element('delete-button')] : [] },
         URL, URLSearchParams, alert: window.alert, console: { error: (...args) => errors.push(args) }
     });
-    await ready({ detail: { uid: 'admin', role: 'admin', status: 'active' } });
+    window.tsCurrentUser = { uid: area, role: area, status: 'active' };
+    await ready({ detail: window.tsCurrentUser });
     assert.deepEqual(errors, [], file + ' loads successfully');
     return { element, writes, confirmations, control, errors, user };
 }
@@ -219,22 +222,22 @@ test('organizer approval and rejection never write on cancel and use the confirm
     }
 });
 
-test('user detail account suspension and reactivation require confirmation', async () => {
+test('user detail deletion and reversible inactivation require confirmation', async () => {
     const p = await adminPage('user-detail.php');
     await p.element('btn-toggle-status').click();
-    assert.deepEqual(p.writes, []);
-    assert.equal(p.confirmations[0][0], 'suspendUser');
-    p.control.decision = { reason: 'Misuse' };
-    await p.element('btn-toggle-status').click();
-    assert.deepEqual(p.writes[0], ['suspendUser', 'record-1', 'Misuse']);
-    p.user.status = 'suspended';
-    // A fresh load installs the reactivation handler for a suspended account.
-    await p.element('btn-toggle-status').click();
-    p.control.decision = null;
-    const before = p.writes.length;
-    await p.element('btn-toggle-status').click();
-    assert.equal(p.confirmations.at(-1)[0], 'reactivateUser');
-    assert.equal(p.writes.length, before);
+    assert.deepEqual(p.writes, []); assert.equal(p.confirmations[0][0], 'deleteUser');
+    await p.element('btn-inactivate').click(); assert.deepEqual(p.writes, []);
+    p.control.decision = {};
+    await p.element('btn-inactivate').click();
+    assert.deepEqual(p.writes[0], ['inactivateUser', 'record-1']);
+    assert.equal(p.element('btn-inactivate').textContent, 'Reactivate Account');
+    p.control.decision = null; await p.element('btn-inactivate').click(); assert.equal(p.writes.length, 1);
+    p.control.decision = {}; await p.element('btn-inactivate').click();
+    assert.deepEqual(p.writes[1], ['reactivateUser', 'record-1']);
+    await p.element('btn-toggle-status').click(); assert.deepEqual(p.writes[2], ['deleteUser', 'record-1']);
+    assert.equal(p.element('btn-toggle-status').style.display, 'none');
+    assert.equal(p.element('btn-inactivate').style.display, 'none');
+    assert.equal(p.element('account-edit-link').hidden, true);
 });
 
 test('complaint investigation, rejection and resolution all stop on cancel and save the confirmed fields', async () => {
@@ -277,10 +280,10 @@ test('venue deletion and detail edits do not mutate or close the edit form on ca
 });
 
 test('resale suspension uses the confirmed listing and reason and leaves cancelled listings alone', async () => {
-    const p = await adminPage('resale.php');
+    const p = await adminPage('secondary-market.php', 'organizer');
     await p.element('listing-button').click();
     assert.deepEqual(p.writes, []);
-    assert.equal(p.confirmations[0][0], 'suspendListing');
+    assert.equal(p.confirmations[0][0], 'Suspend this resale listing?');
     assert.equal(p.confirmations[0][1], 'Example Event');
     p.control.decision = { reason: 'Pricing violation' };
     await p.element('listing-button').click();

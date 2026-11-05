@@ -384,6 +384,12 @@ onAuthStateChanged(auth, async (user) => {
         const profile = snap.data();
         const { role, status } = profile;
 
+        if (['', '/', '/index.php'].includes(appPath) && status === 'active'
+            && (role === 'admin' || (role === 'organizer' && user.emailVerified === true))) {
+            window.location.replace(base + '/' + role + '/dashboard.php');
+            return;
+        }
+
         if (requiresAuthentication || section === 'auth') {
             // Retain the existing administrator verification exception.
             if (role !== 'admin' && !user.emailVerified) {

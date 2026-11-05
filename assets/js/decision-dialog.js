@@ -6,7 +6,7 @@
         logout: { title: 'Ready to sign out?', message: 'You will be signed out of TickSecure on this browser. Save any unfinished changes before leaving.', label: 'Sign out', cancelLabel: 'Stay signed in' },
         archiveAccount: { title: 'Archive this account?', message: 'This account will lose access. Linked bookings, tickets and support history will be retained.', label: 'Archive account', tone: 'danger' },
         createAccount: { title: 'Create this account?', message: 'A new account will be created and a verification email will be requested. Organizer accounts still need approval.', label: 'Create account' },
-        updateAccount: { title: 'Save account changes?', message: 'The account name and organization details shown in your form will be updated.', label: 'Save changes' },
+        updateAccount: { title: 'Save account changes?', message: 'The account name, email, role and organization details will be saved. A new password replaces the current sign-in password. Email changes require verification.', label: 'Save changes' },
         deleteDraft: { title: 'Delete this event draft?', message: 'The draft event will be permanently deleted. This action cannot be undone.', label: 'Delete draft', tone: 'danger' },
         reviseEvent: { title: 'Return this event to draft?', message: 'You can edit the rejected event and submit it for another review. Its current details will be kept.', label: 'Revise event' },
         changeVenue: { title: 'Change the event venue?', message: 'Ticket categories from the previous venue will be reset. Your other event details and sales rules will be kept.', label: 'Change venue', tone: 'danger' },

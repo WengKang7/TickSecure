@@ -27,6 +27,10 @@ if (!getApps().length) initializeApp();
 
 const db = getFirestore();
 const region = 'asia-southeast1';
+const { createAdminAccountService } = require('./admin-accounts');
+const adminAccounts = createAdminAccountService(db, getAuth(), { fail: (code, message) => { throw new HttpsError(code, message); } });
+exports.manageAdminAccount = onCall({ region, enforceAppCheck: false, timeoutSeconds: 120 }, request =>
+    adminAccounts.manage(requireAuth(request), requireDataObject(request)));
 const blockchainService = createBlockchainService(db, {
     projectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || db.projectId,
     fail: (code, message) => { throw new HttpsError(code, message); }
@@ -1088,24 +1092,32 @@ exports.suspendResaleListing = onCall({ region, enforceAppCheck: false }, async 
     const listingId = requireId(data.listingId, 'Listing ID');
     const reason = typeof data.reason === 'string' && data.reason.trim()
         ? data.reason.trim().slice(0, 1000)
-        : 'Suspended by an administrator.';
+        : 'Suspended by the event organizer.';
 
     return db.runTransaction(async (tx) => {
-        const admin = await getActor(uid, tx);
-        if (admin.role !== 'admin' || admin.status !== 'active') {
-            throw new HttpsError('permission-denied', 'Only administrators can suspend listings.');
+        const organizer = await getActor(uid, tx);
+        if (organizer.role !== 'organizer' || organizer.status !== 'active' || organizer.emailVerified !== true) {
+            throw new HttpsError('permission-denied', 'An active, verified event organizer is required to suspend listings.');
         }
 
         const listingRef = db.collection('ResaleListings').doc(listingId);
         const listingSnap = await tx.get(listingRef);
         if (!listingSnap.exists) throw new HttpsError('not-found', 'Listing not found.');
         const listing = { id: listingSnap.id, ...listingSnap.data() };
+        const eventSnap = listing.eventId ? await tx.get(db.collection('Events').doc(listing.eventId)) : null;
+        if (!eventSnap?.exists || eventSnap.data().organizerUid !== uid
+            || (listing.organizerUid !== undefined && listing.organizerUid !== uid)) {
+            throw new HttpsError('permission-denied', 'You can suspend resale listings for your own events only.');
+        }
         if (listing.status !== 'ACTIVE') {
             throw new HttpsError('failed-precondition', 'Only active listings can be suspended.');
         }
 
         const ticketRef = db.collection('NFTTickets').doc(listing.ticketId);
         const ticketSnap = await tx.get(ticketRef);
+        if (ticketSnap.exists && ticketSnap.data().eventId !== listing.eventId) {
+            throw new HttpsError('failed-precondition', 'The listing no longer matches its event ticket.');
+        }
         const restoreTicket = ticketSnap.exists && ticketSnap.data().ownerUid === listing.sellerUid
             && ticketSnap.data().status === 'LISTED_FOR_RESALE';
 
@@ -1120,7 +1132,7 @@ exports.suspendResaleListing = onCall({ region, enforceAppCheck: false }, async 
             listingId
         ));
         tx.set(db.collection('AuditLogs').doc(), auditDoc(
-            'resale_listing_suspended', 'resale', listingId, admin, { reason }
+            'resale_listing_suspended', 'resale', listingId, organizer, { reason }
         ));
         return { listingId, status: 'SUSPENDED' };
     });
@@ -1315,6 +1327,9 @@ exports.syncEmailVerification = onCall({ region, enforceAppCheck: false }, async
             throw new HttpsError('not-found', 'Your user profile was not found.');
         }
         const user = { uid, ...userSnap.data() };
+        if (String(request.auth.token.email || '').toLowerCase() !== String(user.email || '').toLowerCase()) {
+            throw new HttpsError('failed-precondition', 'Sign in with the current email before verifying it.');
+        }
         tx.update(userRef, { emailVerified: true, updatedAt: timestamp });
         tx.set(db.collection('AuditLogs').doc(), auditDoc(
             'email_verified', 'user', uid, user, {}

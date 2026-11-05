@@ -4,7 +4,7 @@
  * Exposed globally as window.ts<ServiceName> for use by page scripts.
  */
 import { db, auth, storage } from './firebase-init.js';
-import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261030-transfer-history';
+import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261104-admin-accounts';
 import {
     collection, doc, addDoc, setDoc, getDoc, getDocs,
     updateDoc, deleteDoc, deleteField, query, where, orderBy, limit,
@@ -379,10 +379,16 @@ export const UserService = {
         await NotificationService.create(userId, `Your account has been suspended. Reason: ${reason}`, 'account_suspended');
     },
 
+    async deleteUser(userId) {
+        return invokeTrustedBackend({ userId, action: 'delete' }, { name: 'manageAdminAccount', region: 'asia-southeast1' });
+    },
+
+    async inactivateUser(userId) {
+        return invokeTrustedBackend({ userId, action: 'inactivate' }, { name: 'manageAdminAccount', region: 'asia-southeast1' });
+    },
+
     async reactivateUser(userId) {
-        await updateDoc(doc(db, 'Users', userId), { status: 'active', suspendReason: '', updatedAt: iso() });
-        await AuditService.log('user_reactivated', 'user', userId);
-        await NotificationService.create(userId, 'Your account has been reactivated.', 'account_reactivated');
+        return invokeTrustedBackend({ userId, action: 'reactivate' }, { name: 'manageAdminAccount', region: 'asia-southeast1' });
     },
 
     async getOrganizerProfile(userId) {
@@ -432,9 +438,17 @@ export const UserService = {
 // ============================================================
 export const VenueService = {
     async createVenue(data) {
+        const location = data.location;
+        if (location != null && (!Number.isFinite(location.latitude) || Math.abs(location.latitude) > 90
+            || !Number.isFinite(location.longitude) || Math.abs(location.longitude) > 180)) {
+            throw new Error('Choose a valid venue location on the map.');
+        }
         const ref = await addDoc(collection(db, 'Venues'), {
             name: data.name,
             address: data.address,
+            ...(location == null ? {} : { location: {
+                latitude: location.latitude, longitude: location.longitude
+            } }),
             capacity: parseInt(data.capacity, 10) || 0,
             layoutStatus: 'DRAFT',
             sections: [],
@@ -1862,7 +1876,7 @@ export const ResaleService = {
         if (callableConfig && window.tsCheckoutMode !== 'local') {
             return invokeCallable({
                 listingId: String(listingId || '').trim(),
-                reason: String(reason || 'Suspended by an administrator.').trim()
+                reason: String(reason || 'Suspended by the event organizer.').trim()
             }, callableConfig);
         }
 

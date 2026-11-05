@@ -1,5 +1,5 @@
 /* global cv, tsSeatShapeDetection */
-importScripts('../lib/opencv/opencv.js', 'seat-shape-detection.js');
+importScripts('../lib/opencv/opencv.js', 'seat-shape-detection.js' + self.location.search);
 let runtime = self.cv;
 if (runtime instanceof Promise) runtime.then(value => { runtime = value; });
 self.onmessage = async ({ data }) => {

@@ -293,7 +293,7 @@ async function loadVenue(event, version) {
         }
         // Same section order, positions, stage, sizes and CSS as the admin layout.
         const mapped = window.tsSeatCategories?.project(venue.sections, categories) || venue.sections;
-        window.tsVenueRenderer.renderBoard('ven-board', mapped, previewOnly ? { seatOnly: true } : { seatOnly: true, onSectionSelect: highlightSection, onCategorySelect: highlightSection });
+        window.tsVenueRenderer.renderBoard('ven-board', mapped, previewOnly ? { seatOnly: true, cleanLayout: true } : { seatOnly: true, cleanLayout: true, onSectionSelect: highlightSection, onCategorySelect: highlightSection });
         el('ven-name').textContent = venue.name || event.venueName || 'Venue';
         el('ven-address').textContent = venue.address || event.venueLocation || 'Approved physical venue layout';
         el('venue-section-count').textContent = `${venue.sections.length} sections / ${venue.sections.reduce((sum, section) => sum + (Number(section.seatCount) || 0), 0)} physical seats`;

@@ -163,10 +163,18 @@ function render_public_page(
                 <span class="ts-wallet-dot" aria-hidden="true"></span>'.ts_icon('wallet').'<span class="ts-wallet-label">Wallet</span><span id="public-wallet-text">Not connected</span>
               </a>
               <a class="ts-icon-btn ts-header-notifications'.($active === 'notifications' ? ' active' : '').'" data-ts-buyer-only href="'.$base.'/buyer/notifications.php" aria-label="Notifications"'.($active === 'notifications' ? ' aria-current="page"' : '').'>'.ts_icon('bell').'</a>
+              <div class="ts-public-account" id="public-account">
               <a id="public-user-link" class="ts-public-user'.$profileActive.'" href="'.$base.'/buyer/profile.php" aria-label="My profile"'.($active === 'profile' ? ' aria-current="page"' : '').'>
                 <span id="public-user-name" class="ts-public-user-name">User</span>
                 <span id="header-avatar" class="ts-avatar ts-header-avatar"><img id="header-avatar-img" class="ts-header-avatar-img" alt="" style="display:none"><span id="header-avatar-initials">U</span></span>
+                <span id="public-account-chevron" class="ts-account-chevron" hidden>'.ts_icon('chevron-down').'</span>
               </a>
+              <nav id="public-account-menu" class="ts-account-menu" aria-label="Buyer account" hidden>
+                <a id="account-profile-link" href="'.$base.'/buyer/profile.php">'.ts_icon('user').'<span>Profile</span></a>
+                <a id="account-collections-link" href="'.$base.'/buyer/tickets.php">'.ts_icon('layers').'<span>Collections (NFT)</span></a>
+                <button id="account-logout-btn" type="button">'.ts_icon('logout').'<span>Logout</span></button>
+              </nav>
+              </div>
               <button id="public-logout-btn" class="ts-btn ts-btn-secondary ts-btn-sm ts-public-logout" type="button">'.ts_icon('logout').'<span>Logout</span></button>
             </div>
             <button id="public-menu-toggle" class="ts-icon-btn ts-mobile-menu-btn" type="button" aria-controls="public-mobile-panel" aria-expanded="false" aria-label="Open navigation">'.ts_icon('menu').'</button>
@@ -179,6 +187,7 @@ function render_public_page(
             <a href="'.$base.'/public/events.php?view=saved" data-ts-auth-only data-ts-buyer-only hidden>Saved events</a>
             <a href="'.$base.'/buyer/notifications.php" data-ts-auth-only data-ts-buyer-only hidden>Notifications</a>
             <a id="mobile-profile-link" href="'.$base.'/buyer/profile.php" data-ts-auth-only hidden>My profile</a>
+            <a href="'.$base.'/buyer/tickets.php" data-ts-auth-only data-ts-buyer-only hidden>Collections (NFT)</a>
             <button id="mobile-logout-btn" type="button" data-ts-auth-only hidden>Logout</button>
             <a href="'.$base.'/auth/login.php" data-ts-guest-only>Sign in</a><a href="'.$base.'/auth/register.php" data-ts-guest-only>Create account</a>
           </div>
@@ -202,16 +211,19 @@ function ts_sidebar_links(string $role, string $active, string $base): string
         $groups = [
           'Overview' => [['dashboard','Dashboard','home','dashboard.php']],
           'Event Management' => [['events','My Events','calendar','events.php'],['create','Create Event','plus','event-new.php']],
-          'Sales' => [['sales','Sales & Revenue','chart','sales.php'],['nft','NFT Tickets','ticket','nft.php'],['blockchain','Blockchain Transactions','activity','blockchain.php'],['attendees','Attendees','users','attendees.php'],['secondary','Secondary Market','activity','secondary-market.php']],
+          'Sales' => [['sales','Sales & Revenue','chart','sales.php'],['nft','NFT Tickets','ticket','nft.php'],['blockchain','Blockchain Transactions','activity','blockchain.php'],['attendees','Attendees','users','attendees.php'],['secondary','Resale Monitoring','ticket','secondary-market.php']],
           'Support' => [['complaints','Complaints','message','complaints.php'],['notifications','Notifications','bell','notifications.php']],
           'Account' => [['profile','Organization Profile','building','profile.php']]
         ];
     } elseif ($role === 'admin') {
         $groups = [
           'Overview' => [['dashboard','Dashboard','home','dashboard.php']],
-          'Management' => [['users','Users','users','users.php'],['organizers','Organizer Applications','building','organizers.php'],['events','Events','calendar','events.php'],['venues','Venues & Layouts','layout','venues.php']],
-          'Monitoring' => [['resale','Resale Monitoring','ticket','resale.php'],['audit','Audit Logs','shield','audit.php']],
-          'Support & Governance' => [['complaints','Complaints','message','complaints.php'],['reports','Reports','file','reports.php']],
+          'Management' => [['users','Users','users','users.php'],['organizer-list','Organizers','building','organizer-list.php'],['organizers','Organizer Applications','building','organizers.php'],['events','Events','calendar','events.php'],['venues','Venues & Layouts','layout','venues.php']],
+          // 'Monitoring' => [['audit','Audit Logs','shield','audit.php']],
+          'Support & Governance' => [
+            // ['complaints','Complaints','message','complaints.php'],
+            ['reports','Reports','file','reports.php']
+          ],
           'Account' => [['profile','Profile','user','profile.php']]
         ];
     } else {

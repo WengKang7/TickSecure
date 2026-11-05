@@ -3,106 +3,64 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<?=ts_page_head('Administrator Dashboard', 'Platform-wide operations, governance, ticket security and risk monitoring.', '<a class="ts-btn ts-btn-secondary" href="reports.php">'.ts_icon('file').' Reports</a>')?>
-<div class="ts-kpi-grid">
-    <div class="ts-card ts-kpi"><div class="ts-kpi-top"><span>Registered Users</span><span class="ts-kpi-icon"><?=ts_icon('users')?></span></div><div class="ts-kpi-value" id="kpi-users">...</div><div class="ts-kpi-label">Current platform view</div></div>
-    <div class="ts-card ts-kpi"><div class="ts-kpi-top"><span>Approved Organizers</span><span class="ts-kpi-icon"><?=ts_icon('building')?></span></div><div class="ts-kpi-value" id="kpi-organizers">...</div><div class="ts-kpi-label">Current platform view</div></div>
-    <div class="ts-card ts-kpi"><div class="ts-kpi-top"><span>Published Events</span><span class="ts-kpi-icon"><?=ts_icon('calendar')?></span></div><div class="ts-kpi-value" id="kpi-events">...</div><div class="ts-kpi-label">Current platform view</div></div>
-    <div class="ts-card ts-kpi"><div class="ts-kpi-top"><span>Blockchain Tx</span><span class="ts-kpi-icon"><?=ts_icon('ticket')?></span></div><div class="ts-kpi-value" id="kpi-txs">...</div><div class="ts-kpi-label">Current platform view</div></div>
-</div>
-<div class="ts-grid-4 mt-24">
-    <div class="ts-card ts-kpi">
-        <div class="ts-kpi-top"><span>Pending Organizers</span><span
-                class="ts-kpi-icon"><?=ts_icon('building')?></span>
-        </div>
-        <div class="ts-kpi-value" id="kpi-pending-orgs">...</div>
-        <div class="ts-kpi-label">Require review</div>
-    </div>
-    <div class="ts-card ts-kpi">
-        <div class="ts-kpi-top"><span>Event Reviews</span><span
-                class="ts-kpi-icon"><?=ts_icon('calendar')?></span>
-        </div>
-        <div class="ts-kpi-value" id="kpi-pending-events">...</div>
-        <div class="ts-kpi-label">Pending approval</div>
-    </div>
-    <div class="ts-card ts-kpi">
-        <div class="ts-kpi-top"><span>Risk Flags</span><span
-                class="ts-kpi-icon"><?=ts_icon('flag')?></span>
-        </div>
-        <div class="ts-kpi-value" id="kpi-risk-flags">...</div>
-        <div class="ts-kpi-label">Resale / transaction alerts</div>
-    </div>
-    <div class="ts-card ts-kpi">
-        <div class="ts-kpi-top"><span>Open Complaints</span><span
-                class="ts-kpi-icon"><?=ts_icon('message')?></span>
-        </div>
-        <div class="ts-kpi-value" id="kpi-complaints">...</div>
-        <div class="ts-kpi-label">Across all priorities</div>
-    </div>
-</div>
-<div class="ts-grid-2 mt-24">
-    <div class="ts-card">
-        <div class="ts-card-head">
-            <div>
-                <div class="ts-card-title">System activity trend</div>
-                <div class="ts-card-sub">Important audited operations</div>
-            </div>
-        </div>
-        <div class="ts-line-chart"><svg viewBox="0 0 600 180" preserveAspectRatio="none">
-                <path d="M0 130 C60 90,105 115,150 78 S250 94,300 70 S390 45,450 58 S540 30,600 38" fill="none"
-                    stroke="#344054" stroke-width="4" />
-                <path d="M0 150 H600 M0 105 H600 M0 60 H600" stroke="#EEF0F2" stroke-width="1" />
-            </svg></div>
-    </div>
-    <div class="ts-card">
-        <div class="ts-card-head">
-            <div>
-                <div class="ts-card-title">Attention queue</div>
-                <div class="ts-card-sub">Highest-priority reviews</div>
-            </div>
-        </div>
-        <div class="ts-card-pad">
-            <div class="ts-list">
-                <div class="ts-list-item">
-                    <div>
-                        <div class="ts-list-title">Review organizer applications</div>
-                        <div class="ts-list-sub">Check pending queue</div>
-                    </div><a href="organizers.php" class="ts-btn ts-btn-secondary ts-btn-sm">Review</a>
-                </div>
-                <div class="ts-list-item">
-                    <div>
-                        <div class="ts-list-title">Review event submissions</div>
-                        <div class="ts-list-sub">Check pending queue</div>
-                    </div><a href="events.php" class="ts-btn ts-btn-secondary ts-btn-sm">Review</a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-<div class="ts-card mt-24">
-    <div class="ts-card-head">
+<div class="ts-admin-dashboard">
+    <header class="ts-admin-dashboard-hero">
         <div>
-            <div class="ts-card-title">Recent audited activity</div>
-            <div class="ts-card-sub">Read-only system actions</div>
-        </div><a class="small" href="audit.php">Open Audit Log</a>
+            <span class="ts-admin-dashboard-kicker">ADMINISTRATION</span>
+            <h1>Administrator dashboard</h1>
+            <p>Manage your platform, review applications and keep track of what needs attention.</p>
+        </div>
+        <div class="ts-admin-dashboard-hero-side">
+            <div class="ts-admin-dashboard-actions">
+                <a class="ts-btn ts-btn-secondary" href="events.php"><?=ts_icon('calendar')?> Manage events</a>
+                <a class="ts-btn ts-btn-primary" href="reports.php"><?=ts_icon('chart')?> Sales report</a>
+            </div>
+            <p id="admin-dashboard-status" role="status" aria-live="polite">Loading platform data…</p>
+        </div>
+    </header>
+
+    <div class="ts-kpi-grid ts-admin-dashboard-metrics">
+        <div class="ts-card ts-kpi"><div class="ts-kpi-top"><span>Registered accounts</span><span class="ts-kpi-icon"><?=ts_icon('users')?></span></div><div class="ts-kpi-value" id="kpi-users">…</div><div class="ts-kpi-label">Across all account roles</div></div>
+        <div class="ts-card ts-kpi"><div class="ts-kpi-top"><span>Active organizers</span><span class="ts-kpi-icon"><?=ts_icon('building')?></span></div><div class="ts-kpi-value" id="kpi-organizers">…</div><div class="ts-kpi-label">Approved organizer accounts</div></div>
+        <div class="ts-card ts-kpi"><div class="ts-kpi-top"><span>Published events</span><span class="ts-kpi-icon"><?=ts_icon('calendar')?></span></div><div class="ts-kpi-value" id="kpi-events">…</div><div class="ts-kpi-label">Currently published on TickSecure</div></div>
+        <div class="ts-card ts-kpi"><div class="ts-kpi-top"><span>NFT transactions</span><span class="ts-kpi-icon"><?=ts_icon('ticket')?></span></div><div class="ts-kpi-value" id="kpi-txs">…</div><div class="ts-kpi-label">Recorded across the platform</div></div>
     </div>
-    <div class="ts-table-wrap">
-        <table class="ts-table">
-            <thead>
-                <tr>
-                    <th>Date / Time</th>
-                    <th>Actor</th>
-                    <th>Role</th>
-                    <th>Activity</th>
-                    <th>Related Entity</th>
-                    <th>Result</th>
-                </tr>
-            </thead>
-            <tbody id="audit-table-body">
-                <tr><td colspan="6" class="text-center secondary" style="padding:40px">Loading...</td></tr>
-            </tbody>
-        </table>
+
+    <div class="ts-admin-dashboard-grid">
+        <section class="ts-card ts-card-pad">
+            <div class="ts-admin-dashboard-section-head"><div><h2>Quick access</h2><p>Your everyday administration tools.</p></div><?=ts_icon('layout')?></div>
+            <div class="ts-admin-shortcuts">
+                <a href="users.php" class="ts-admin-shortcut"><span class="ts-admin-shortcut-icon"><?=ts_icon('users')?></span><div><strong>Users</strong><span>Manage buyer accounts</span></div><?=ts_icon('arrow-right')?></a>
+                <a href="organizer-list.php" class="ts-admin-shortcut"><span class="ts-admin-shortcut-icon"><?=ts_icon('building')?></span><div><strong>Organizers</strong><span>View active organizers</span></div><?=ts_icon('arrow-right')?></a>
+                <a href="venues.php" class="ts-admin-shortcut"><span class="ts-admin-shortcut-icon"><?=ts_icon('layout')?></span><div><strong>Venues & layouts</strong><span>Manage event spaces</span></div><?=ts_icon('arrow-right')?></a>
+                <a href="reports.php" class="ts-admin-shortcut"><span class="ts-admin-shortcut-icon"><?=ts_icon('chart')?></span><div><strong>Sales reports</strong><span>Monthly and yearly sales</span></div><?=ts_icon('arrow-right')?></a>
+            </div>
+        </section>
+        <section class="ts-card ts-card-pad">
+            <div class="ts-admin-dashboard-section-head"><div><h2>Review queue</h2><p>Applications and events awaiting your decision.</p></div><?=ts_icon('clock')?></div>
+            <div class="ts-admin-review-list">
+                <a href="organizers.php" class="ts-admin-review-item"><div><strong>Organizer applications</strong><span>Review pending registrations</span></div><span class="ts-admin-review-count" id="kpi-pending-orgs">…</span><?=ts_icon('arrow-right')?></a>
+                <a href="events.php" class="ts-admin-review-item"><div><strong>Event submissions</strong><span>Review events awaiting approval</span></div><span class="ts-admin-review-count" id="kpi-pending-events">…</span><?=ts_icon('arrow-right')?></a>
+            </div>
+            <div class="ts-admin-support-stats">
+                <div><span>Failed NFT transactions</span><strong id="kpi-risk-flags">…</strong></div>
+                <div><span>Open complaints</span><strong id="kpi-complaints">…</strong></div>
+            </div>
+        </section>
     </div>
+
+    <section class="ts-card ts-admin-dashboard-activity">
+        <div class="ts-card-head">
+            <div class="ts-admin-dashboard-section-head"><div><h2>Recent activity</h2><p>The latest five recorded actions across the platform.</p></div></div>
+            <a class="ts-btn ts-btn-secondary ts-btn-sm" href="audit.php">View activity log <?=ts_icon('arrow-right')?></a>
+        </div>
+        <div class="ts-table-wrap">
+            <table class="ts-table">
+                <thead><tr><th>Date / time</th><th>Account</th><th>Role</th><th>Activity</th><th>Related record</th><th>Result</th></tr></thead>
+                <tbody id="audit-table-body"><tr><td colspan="6" class="text-center secondary" style="padding:32px">Loading recent activity…</td></tr></tbody>
+            </table>
+        </div>
+    </section>
 </div>
 
 <script type="module">
@@ -127,17 +85,19 @@ window.addEventListener('ts-auth-ready', async () => {
         document.getElementById('kpi-txs').textContent = txs.length;
         document.getElementById('kpi-risk-flags').textContent = txs.filter(t => t.status === 'FAILED').length;
 
+        document.getElementById('admin-dashboard-status').textContent = 'Updated ' + new Date().toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur' }) + ' · Malaysia time';
         const tbody = document.getElementById('audit-table-body');
         if (!tbody) return;
         if (logs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center secondary" style="padding:40px">No items found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center secondary" style="padding:40px">No recent activity recorded yet.</td></tr>';
             return;
         }
         
-        const esc = s => (s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
         
         tbody.innerHTML = logs.slice(0, 5).map(log => {
-            const date = log.timestamp ? new Date(log.timestamp).toLocaleString() : '—';
+            const recordedAt = typeof log.timestamp?.toDate === 'function' ? log.timestamp.toDate() : new Date(log.timestamp || '');
+            const date = Number.isNaN(recordedAt.valueOf()) ? 'Not recorded' : recordedAt.toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur' });
             let tone = log.result === 'success' ? 'success' : 'error';
             return `
                 <tr>
@@ -153,6 +113,9 @@ window.addEventListener('ts-auth-ready', async () => {
 
     } catch (err) {
         console.error('Load error:', err);
+        document.getElementById('admin-dashboard-status').textContent = 'Could not load platform data. Refresh to try again.';
+        ['kpi-users', 'kpi-organizers', 'kpi-events', 'kpi-txs', 'kpi-pending-orgs', 'kpi-pending-events', 'kpi-risk-flags', 'kpi-complaints'].forEach(id => { document.getElementById(id).textContent = '—'; });
+        document.getElementById('audit-table-body').innerHTML = '<tr><td colspan="6" class="text-center secondary" style="padding:32px">Recent activity could not be loaded. Please refresh.</td></tr>';
     }
 });
 </script>

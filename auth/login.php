@@ -4,7 +4,7 @@ ob_start();
 ?>
 
 <a href="../index.php" class="small secondary">← Back to TickSecure</a><h1 class="ts-auth-title mt-24">Welcome back</h1><p class="ts-auth-sub">Sign in to continue to your TickSecure account.</p>
-<div class="ts-auth-fields" id="login-form" novalidate><div class="ts-field"><label class="ts-label" for="login-email">Email</label><input class="ts-input" id="login-email" name="loginEmail" type="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="you@example.com" required></div><div class="ts-field"><div class="flex justify-between"><label class="ts-label" for="login-password">Password</label><a class="small" href="forgot-password.php">Forgot password?</a></div><input class="ts-input" id="login-password" name="loginPassword" type="password" autocomplete="current-password" maxlength="4096" placeholder="Enter your password" required></div><div class="ts-check-row"><input type="checkbox" id="remember"><label for="remember" class="small secondary">Keep me signed in on this device</label></div><button class="ts-btn ts-btn-primary w-full" id="login-submit" type="button">Sign In</button></div>
+<div class="ts-auth-fields" id="login-form" novalidate><div class="ts-field"><label class="ts-label" for="login-email">Email</label><input class="ts-input" id="login-email" name="loginEmail" type="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="you@example.com" required></div><div class="ts-field"><div class="flex justify-between"><label class="ts-label" for="login-password">Password</label><a class="small" href="forgot-password.php">Forgot password?</a></div><input class="ts-input" id="login-password" name="loginPassword" type="password" autocomplete="current-password" maxlength="4096" placeholder="Enter your password" required></div><p class="small secondary">You will need to sign in again after closing this tab or browser.</p><button class="ts-btn ts-btn-primary w-full" id="login-submit" type="button">Sign In</button></div>
 <div class="ts-auth-footer">New to TickSecure? <a href="register.php"><strong>Create account</strong></a></div>
 <div class="ts-alert ts-alert-info mt-24"><?=ts_icon('shield')?><div><strong>Role-based access</strong><div class="small mt-8">After sign in, TickSecure routes Buyer, Event Organizer and Administrator accounts to the correct interface.</div></div></div>
 
@@ -117,6 +117,7 @@ if (profile.role !== 'admin') {
         } catch (err) {
             let errorMsg = err.message;
             if(err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') errorMsg = "Invalid email or password.";
+            else if(err.code === 'auth/user-disabled') errorMsg = "Your account is inactive. Please contact the administrator for help.";
             else if(err.code === 'auth/too-many-requests') errorMsg = "Too many failed attempts. Try again later.";
             V.showGlobalError(form, 'Sign In Failed', errorMsg);
             

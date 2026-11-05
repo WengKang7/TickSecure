@@ -10,14 +10,17 @@ class Element {
     constructor() { this.listeners = {}; this.attributes = {}; this.dataset = {}; this.style = {}; this.hidden = true; }
     addEventListener(type, callback) { this.listeners[type] = callback; }
     setAttribute(key, value) { this.attributes[key] = value; }
+    removeAttribute(key) { delete this.attributes[key]; }
     getAttribute(key) { return this.attributes[key]; }
     focus() { this.focused = true; }
     scrollIntoView() { this.scrolled = true; }
-    click() { this.clicks = (this.clicks || 0) + 1; return this.listeners.click?.({}); }
+    click() { this.clicks = (this.clicks || 0) + 1; return this.listeners.click?.({ preventDefault() {} }); }
 }
 function createNavigation(page = 'buyer/ticket-detail.php?id=ticket-1', search = false) {
-    const ids = ['public-menu-toggle', 'public-mobile-panel', 'mobile-logout-btn', 'public-logout-btn', 'public-wallet-mini', 'public-wallet-text', 'mobile-wallet-text', 'mobile-profile-link'];
+    const ids = ['public-menu-toggle', 'public-mobile-panel', 'mobile-logout-btn', 'public-logout-btn', 'public-wallet-mini', 'public-wallet-text', 'mobile-wallet-text', 'mobile-profile-link',
+        'public-account', 'public-user-link', 'public-account-menu', 'public-account-chevron', 'account-profile-link', 'account-collections-link', 'account-logout-btn'];
     const elements = new Map(ids.map(id => [id, new Element()]));
+    elements.get('public-account').contains = target => target?.account === true;
     if (search) elements.set('event-search', new Element());
     const buyer = [elements.get('public-wallet-mini'), new Element()];
     const staff = [new Element()];
@@ -120,4 +123,52 @@ test('PHP active navigation follows the actual wallet, booking, help and checkou
         assert.match(html, /public\/events\.php#event-search/);
         assert.match(html, /buyer\/bookings\.php/);
     }
+});
+
+test('buyer name and avatar toggle the account dropdown and the separate logout is hidden',()=>{
+    const p=createNavigation();p.auth({uid:'buyer',role:'buyer'});
+    const trigger=p.elements.get('public-user-link'),menu=p.elements.get('public-account-menu');
+    assert.equal(trigger.getAttribute('role'),'button');assert.equal(trigger.getAttribute('aria-controls'),'public-account-menu');
+    assert.equal(p.elements.get('public-logout-btn').hidden,true);
+    trigger.click();assert.equal(menu.hidden,false);assert.equal(trigger.getAttribute('aria-expanded'),'true');
+    trigger.click();assert.equal(menu.hidden,true);assert.equal(trigger.getAttribute('aria-expanded'),'false');
+});
+test('buyer dropdown supports keyboard opening, Escape, outside clicks and focus leaving',()=>{
+    const p=createNavigation();p.auth({role:'buyer'});
+    const trigger=p.elements.get('public-user-link'),menu=p.elements.get('public-account-menu');
+    let prevented=false;trigger.listeners.keydown({key:'ArrowDown',preventDefault(){prevented=true;}});
+    assert.equal(prevented,true);assert.equal(menu.hidden,false);assert.equal(p.elements.get('account-profile-link').focused,true);
+    p.documentEvents.keydown({key:'Escape'});assert.equal(menu.hidden,true);assert.equal(trigger.focused,true);
+    trigger.click();p.documentEvents.click({target:{account:true}});assert.equal(menu.hidden,false);
+    p.documentEvents.click({target:{}});assert.equal(menu.hidden,true);
+    trigger.listeners.keydown({key:' ',preventDefault(){}});assert.equal(menu.hidden,false);
+    menu.listeners.focusout({relatedTarget:{}});assert.equal(menu.hidden,true);
+});
+test('dropdown logout reuses the existing logout action exactly once and closes the dropdown',()=>{
+    const p=createNavigation();p.auth({role:'buyer'});p.elements.get('public-user-link').click();
+    p.elements.get('account-logout-btn').click();assert.equal(p.elements.get('public-logout-btn').clicks,1);assert.equal(p.elements.get('public-account-menu').hidden,true);
+});
+test('staff keep the direct profile link and logout; signing out closes buyer options',()=>{
+    const p=createNavigation();p.auth({role:'buyer'});p.elements.get('public-user-link').click();
+    for(const role of ['admin','organizer']){
+        p.auth({role});assert.equal(p.elements.get('public-account-menu').hidden,true);assert.equal(p.elements.get('public-user-link').getAttribute('role'),undefined);
+        assert.equal(p.elements.get('public-logout-btn').hidden,false);p.elements.get('public-user-link').click();assert.equal(p.elements.get('public-account-menu').hidden,true);
+    }
+    p.auth({role:'buyer'});p.elements.get('public-user-link').click();p.auth(null);assert.equal(p.elements.get('public-account-menu').hidden,true);
+    p.elements.get('account-logout-btn').click();assert.equal(p.elements.get('public-logout-btn').clicks,undefined);
+});
+test('account and compact navigation close each other and resize closes the dropdown',()=>{
+    const p=createNavigation();p.auth({role:'buyer'});
+    p.elements.get('public-menu-toggle').click();p.elements.get('public-user-link').click();
+    assert.equal(p.elements.get('public-mobile-panel').hidden,true);assert.equal(p.elements.get('public-account-menu').hidden,false);
+    p.elements.get('public-menu-toggle').click();assert.equal(p.elements.get('public-account-menu').hidden,true);
+    p.elements.get('public-user-link').click();p.resize();assert.equal(p.elements.get('public-account-menu').hidden,true);
+});
+test('rendered buyer account options link to the existing profile and ticket collection',()=>{
+    const php=process.env.PHP_BINARY||'C:/xampp/php/php.exe';
+    const html=execFileSync(php,['-r',"require $argv[1]; render_public_page('Test','tickets','','..');",path.join(root,'shared/ui.php')],{encoding:'utf8'});
+    assert.match(html,/<nav id="public-account-menu"[^>]*hidden>/);
+    assert.match(html,/<a id="account-profile-link" href="..\/buyer\/profile.php">/);
+    assert.match(html,/<a id="account-collections-link" href="..\/buyer\/tickets.php">/);
+    assert.match(html,/Collections \(NFT\)/);assert.match(html,/id="account-logout-btn" type="button"/);
 });

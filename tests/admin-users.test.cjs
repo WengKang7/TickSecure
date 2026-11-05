@@ -3,15 +3,17 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
+const {execFileSync}=require('node:child_process');
 const source = fs.readFileSync(path.join(__dirname, '../admin/users.php'), 'utf8')
     .match(/<script type="module">([\s\S]*?)<\/script>/)[1];
 
 const paginationUsers = [
     { id: 'faye', fullName: 'Faye', role: 'buyer', status: 'active', emailVerified: true },
-    { id: 'glen', fullName: 'Glen', role: 'buyer', status: 'active', emailVerified: true }
+    { id: 'glen', fullName: 'Glen', role: 'buyer', status: 'active', emailVerified: true },
+    ...['Hal','Iris','Jade'].map(fullName=>({id:fullName.toLowerCase(),fullName,role:'buyer',status:'active',emailVerified:true}))
 ];
 
-async function loadPage(extraUsers = []) {
+async function loadPage(extraUsers = [], accountRole = 'buyer') {
     const users = [
         { id: 'admin', fullName: 'System Administrator', role: 'admin', status: 'active', emailVerified: false },
         { id: 'alice', fullName: 'Alice', email: 'alice@example.com', role: 'buyer', status: 'active', emailVerified: true },
@@ -22,21 +24,23 @@ async function loadPage(extraUsers = []) {
         ...extraUsers
     ];
     const elements = new Map();
-    for (const id of ['users-table-body', 'users-count', 'user-search', 'user-role-filter', 'user-status-filter', 'user-verification-filter', 'users-previous', 'users-next', 'users-page']) {
+    for (const id of ['users-table-body', 'users-count', 'user-search', 'user-status-filter', 'user-verification-filter', 'users-previous', 'users-next', 'users-page', 'users-export', 'users-print']) {
         elements.set(id, {
-            value: '', innerHTML: '', textContent: '', listeners: {},
+            dataset: {accountRole}, value: '', innerHTML: '', textContent: '', listeners: {},
             addEventListener(type, callback) { this.listeners[type] = callback; },
             contains: () => true
         });
     }
-    const actions = [];
+    const actions = [], requests = [], exports = [], blobs = [];
+    let printed = 0;
     const confirmations = [];
     let confirmationResult = { reason: 'Test reason' };
     let load;
     let failLoad = false;
     const context = {
         console: { error() {} },
-        document: { getElementById: id => elements.get(id) },
+        document: { getElementById: id => elements.get(id), body: { append: element => exports.push(element) }, createElement: tag => ({ tag, click() {}, remove() {}, listeners: {}, addEventListener(type, callback) { this.listeners[type] = callback; }, style: {}, contentWindow: { addEventListener() {}, focus() {}, print() { printed++; } } }) },
+        URL: { createObjectURL: blob => { blobs.push(blob); return 'blob:report'; }, revokeObjectURL() {} }, Blob, setTimeout: callback => callback(),
         prompt: () => 'Test reason', confirm: () => true, alert: message => { throw new Error(message); },
         window: {
             addEventListener: (_, callback) => { load = callback; },
@@ -45,13 +49,14 @@ async function loadPage(extraUsers = []) {
                 return confirmationResult;
             },
             tsUsers: {
-                getUsers: async () => {
+                getUsers: async filters => {
+                    requests.push(filters);
                     if (failLoad) throw new Error('Service unavailable');
                     return users;
                 },
-                suspendUser: async (id, reason) => {
-                    actions.push({ id, reason, action: 'suspend' });
-                    users.find(user => user.id === id).status = 'suspended';
+                deleteUser: async id => {
+                    actions.push({ id, action: 'delete' });
+                    users.find(user => user.id === id).status = 'deleted';
                 },
                 reactivateUser: async id => {
                     actions.push({ id, action: 'reactivate' });
@@ -74,124 +79,127 @@ async function loadPage(extraUsers = []) {
         await elements.get('users-table-body').listeners.click({ target: { closest: () => button } });
     };
     const navigate = direction => elements.get('users-' + direction).listeners.click();
-    return { elements, actions, confirmations, confirm: result => { confirmationResult = result; }, filter, rows, action, navigate, reload: () => load({ detail: { role: 'admin' } }), fail: () => { failLoad = true; } };
+    return { elements, actions, requests, confirmations, exports, blobs, printed: () => printed, confirm: result => { confirmationResult = result; }, filter, rows, action, navigate, reload: () => load({ detail: { role: 'admin' } }), fail: () => { failLoad = true; } };
 }
 
-test('the management list and count exclude administrator accounts', async () => {
-    const page = await loadPage();
-    assert.deepEqual(page.rows(), ['Alice', 'Bob', 'Claire', 'Drew', 'Erin']);
-    assert.equal(page.elements.get('users-count').textContent, 'Showing 1–5 of 5 users');
-    await page.action('admin', 'suspend');
-    assert.deepEqual(page.actions, []);
+
+test('buyers and organizers have separate lists, counts and queries, with admin accounts excluded',async()=>{
+    const buyers=await loadPage(),organizers=await loadPage([],'organizer');
+    assert.deepEqual(buyers.rows(),['Alice','Bob']);assert.equal(buyers.elements.get('users-count').textContent,'Showing 1–2 of 2 users');
+    assert.deepEqual(organizers.rows(),['Claire']);assert.equal(organizers.elements.get('users-count').textContent,'Showing 1–1 of 1 organizers');
+    assert.equal(organizers.requests[0].status,'active');
+    assert.equal(buyers.requests[0].role,'buyer');assert.equal(organizers.requests[0].role,'organizer');
+    await buyers.action('admin','delete');await buyers.action('claire','delete');await organizers.action('alice','delete');
+    assert.deepEqual(buyers.actions,[]);assert.deepEqual(organizers.actions,[]);
 });
 
-test('each dropdown filters real records, including pending and rejected organizers', async () => {
-    const page = await loadPage();
-    page.filter('role', 'buyer');
-    assert.deepEqual(page.rows(), ['Alice', 'Bob']);
-    page.filter('role', 'organizer');
-    assert.deepEqual(page.rows(), ['Claire', 'Drew', 'Erin']);
-    page.filter('role', '');
-    for (const [status, names] of [['active', ['Alice', 'Claire']], ['suspended', ['Bob']], ['pending', ['Drew']], ['rejected', ['Erin']]]) {
-        page.filter('status', status);
-        assert.deepEqual(page.rows(), names);
+test('account status and verification filters stay within each list, excluding pending/rejected organizers',async()=>{
+    const buyers=await loadPage(),organizers=await loadPage([],'organizer');
+    for(const [page,cases] of [[buyers,[['active',['Alice']],['suspended',['Bob']],['pending',[]]]],[organizers,[['active',['Claire']],['pending',[]],['rejected',[]]]]]){
+        for(const [status,names] of cases){page.filter('status',status);assert.deepEqual(page.rows(),names);}
+        page.filter('status','');page.filter('verification','verified');assert.deepEqual(page.rows(),page===buyers?['Alice']:[]);
+        page.filter('verification','unverified');assert.deepEqual(page.rows(),page===buyers?['Bob']:['Claire']);
     }
-    page.filter('status', '');
-    page.filter('verification', 'verified');
-    assert.deepEqual(page.rows(), ['Alice', 'Drew']);
-    page.filter('verification', 'unverified');
-    assert.deepEqual(page.rows(), ['Bob', 'Claire', 'Erin']);
 });
 
-test('search and all three dropdowns combine and clearing controls restores the list', async () => {
-    const page = await loadPage();
-    page.filter('search', '  ALICE@EXAMPLE.COM  ');
-    page.filter('role', 'buyer');
-    page.filter('status', 'active');
-    page.filter('verification', 'verified');
-    assert.deepEqual(page.rows(), ['Alice']);
-    assert.equal(page.elements.get('users-count').textContent, 'Showing 1–1 of 1 users (filtered from 5)');
-    page.filter('verification', 'unverified');
-    assert.deepEqual(page.rows(), []);
-    assert.match(page.elements.get('users-table-body').innerHTML, /No users match your filters/);
-    assert.equal(page.elements.get('users-count').textContent, 'Showing 0 users (filtered from 5)');
-    for (const name of ['search', 'role', 'status', 'verification']) page.filter(name, '');
-    assert.equal(page.rows().length, 5);
+test('search combines with filters and clearing them restores only the selected account type',async()=>{
+    const page=await loadPage();page.filter('search','  ALICE@EXAMPLE.COM  ');page.filter('status','active');page.filter('verification','verified');
+    assert.deepEqual(page.rows(),['Alice']);assert.equal(page.elements.get('users-count').textContent,'Showing 1–1 of 1 users (filtered from 2)');
+    page.filter('verification','unverified');assert.deepEqual(page.rows(),[]);assert.match(page.elements.get('users-table-body').innerHTML,/No users match your filters/);
+    for(const name of ['search','status','verification'])page.filter(name,'');assert.deepEqual(page.rows(),['Alice','Bob']);
+    const organizers=await loadPage([],'organizer');organizers.filter('search','alice');assert.deepEqual(organizers.rows(),[]);
 });
 
-test('suspend and reactivate refresh results while preserving the current filters', async () => {
-    const page = await loadPage();
-    page.filter('role', 'buyer');
-    page.filter('status', 'active');
-    await page.action('alice', 'suspend');
-    assert.deepEqual(page.rows(), []);
-    assert.equal(page.elements.get('user-status-filter').value, 'active');
-    page.filter('status', 'suspended');
-    assert.deepEqual(page.rows(), ['Alice', 'Bob']);
-    await page.action('bob', 'reactivate');
-    assert.deepEqual(page.rows(), ['Alice']);
-    assert.equal(page.elements.get('user-role-filter').value, 'buyer');
-    assert.equal(page.actions.length, 2);
+test('buyer actions preserve filters and organizer deletion removes the account from the active list', async () => {
+    const page = await loadPage(); page.filter('status', 'active'); await page.action('alice', 'delete');
+    assert.deepEqual(page.rows(), []); assert.equal(page.elements.get('user-status-filter').value, 'active');
+    await page.action('bob', 'reactivate'); assert.deepEqual(page.rows(), ['Bob']);
+    const organizers = await loadPage([{id:'lara',fullName:'Lara',role:'organizer',status:'inactive'}], 'organizer');
+    await organizers.action('lara', 'reactivate'); assert.deepEqual(organizers.actions, []);
+    await organizers.action('claire', 'delete'); assert.deepEqual(organizers.rows(), []);
+    assert.ok(organizers.requests.every(request => request.status === 'active'));
 });
 
-test('a failed load replaces old rows with a visible error rather than stale results', async () => {
-    const page = await loadPage();
-    page.fail();
-    await page.reload();
-    assert.deepEqual(page.rows(), []);
-    assert.match(page.elements.get('users-table-body').innerHTML, /Unable to load users/);
-    page.filter('role', 'buyer');
-    assert.deepEqual(page.rows(), []);
+test('failed loads replace old rows with a visible error without restoring accounts from another list',async()=>{
+    for(const role of ['buyer','organizer']){
+        const page=await loadPage([],role);page.fail();await page.reload();assert.deepEqual(page.rows(),[]);
+        assert.match(page.elements.get('users-table-body').innerHTML,/Unable to load/);page.filter('status','active');assert.deepEqual(page.rows(),[]);
+    }
 });
 
-test('pagination shows at most five users per page and reaches every non-admin user', async () => {
-    const page = await loadPage(paginationUsers);
-    assert.deepEqual(page.rows(), ['Alice', 'Bob', 'Claire', 'Drew', 'Erin']);
-    assert.equal(page.elements.get('users-previous').disabled, true);
-    assert.equal(page.elements.get('users-next').disabled, false);
-    assert.equal(page.elements.get('users-page').textContent, 'Page 1 of 2');
-    const names = [...page.rows()];
-    page.navigate('next');
-    assert.deepEqual(page.rows(), ['Faye', 'Glen']);
-    assert.equal(page.elements.get('users-count').textContent, 'Showing 6–7 of 7 users');
-    names.push(...page.rows());
-    assert.deepEqual(names, ['Alice', 'Bob', 'Claire', 'Drew', 'Erin', 'Faye', 'Glen']);
-    assert.equal(page.elements.get('users-next').disabled, true);
-    assert.equal(page.elements.get('users-page').textContent, 'Page 2 of 2');
-    page.navigate('next');
-    assert.deepEqual(page.rows(), ['Faye', 'Glen']);
-    page.navigate('previous');
-    assert.deepEqual(page.rows(), ['Alice', 'Bob', 'Claire', 'Drew', 'Erin']);
+test('pagination reaches every account of the selected role and never includes the other role',async()=>{
+    for(const role of ['buyer','organizer']){
+        const extra=paginationUsers.map(user=>({...user,role})),page=await loadPage(extra,role);
+        const expected=role==='buyer'?['Alice','Bob','Faye','Glen','Hal','Iris','Jade']:['Claire','Faye','Glen','Hal','Iris','Jade'];
+        assert.deepEqual(page.rows(),expected.slice(0,5));assert.equal(page.elements.get('users-previous').disabled,true);
+        page.navigate('next');assert.deepEqual(page.rows(),expected.slice(5));assert.equal(page.elements.get('users-next').disabled,true);
+        page.navigate('next');assert.deepEqual(page.rows(),expected.slice(5));page.navigate('previous');assert.deepEqual(page.rows(),expected.slice(0,5));
+    }
 });
 
-test('changing search or a dropdown returns to the first page of matching users', async () => {
-    const page = await loadPage(paginationUsers);
-    page.navigate('next');
-    page.navigate('next');
-    page.filter('role', 'buyer');
-    assert.deepEqual(page.rows(), ['Alice', 'Bob', 'Faye', 'Glen']);
-    assert.equal(page.elements.get('users-page').textContent, 'Page 1 of 1');
-    assert.equal(page.elements.get('users-next').disabled, true);
-    page.filter('role', '');
-    page.navigate('next');
-    page.filter('search', 'erin');
-    assert.deepEqual(page.rows(), ['Erin']);
-    assert.equal(page.elements.get('users-page').textContent, 'Page 1 of 1');
-    page.filter('search', 'missing');
-    assert.deepEqual(page.rows(), []);
-    assert.equal(page.elements.get('users-previous').disabled, true);
-    assert.equal(page.elements.get('users-next').disabled, true);
+test('changing search or status returns to the first page of matching accounts',async()=>{
+    const page=await loadPage(paginationUsers);page.navigate('next');page.filter('status','suspended');
+    assert.deepEqual(page.rows(),['Bob']);assert.equal(page.elements.get('users-page').textContent,'Page 1 of 1');
+    page.filter('status','');page.navigate('next');page.filter('search','alice');assert.deepEqual(page.rows(),['Alice']);
+    page.filter('search','missing');assert.deepEqual(page.rows(),[]);assert.equal(page.elements.get('users-next').disabled,true);assert.equal(page.elements.get('users-previous').disabled,true);
+});
+
+test('cancelling account confirmation preserves the account status and current list',async()=>{
+    const page=await loadPage();page.confirm(null);await page.action('alice','delete');await page.action('bob','reactivate');
+    assert.deepEqual(page.actions,[]);assert.equal(page.confirmations[0].action,'deleteUser');assert.equal(page.confirmations[1].action,'reactivateUser');assert.deepEqual(page.rows(),['Alice','Bob']);
+});
+
+test('PHP pages and sidebar distinguish users, organizer accounts and organizer applications',()=>{
+    const php=process.platform==='win32'?'C:/xampp/php/php.exe':'php';
+    const buyer=execFileSync(php,['admin/users.php'],{encoding:'utf8'}),organizer=execFileSync(php,['admin/organizer-list.php'],{encoding:'utf8'});
+    assert.match(buyer,/data-account-role="buyer"/);assert.match(organizer,/data-account-role="organizer"/);
+    assert.match(organizer,/<h1[^>]*>Organizer Management<\/h1>/);assert.doesNotMatch(buyer+organizer,/id="user-role-filter"/);
+    assert.match(organizer,/href="..\/admin\/organizer-list.php"/);assert.match(organizer,/Organizer Applications/);assert.match(organizer,/href="..\/admin\/organizers.php"/);
 });
 
 
-test('cancelling account confirmation leaves its status and current list unchanged', async () => {
-    const page = await loadPage();
-    page.confirm(null);
-    await page.action('alice', 'suspend');
-    await page.action('bob', 'reactivate');
-    assert.deepEqual(page.actions, []);
-    assert.equal(page.confirmations[0].action, 'suspendUser');
-    assert.equal(page.confirmations[0].subject, 'Alice');
-    assert.equal(page.confirmations[1].action, 'reactivateUser');
-    assert.deepEqual(page.rows(), ['Alice', 'Bob', 'Claire', 'Drew', 'Erin']);
+test('CSV export includes all filtered rows across pages and neutralizes spreadsheet formulas', async () => {
+    const page = await loadPage([...paginationUsers, { id: 'formula', fullName: '=HYPERLINK("bad")', email: 'formula@example.com', role: 'buyer', status: 'active' }]);
+    await page.elements.get('users-export').listeners.click();
+    const csv = await page.blobs[0].text();
+    assert.match(csv, /Alice/); assert.match(csv, /Jade/); assert.doesNotMatch(csv, /Claire|System Administrator|Last Activity/);
+    assert.ok(csv.includes(`"'=HYPERLINK(""bad"")"`));
+    assert.match(page.exports[0].download, /ticksecure-users-.*\.csv/);
+    page.filter('search', 'Alice'); page.elements.get('users-export').listeners.click();
+    assert.doesNotMatch(await page.blobs[1].text(), /Bob|Jade/);
+    page.fail(); await page.reload(); page.elements.get('users-export').listeners.click(); assert.equal(page.blobs.length, 2);
+});
+
+test('print uses all filtered accounts and escapes user text in the report', async () => {
+    const page = await loadPage([...paginationUsers, { id: 'html', fullName: '<script>bad()</script>', role: 'buyer' }]);
+    page.elements.get('users-print').listeners.click();
+    const frame = page.exports[0];
+    assert.match(frame.srcdoc, /Jade/); assert.match(frame.srcdoc, /&lt;script&gt;/); assert.doesNotMatch(frame.srcdoc, /<script>|Claire|Last Activity/);
+    frame.listeners.load(); assert.equal(page.printed(), 1);
+    const org = await loadPage([], 'organizer'); org.elements.get('users-print').listeners.click();
+    assert.match(org.exports[0].srcdoc, /Organizer Management/); assert.match(org.exports[0].srcdoc, /Claire/); assert.doesNotMatch(org.exports[0].srcdoc, /Drew|Erin|Alice/);
+});
+
+
+test('organizer applications query and display pending organizers only, including after approval or rejection', async () => {
+    const source = fs.readFileSync(path.join(__dirname, '../admin/organizers.php'), 'utf8').match(/<script type="module">([\s\S]*?)<\/script>/)[1];
+    const records = [
+        {id:'active',fullName:'Active Organizer',role:'organizer',status:'active'},
+        {id:'pending',fullName:'Pending Organizer',role:'organizer',status:'pending'},
+        {id:'rejected',fullName:'Rejected Organizer',role:'organizer',status:'rejected'},
+        {id:'inactive',fullName:'Inactive Organizer',role:'organizer',status:'inactive'},
+        {id:'buyer',fullName:'Pending Buyer',role:'buyer',status:'pending'}
+    ];
+    const elements = new Map(), requests = []; let load;
+    vm.runInNewContext(source, { console, document:{getElementById:id=>{if(!elements.has(id))elements.set(id,{});return elements.get(id);}},window:{
+        addEventListener:(_,callback)=>{load=callback;}, tsUsers:{getUsers:async filters=>{requests.push(filters);return records;}}
+    }});
+    await load();
+    assert.equal(requests[0].role,'organizer'); assert.equal(requests[0].status,'pending');
+    assert.match(elements.get('orgs-table-body').innerHTML,/Pending Organizer/);
+    assert.doesNotMatch(elements.get('orgs-table-body').innerHTML,/Active Organizer|Rejected Organizer|Inactive Organizer|Pending Buyer/);
+    for (const status of ['active','rejected']) {
+        records[1].status=status; await load();
+        assert.match(elements.get('orgs-table-body').innerHTML,/No pending organizer applications/);
+    }
 });

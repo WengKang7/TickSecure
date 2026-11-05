@@ -11,6 +11,7 @@ Options -Indexes
     SetEnv TICKSECURE_PHP_RESALE 1
     SetEnv TICKSECURE_PHP_TRANSFER 1
     SetEnv TICKSECURE_PHP_BLOCKCHAIN 1
+    SetEnv TICKSECURE_PHP_ACCOUNTS 1
     # Only Sepolia test tokens, using the separate private funding wallet.
     SetEnv TICKSECURE_DEMO_FUNDING 1
 </IfModule>

@@ -154,9 +154,9 @@
             : 'The current venue layout is not available. Submitted venue details are shown above.');
         el('review-venue-board').replaceChildren();
         el('review-venue-board').hidden = !venue?.sections?.length;
-        if (venue?.sections?.length) window.tsVenueRenderer.renderBoard('review-venue-board', window.tsSeatCategories?.project(venue.sections, event.categories) || venue.sections, { cleanLayout: true, seatOnly: true });
+        if (venue?.sections?.length) window.tsVenueRenderer.renderBoard('review-venue-board', window.tsSeatCategories?.project(venue.sections, event.categories) || venue.sections, { cleanLayout: true, seatOnly: true, fitContainer: true });
         el('venue-link').hidden = !venue;
-        if (venue) el('venue-link').href = `venue-layout.php?id=${encodeURIComponent(event.venueId)}`;
+        if (venue) el('venue-link').href = `venue-layout.php?id=${encodeURIComponent(event.venueId)}&step=3`;
         renderHistory(event, organizer);
         el('action-buttons').hidden = !['PENDING_REVIEW', 'PUBLISHED', 'APPROVED', 'SUSPENDED'].includes(status);
         el('btn-approve').hidden = el('btn-reject').hidden = status !== 'PENDING_REVIEW';

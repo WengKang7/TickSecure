@@ -42,6 +42,33 @@
             // Dark page backgrounds must not become a single solid foreground blob.
             const corners = [0, image.width - 1, (image.height - 1) * image.width, image.width * image.height - 1];
             const darkBackground = corners.filter(i => gray.data[i] < 100).length >= 3;
+            // Very pale, filled chairs disappear from the saturated/dark mask.
+            // Measure their outside edges directly instead of treating gaps or
+            // antialiased interiors as separate chairs. Do not use this pass on
+            // dark artwork or infer seats in empty spaces between detections.
+            if (corners.filter(i => gray.data[i] > 245).length >= 3) {
+                const pale = keep(new cv.Mat()), paleContours = keep(new cv.MatVector()), paleHierarchy = keep(new cv.Mat());
+                // Tighter masks separate antialiased bridges without
+                // splitting a chair or filling an aisle with inferred seats.
+                for (const threshold of [245, 243, 235, 225]) {
+                    cv.threshold(gray, pale, threshold, 255, cv.THRESH_BINARY_INV);
+                    cv.findContours(pale, paleContours, paleHierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+                    for (let i = 0; i < paleContours.size(); i++) {
+                        const contour = paleContours.get(i);
+                        try {
+                            const rect = cv.minAreaRect(contour), area = cv.contourArea(contour);
+                            let { width: w, height: h } = rect.size, angle = rect.angle;
+                            const size = Math.sqrt(w * h);
+                            if (size < minimum || size > maximum || Math.max(w, h) / Math.min(w, h) > 1.8 || area / (w * h) < .70) continue;
+                            const x = Math.round(rect.center.x), y = Math.round(rect.center.y), light = gray.data[y * image.width + x];
+                            if (light < 175 || light > 245 || hsv.data[(y * image.width + x) * 3 + 1] > 60) continue;
+                            while (angle >= 45) { angle -= 90; [w, h] = [h, w]; }
+                            while (angle < -45) { angle += 90; [w, h] = [h, w]; }
+                            shapes.push({ x: rect.center.x, y: rect.center.y, w, h, angle, shape: 'rect', size, method: 'light-filled' });
+                        } finally { contour.delete(); }
+                    }
+                }
+            }
             const solid = keep(cv.Mat.zeros(image.height, image.width, cv.CV_8UC1));
             for (let i = 0; i < gray.data.length; i++) solid.data[i] = ((hsv.data[i * 3 + 1] > 60 && hsv.data[i * 3 + 2] > 65) || (!darkBackground && gray.data[i] < 110)) ? 255 : 0;
             const outer = keep(new cv.MatVector()), outerHierarchy = keep(new cv.Mat());
@@ -82,7 +109,8 @@
             let peak = 0; bins.forEach((count, i) => { if (count > bins[peak]) peak = i; });
             const typical = Math.exp(low + (peak + .5) / 25 * (high - low));
             const seats = [];
-            shapes.filter(s => s.size >= typical * .65 && s.size <= typical * 1.5).sort((a, b) => (a.method === 'outline' ? -1 : 1) - (b.method === 'outline' ? -1 : 1)).forEach(shape => {
+            const priority = { 'light-filled': 0, outline: 1, 'outline-repaired': 2, filled: 3 };
+            shapes.filter(s => s.size >= typical * .65 && s.size <= typical * 1.5).sort((a, b) => priority[a.method] - priority[b.method]).forEach(shape => {
                 if (seats.some(seat => Math.hypot(shape.x - seat.x, shape.y - seat.y) < typical * .7)) return;
                 let r = 0, g = 0, b = 0, n = 0;
                 for (let y = Math.max(0, Math.floor(shape.y - shape.h / 4)); y < Math.min(image.height, shape.y + shape.h / 4); y++) for (let x = Math.max(0, Math.floor(shape.x - shape.w / 4)); x < Math.min(image.width, shape.x + shape.w / 4); x++) {
@@ -94,7 +122,14 @@
             });
             // Repeated chair shapes have nearby peers. Isolated letter holes,
             // legend symbols and door details should not become extra chairs.
-            const supported = seats.filter(seat => seats.some(other => other !== seat && Math.hypot(seat.x - other.x, seat.y - other.y) <= typical * 4));
+            const parent = seats.map((_, i) => i);
+            const find = i => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+            for (let i = 0; i < seats.length; i++) for (let j = i + 1; j < seats.length; j++) {
+                if (Math.hypot(seats[i].x - seats[j].x, seats[i].y - seats[j].y) <= typical * 4) parent[find(j)] = find(i);
+            }
+            const counts = new Map();
+            seats.forEach((_, i) => counts.set(find(i), (counts.get(find(i)) || 0) + 1));
+            const supported = seats.filter((_, i) => counts.get(find(i)) >= 3);
             const resultSeats = seats.length >= 12 && supported.length >= seats.length * .75 ? supported : seats;
             if (resultSeats.length > 3000) throw new Error('More than 3,000 seat shapes were found. Crop to one floor and retry.');
             return { seats: resultSeats, typicalSize: round(typical), candidates: shapes.length };

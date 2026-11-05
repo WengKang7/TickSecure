@@ -35,6 +35,10 @@ window.tsVenueRenderer = {
         const uniformWidth = median(markers.map(marker => (marker.width || 2.8) / 104 * imageWidth)) || 12;
         const uniformHeight = median(markers.map(marker => (marker.height || 2.8) / 106 * imageHeight)) || 12;
         const sharedWidth = uniformWidth / imageWidth * 104, sharedHeight = uniformHeight / imageHeight * 106;
+        const longestNumber = Math.max(1, ...markers.map(marker => String(marker.number || marker.label || '?').length));
+        // Fit even four-digit numbers inside dense plans; strokes must not
+        // consume the gaps between small seats. All clean frames share a size.
+        const cleanFontSize = Math.min(1.3, sharedHeight * .52, sharedWidth * .80 / (longestNumber * .62));
         container.style.aspectRatio = scanned ? 'auto' : '';
         const svg = node('svg', { viewBox: options.viewport?.join(' ') || '0 0 104 106', preserveAspectRatio: scanned ? 'none' : 'xMidYMid meet', class: 'ts-venue-map' + (outlineOnly ? ' ts-map-outline' : ''), role: 'group', 'aria-label': 'Physical venue sections' });
         if (scanned) {
@@ -132,8 +136,8 @@ window.tsVenueRenderer = {
                     style: /^#[0-9a-f]{6}$/i.test(marker.color || '') ? `--ts-seat-color:${marker.color}` : '' });
                 seat.appendChild(node('title', {}, `Seat ${id}-${marker.label || 'unlabelled'}${marker.categoryName ? ' · ' + marker.categoryName : ''}`));
                 const w = options.cleanLayout ? sharedWidth : marker.width || (outlineOnly ? 3.2 : 2.8), h = options.cleanLayout ? sharedHeight : marker.height || (outlineOnly ? 3.2 : 2.8);
-                const attrs = { class: 'ts-seat-frame', fill: outlineOnly ? 'transparent' : /^#[0-9a-f]{6}$/i.test(marker.color || '') ? marker.color : '#e4f1e9', stroke: outlineOnly ? '#eef4ff' : '#23734b', 'stroke-width': '.3', 'pointer-events': 'all' };
-                if (options.cleanLayout) seat.appendChild(node('rect', { ...attrs, x: marker.x - w / 2, y: marker.y - h / 2, width: w, height: h, rx: .25 }));
+                const attrs = { class: 'ts-seat-frame', fill: outlineOnly ? 'transparent' : /^#[0-9a-f]{6}$/i.test(marker.color || '') ? marker.color : '#e4f1e9', stroke: outlineOnly ? '#eef4ff' : '#23734b', 'stroke-width': options.cleanLayout ? Math.min(.3, w * .09, h * .09) : '.3', 'pointer-events': 'all' };
+                if (options.cleanLayout) seat.appendChild(node('rect', { ...attrs, x: marker.x - w / 2, y: marker.y - h / 2, width: w, height: h, rx: Math.min(.25, w * .12, h * .12) }));
                 else if (marker.shape === 'circle') seat.appendChild(node('ellipse', { ...attrs, cx: marker.x, cy: marker.y, rx: w / 2, ry: h / 2 }));
                 else if (marker.shape === 'rect' && marker.rotation) {
                     const sx = (section.geometry.imageWidth || 104) / 104, sy = (section.geometry.imageHeight || 106) / 106, angle = marker.rotation * Math.PI / 180;
@@ -144,7 +148,7 @@ window.tsVenueRenderer = {
                     seat.appendChild(node('polygon', { ...attrs, points: corners.join(' ') }));
                 } else if (outlineOnly || marker.shape === 'rect') seat.appendChild(node('rect', { ...attrs, x: marker.x - w / 2, y: marker.y - h / 2, width: w, height: h, rx: .3 }));
                 else seat.appendChild(node('circle', { ...attrs, cx: marker.x, cy: marker.y, r: 1.4 }));
-                if (!outlineOnly || marker.labelSource === 'auto') seat.appendChild(node('text', { x: marker.x, y: marker.y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': Math.min(1.3, h * .5), fill: '#143b24', 'pointer-events': 'none' }, marker.number || marker.label || '?'));
+                if (!outlineOnly || marker.labelSource === 'auto') seat.appendChild(node('text', { x: marker.x, y: marker.y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': options.cleanLayout ? cleanFontSize : Math.min(1.3, h * .5), fill: '#143b24', 'pointer-events': 'none' }, marker.number || marker.label || '?'));
                 if (options.onSeatSelect || options.onCategorySelect) {
                     const activate = event => { if (disabled) return; if (options.onCategorySelect) { if (marker.categoryId) options.onCategorySelect(marker.categoryId); } else options.onSeatSelect(id, marker.label, event, markerId); };
                     seat.setAttribute('role', 'button'); seat.setAttribute('tabindex', disabled ? '-1' : '0');

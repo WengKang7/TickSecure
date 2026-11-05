@@ -114,6 +114,7 @@ test('explicit organizer preview loads event information but cannot save, select
     const page = createPage({ search: '?id=event-1&preview=1&sectionId=A&qty=3' });
     await page.ready();
     assert.equal(page.elements.get('ev-title').textContent, event.name);
+    assert.match(page.elements.get('ven-board').className, /ts-clean-venue-board/);
     assert.equal(page.elements.get('selected-category-price').textContent, 'RM188.00');
     assert.equal(page.elements.get('category-book-btn').textContent, 'FOR VIEWING ONLY');
     assert.equal(page.elements.get('category-book-btn').getAttribute('aria-disabled'), 'true');

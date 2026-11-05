@@ -20,6 +20,7 @@ require_once __DIR__ . '/seat-picker-policy.php';
 require_once __DIR__ . '/seat-category-policy.php';
 require_once __DIR__ . '/ticket-transfer-history.php';
 require_once __DIR__ . '/blockchain.php';
+require_once __DIR__ . '/admin-accounts.php';
 
 const BACKEND_SERVICE_CHARGE = 20;
 const BACKEND_MAX_REQUEST_BYTES = 131072;
@@ -75,6 +76,11 @@ function backend_transfer_is_enabled(): bool
 function backend_blockchain_is_enabled(): bool
 {
     return getenv('TICKSECURE_PHP_BLOCKCHAIN') === '1' && backend_is_loopback_request();
+}
+
+function backend_accounts_is_enabled(): bool
+{
+    return getenv('TICKSECURE_PHP_ACCOUNTS') === '1' && backend_is_loopback_request();
 }
 
 function backend_fail(int $status, string $message, string $code): never
@@ -1179,13 +1185,23 @@ function backend_suspend_resale_listing(FirebaseAdminRest $firebase, string $uid
 {
     $listingId = backend_require_id($data['listingId'] ?? null, 'Listing ID');
     $reason = is_string($data['reason'] ?? null) ? trim($data['reason']) : '';
-    $reason = substr($reason !== '' ? $reason : 'Suspended by an administrator.', 0, 1000);
+    $reason = substr($reason !== '' ? $reason : 'Suspended by the event organizer.', 0, 1000);
     return $firebase->transaction(static function (FirebaseFirestoreTransaction $transaction) use ($uid, $listingId, $reason): array {
-        $admin = backend_get_actor($transaction, $uid);
-        backend_assert_active_admin($admin);
+        $organizer = backend_get_actor($transaction, $uid);
+        if (($organizer['role'] ?? '') !== 'organizer'
+            || ($organizer['status'] ?? '') !== 'active'
+            || ($organizer['emailVerified'] ?? false) !== true) {
+            backend_fail(403, 'An active, verified event organizer is required to suspend listings.', 'permission-denied');
+        }
         $listing = $transaction->get('ResaleListings', $listingId);
         if ($listing === null) {
             backend_fail(404, 'Listing not found.', 'not-found');
+        }
+        $eventId = (string)($listing['eventId'] ?? '');
+        $event = $eventId !== '' ? $transaction->get('Events', $eventId) : null;
+        if ($event === null || ($event['organizerUid'] ?? '') !== $uid
+            || (array_key_exists('organizerUid', $listing) && $listing['organizerUid'] !== $uid)) {
+            backend_fail(403, 'You can suspend resale listings for your own events only.', 'permission-denied');
         }
         if (($listing['status'] ?? '') !== 'ACTIVE') {
             backend_fail(412, 'Only active listings can be suspended.', 'failed-precondition');
@@ -1193,6 +1209,9 @@ function backend_suspend_resale_listing(FirebaseAdminRest $firebase, string $uid
         $timestamp = backend_now();
         $ticketId = (string)($listing['ticketId'] ?? '');
         $ticket = $transaction->get('NFTTickets', $ticketId);
+        if ($ticket !== null && ($ticket['eventId'] ?? '') !== $eventId) {
+            backend_fail(412, 'The listing no longer matches its event ticket.', 'failed-precondition');
+        }
         $restoreTicket = $ticket !== null
             && ($ticket['ownerUid'] ?? '') === ($listing['sellerUid'] ?? '')
             && ($ticket['status'] ?? '') === 'LISTED_FOR_RESALE';
@@ -1216,7 +1235,7 @@ function backend_suspend_resale_listing(FirebaseAdminRest $firebase, string $uid
             'resale_listing_suspended',
             'resale',
             $listingId,
-            $admin,
+            $organizer,
             ['reason' => $reason]
         ));
         return ['listingId' => $listingId, 'status' => 'SUSPENDED'];
@@ -1395,8 +1414,11 @@ function backend_sync_email_verification(FirebaseAdminRest $firebase, string $ui
     if (($claims['email_verified'] ?? false) !== true) {
         backend_fail(412, 'Verify your email address before syncing this status.', 'failed-precondition');
     }
-    $firebase->transaction(static function (FirebaseFirestoreTransaction $transaction) use ($uid): void {
+    $firebase->transaction(static function (FirebaseFirestoreTransaction $transaction) use ($uid, $claims): void {
         $user = backend_get_actor($transaction, $uid);
+        if (strtolower((string)($claims['email'] ?? '')) !== strtolower((string)($user['email'] ?? ''))) {
+            backend_fail(412, 'Sign in with the current email before verifying it.', 'failed-precondition');
+        }
         $transaction->update('Users', $uid, ['emailVerified' => true, 'updatedAt' => backend_now()]);
         $transaction->create('AuditLogs', backend_new_document_id(), backend_audit_doc(
             'email_verified',
@@ -1642,7 +1664,7 @@ function backend_authorization_header(): string
     return '';
 }
 
-if (!backend_is_enabled() && !backend_password_reset_is_enabled() && !backend_checkout_is_enabled() && !backend_resale_is_enabled() && !backend_transfer_is_enabled() && !backend_blockchain_is_enabled()) {
+if (!backend_is_enabled() && !backend_password_reset_is_enabled() && !backend_checkout_is_enabled() && !backend_resale_is_enabled() && !backend_transfer_is_enabled() && !backend_blockchain_is_enabled() && !backend_accounts_is_enabled()) {
     backend_respond(410, [
         'error' => [
             'code' => 'php_backend_disabled',
@@ -1709,6 +1731,7 @@ try {
         && !(backend_resale_is_enabled() && in_array($action, [
             'createResaleListing', 'updateResalePrice', 'cancelResaleListing', 'suspendResaleListing', 'purchaseResale'
         ], true))
+        && !(backend_accounts_is_enabled() && $action === 'manageAdminAccount')
         && !(backend_transfer_is_enabled() && in_array($action, ['transferTicket', 'getTicketTransfers'], true))
         && !(backend_blockchain_is_enabled() && in_array($action, ['getBlockchainSettings', 'configureBlockchain', 'prepareBlockchainOperation', 'verifyBlockchainOperation', 'getBuyerBlockchainOperations', 'getOrganizerBlockchainOperations', 'getDemoFundingSettings', 'getDemoFundingChallenge', 'claimDemoFunding', 'retryDemoFunding'], true))) {
         backend_fail(410, 'This action is not enabled for this local PHP endpoint.', 'php_backend_disabled');
@@ -1731,6 +1754,7 @@ try {
     }
 
     $handlers = [
+        'manageAdminAccount' => static fn (): array => (new TickSecureAdminAccounts(firebase_backend_config()['projectId']))->manage($uid, $data),
         'getDemoFundingSettings' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->fundingSettings($uid),
         'getDemoFundingChallenge' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->fundingChallenge($uid, $data),
         'claimDemoFunding' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->fundingClaim($uid, $data),

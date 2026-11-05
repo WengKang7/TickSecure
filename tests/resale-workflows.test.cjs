@@ -11,10 +11,10 @@ const wallet = '0x' + '1'.repeat(40);
 const actor = role => ({ role, status: 'active', emailVerified: true, walletAddress: wallet });
 function records() {
     return {
-        'Users/buyer': actor('buyer'), 'Users/other': actor('buyer'), 'Users/seller': actor('buyer'), 'Users/admin': actor('admin'),
+        'Users/buyer': actor('buyer'), 'Users/other': actor('buyer'), 'Users/seller': actor('buyer'), 'Users/admin': actor('admin'), 'Users/organizer': actor('organizer'), 'Users/otherOrganizer': actor('organizer'),
         'Events/event': { status: 'PUBLISHED', organizerUid: 'organizer', resaleEnabled: true, resaleStartDate: '2000-01-01', resaleDeadline: '2099-12-31', maxTicketsPerBuyer: 2, maxResaleMarkup: 10, categories: { A: { name: 'VIP', price: 100 } } },
         'NFTTickets/ticket': { eventId: 'event', sectionId: 'A', categoryName: 'VIP', ownerUid: 'seller', status: 'LISTED_FOR_RESALE', seatId: 'A1', walletAddress: wallet },
-        'ResaleListings/listing': { eventId: 'event', sectionId: 'A', ticketId: 'ticket', sellerUid: 'seller', buyerUid: '', originalPrice: 100, resalePrice: 105, maxAllowedPrice: 110, status: 'ACTIVE', ruleCompliance: 'COMPLIANT' }
+        'ResaleListings/listing': { organizerUid: 'organizer', eventId: 'event', sectionId: 'A', ticketId: 'ticket', sellerUid: 'seller', buyerUid: '', originalPrice: 100, resalePrice: 105, maxAllowedPrice: 110, status: 'ACTIVE', ruleCompliance: 'COMPLIANT' }
     };
 }
 function backend(initial) {
@@ -81,11 +81,17 @@ scenario('other account cannot reprice', 'updateResalePrice', 'buyer', null, 'pe
 scenario('stale ticket cannot be repriced', 'updateResalePrice', 'seller', s => { s['NFTTickets/ticket'].status = 'USED'; }, 'failed-precondition');
 scenario('seller cancels listing', 'cancelResaleListing', 'seller');
 scenario('cancelling does not revive used ticket', 'cancelResaleListing', 'seller', s => { s['NFTTickets/ticket'].status = 'USED'; }, 'failed-precondition');
-scenario('admin suspends listing', 'suspendResaleListing', 'admin');
-scenario('unverified admin suspends listing', 'suspendResaleListing', 'admin', s => { s['Users/admin'].emailVerified = false; });
-scenario('admin without a verification field suspends listing', 'suspendResaleListing', 'admin', s => { delete s['Users/admin'].emailVerified; });
-scenario('suspended admin cannot suspend listings', 'suspendResaleListing', 'admin', s => { s['Users/admin'].status = 'suspended'; s['Users/admin'].emailVerified = false; }, 'permission-denied');
-scenario('moderation does not revive a used ticket', 'suspendResaleListing', 'admin', s => { s['NFTTickets/ticket'].status = 'USED'; });
+scenario('own organizer suspends listing', 'suspendResaleListing', 'organizer');
+scenario('admin can no longer suspend listing', 'suspendResaleListing', 'admin', null, 'permission-denied');
+scenario('another organizer cannot suspend listing', 'suspendResaleListing', 'otherOrganizer', null, 'permission-denied');
+scenario('a forged listing organizer cannot override event ownership', 'suspendResaleListing', 'otherOrganizer', s => { s['ResaleListings/listing'].organizerUid='otherOrganizer'; }, 'permission-denied');
+scenario('an inconsistent organizer projection cannot be moderated', 'suspendResaleListing', 'organizer', s => { s['ResaleListings/listing'].organizerUid='otherOrganizer'; }, 'permission-denied');
+scenario('unverified organizer cannot suspend listings', 'suspendResaleListing', 'organizer', s => { s['Users/organizer'].emailVerified=false; }, 'permission-denied');
+scenario('suspended organizer cannot suspend listings', 'suspendResaleListing', 'organizer', s => { s['Users/organizer'].status='suspended'; }, 'permission-denied');
+scenario('missing event cannot be moderated', 'suspendResaleListing', 'organizer', s => { delete s['Events/event']; }, 'permission-denied');
+scenario('mismatched event ticket cannot be moderated', 'suspendResaleListing', 'organizer', s => { s['NFTTickets/ticket'].eventId='other'; }, 'failed-precondition');
+scenario('sold listing cannot be suspended', 'suspendResaleListing', 'organizer', s => { s['ResaleListings/listing'].status='SOLD'; }, 'failed-precondition');
+scenario('moderation does not revive a used ticket', 'suspendResaleListing', 'organizer', s => { s['NFTTickets/ticket'].status='USED'; });
 scenario('buyer cannot suspend listing', 'suspendResaleListing', 'buyer', null, 'permission-denied');
 scenario('unverified active admin scans a valid ticket', 'scanTicket', 'admin', s => { s['Users/admin'].emailVerified = false; s['NFTTickets/ticket'].status = 'VALID'; }, null, {eventId:'event'});
 scenario('suspended admin cannot scan tickets', 'scanTicket', 'admin', s => { s['Users/admin'].status = 'suspended'; s['Users/admin'].emailVerified = false; s['NFTTickets/ticket'].status = 'VALID'; }, 'permission-denied', {eventId:'event'});
@@ -104,6 +110,15 @@ test('Firebase and PHP execute matching resale transactions and reject invalid o
             assert.deepEqual(node.data, s.records, 'atomic failure: '+s.name);
             assert.deepEqual(phpResults[index].records, s.records, 'PHP atomic failure: '+s.name);
         } else {
+            if (s.action === 'suspendResaleListing') {
+                for(const state of [node.data,phpResults[index].records]) {
+                    const audits=Object.values(state).filter(row=>row.action==='resale_listing_suspended');
+                    assert.equal(audits.length,1);assert.equal(audits[0].actorUid,'organizer');assert.equal(audits[0].actorRole,'organizer');
+                    const notices=Object.values(state).filter(row=>row.type==='resale_suspended');
+                    assert.equal(notices.length,1);assert.equal(notices[0].recipientUid,'seller');
+                    assert.equal(state['NFTTickets/ticket'].status,s.name.includes('used ticket')?'USED':'VALID');
+                }
+            }
             if (s.action === 'purchaseResale') {
                 assert.equal(result.totalAmount, 125);
                 assert.equal(phpResults[index].result.totalAmount, 125);

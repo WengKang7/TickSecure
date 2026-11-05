@@ -143,7 +143,9 @@
                 }
                 if (section.geometry?.layout === 'ocr') {
                     const g = section.geometry;
-                    panel.appendChild(el('p', 'small muted mt-12', `OCR confidence: ${Math.round(g.confidence || 0)}%. ${g.boundarySource === 'text-bounds' ? 'Only the label boundary was found; adjust it to cover the section.' : 'Check the detected section boundary.'}`));
+                    panel.appendChild(el('p', 'small muted mt-12', g.source === 'shape-detection'
+                        ? 'Detected from seat shapes. Numbers are assigned automatically, not read from the image. Compare the seats and aisles with the original plan before approving.'
+                        : `OCR confidence: ${Math.round(g.confidence || 0)}%. ${g.boundarySource === 'text-bounds' ? 'Only the label boundary was found; adjust it to cover the section.' : 'Check the detected section boundary.'}`));
                     const bounds = el('fieldset', 'ts-ocr-bounds mt-12'); bounds.appendChild(el('legend', 'ts-label', 'Adjust section boundary (%)'));
                     const x = Math.min(...g.points.map(p => p.x)), y = Math.min(...g.points.map(p => p.y));
                     const width = Math.max(...g.points.map(p => p.x)) - x, height = Math.max(...g.points.map(p => p.y)) - y;

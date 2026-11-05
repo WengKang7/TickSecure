@@ -40,7 +40,8 @@ service cloud.firestore {
       // Firebase Authentication is the source of truth. This avoids trapping
       // a user on the verification page when their email link succeeds but a
       // callable backend is unavailable (for example, a Spark-plan demo).
-      return signedIn() && request.auth.token.email_verified == true;
+      return hasProfile() && request.auth.token.email_verified == true
+        && request.auth.token.email == get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.email;
     }
 
     function isActiveAccount() {
@@ -147,6 +148,7 @@ service cloud.firestore {
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['emailVerified'])
             || (
               request.auth.token.email_verified == true
+              && request.auth.token.email == resource.data.email
               && request.resource.data.emailVerified == true
             )
           )

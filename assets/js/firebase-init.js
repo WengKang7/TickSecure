@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getAuth, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+import { getAuth, connectAuthEmulator, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 import { getFirestore, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 import { getStorage, connectStorageEmulator } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js";
 import { getFunctions, connectFunctionsEmulator } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-functions.js";
@@ -107,6 +107,12 @@ if (useEmulators) {
   connectStorageEmulator(storage, emulatorHost, EMULATOR_PORTS.storage);
   connectFunctionsEmulator(functions, emulatorHost, EMULATOR_PORTS.functions);
 }
+
+// Apply to every role before dependent modules can sign in or restore access.
+// Firebase also moves existing local logins into the current tab's session.
+// Normal page navigation/refresh keeps the login; closing the tab ends it.
+// Do not fall back to a persistent login if session storage is unavailable.
+await setPersistence(auth, browserSessionPersistence);
 
 // Make Firebase services globally available to other scripts
 window.tsFirebase = {

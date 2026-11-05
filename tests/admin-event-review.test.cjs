@@ -119,7 +119,7 @@ test('review shows the complete submitted schedule, address, description, contac
     assert.match(p.text('val-submitted'), /24 Oct 2026.*10:00 am/);
     assert.match(p.text('review-history'), /Submitted for approval/);
     assert.equal(p.get('organizer-link').href, 'organizer-detail.php?id=organizer%261');
-    assert.equal(p.get('venue-link').href, 'venue-layout.php?id=hall%261');
+    assert.equal(p.get('venue-link').href, 'venue-layout.php?id=hall%261&step=3');
 });
 
 test('partial section allocations show true offered totals and readable physical sections', async () => {
@@ -131,6 +131,7 @@ test('partial section allocations show true offered totals and readable physical
     assert.equal(rows.length, 4, 'unused section E does not become ticket inventory');
     assert.deepEqual(rows[0].children.map(cell => cell.textContent), ['VIP 1', 'Physical A', 'RM267.00', '25', '250']);
     assert.equal(p.get('review-venue-board').children.length, 6, 'layout shows stage and five physical sections');
+    assert.match(p.get('review-venue-board').className, /ts-venue-fit/, 'the complete seating plan fits inside the preview');
 });
 
 test('review uses actual buyer policy with transfer restriction, resale windows and category price examples', async () => {

@@ -1,12 +1,18 @@
 import { AccountCrud } from './role-crud.js';
-import { db } from './firebase-init.js';
-import { doc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { invokeTrustedBackend } from './backend-client.js?v=20261104-admin-accounts';
 import { validateFullName, validatePassword, validateEmail, validatePhone } from './validation.js';
 
 const form = document.getElementById('account-form');
 const message = document.getElementById('account-message');
 const save = document.getElementById('account-save');
-const archive = document.getElementById('account-archive');
+const password = form.elements.password;
+const showPassword = document.getElementById('password-show');
+showPassword.addEventListener('click', () => {
+    const show = password.type === 'password';
+    password.type = show ? 'text' : 'password';
+    showPassword.textContent = show ? 'Hide password' : 'Show password';
+    showPassword.setAttribute('aria-pressed', String(show));
+});
 const id = new URLSearchParams(location.search).get('id');
 const orgFields = ['organizationName', 'organizationPhone', 'organizationAddress', 'organizationDescription'];
 const role = form.elements.role;
@@ -25,18 +31,15 @@ async function initialize() {
             if (!user || !['buyer', 'organizer'].includes(user.role)) throw new Error('Buyer or organizer account not found.');
             form.elements.fullName.value = user.fullName || '';
             form.elements.email.value = user.email || '';
-            form.elements.email.disabled = role.disabled = true;
             role.value = user.role;
             form.elements.password.required = false;
-            form.elements.password.disabled = true;
-            document.getElementById('password-field').hidden = true;
-            if (user.role === 'organizer') {
+            document.getElementById('password-label').textContent = 'New password (optional)';
+            document.getElementById('password-help').textContent = 'Leave blank to keep the current password. Existing passwords cannot be retrieved. A new password requires uppercase, lowercase, a number and a special character. Changing the email requires verification of the new address.';
+            {
                 const org = await window.tsUsers.getOrganizerProfile(id);
                 orgFields.forEach(key => { form.elements[key].value = org?.[key] || ''; });
             }
-            archive.hidden = user.status === 'deleted';
-            document.getElementById('archive-help').hidden = false;
-            if (user.status === 'deleted') throw new Error('This account has been archived. Its history is retained.');
+            if (user.status === 'deleted') throw new Error('This account has been deleted. Its history is retained.');
         }
         organizationVisibility();
         ready = true;
@@ -49,22 +52,23 @@ form.addEventListener('submit', async event => {
     event.preventDefault();
     if (!ready || save.disabled || !form.reportValidity()) return;
     const data = Object.fromEntries(new FormData(form));
-    const validations = [validateFullName(data.fullName)];
-    if (!id) validations.push(validateEmail(data.email), validatePassword(data.password));
+    const validations = [validateFullName(data.fullName), validateEmail(data.email)];
+    if (!id || data.password) validations.push(validatePassword(data.password));
     if (role.value === 'organizer') validations.push(validatePhone(data.organizationPhone));
     const invalid = validations.find(result => !result.valid);
     if (invalid) { message.textContent = invalid.error; return; }
-    save.disabled = archive.disabled = true;
+    save.disabled = true;
     try {
         if (!await window.tsDecision(id ? 'updateAccount' : 'createAccount', data.fullName,
             [['Email', form.elements.email.value], ['Role', role.value === 'organizer' ? 'Event Organizer' : 'Buyer']])) return;
         message.textContent = 'Saving account…';
         if (id) {
-            const batch = writeBatch(db);
-            batch.update(doc(db, 'Users', id), { fullName: data.fullName.trim(), updatedAt: new Date().toISOString() });
-            if (role.value === 'organizer') batch.set(doc(db, 'OrganizerProfiles', id), Object.fromEntries(orgFields.map(key => [key, data[key].trim()])));
-            await batch.commit();
-            message.textContent = 'Account saved.';
+            const result = await invokeTrustedBackend({ ...data, userId: id, action: 'edit' }, { name: 'manageAdminAccount', region: 'asia-southeast1' });
+            password.value = '';
+            password.type = 'password';
+            showPassword.textContent = 'Show password';
+            showPassword.setAttribute('aria-pressed', 'false');
+            message.textContent = result.emailChanged ? 'Account saved. The user must verify their new email when signing in.' : 'Account saved.';
         } else {
             const result = await AccountCrud.create(data);
             form.reset();
@@ -76,14 +80,5 @@ form.addEventListener('submit', async event => {
             message.append(link);
         }
     } catch (error) { message.textContent = error.message || 'Unable to save account.'; }
-    finally { save.disabled = !ready; archive.disabled = false; }
-});
-archive.addEventListener('click', async () => {
-    if (!id || archive.disabled) return;
-    archive.disabled = save.disabled = true;
-    try {
-        if (!await window.tsDecision('archiveAccount', form.elements.fullName.value, [['Email', form.elements.email.value]])) return;
-        await AccountCrud.archive(id); location.href = 'users.php';
-    } catch (error) { message.textContent = error.message; }
-    finally { archive.disabled = save.disabled = false; }
+    finally { save.disabled = !ready; }
 });
