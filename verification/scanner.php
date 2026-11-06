@@ -1,74 +1,42 @@
-<?php require_once __DIR__ . '/../shared/ui.php'; ?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Entry Verification · TickSecure</title><link rel="stylesheet" href="../assets/css/ticksecure.css"><?=ts_access_head('..')?><?=ts_decision_head('..')?></head><body><main class="ts-verify-shell"><div class="ts-verify-card"><div class="flex justify-between items-center mb-24"><div><?=ts_brand('..')?><div class="small" style="color:#98A2B3;margin-top:8px">Authorized Event Personnel · Aurora After Dark</div></div><?=ts_status('Ready','success')?></div><div class="ts-camera"><div class="ts-camera-corners"></div><div class="text-center"><?=ts_icon('scanner','ts-icon-xl')?><div class="mt-12">QR camera area</div><div class="small mt-8">Ready to scan attendee ticket</div></div></div>
-
-<div class="mt-20">
-    <div class="ts-input-wrap flex gap-12" style="margin-bottom: 20px;">
-        <input class="ts-input grow" type="text" name="qrInput" id="qr-input" placeholder="Simulate QR data (TKSECURE:tId:eId:sId)">
-        <button class="ts-btn ts-btn-primary" id="verify-btn">Verify</button>
-    </div>
-    <div class="grid-2 flex gap-12">
-        <a class="ts-btn ts-btn-success grow" href="valid.php">Preview Valid Result</a>
-        <a class="ts-btn ts-btn-danger grow" href="invalid.php">Preview Invalid Result</a>
-    </div>
-</div>
-
-<?=ts_decision_dialog('..')?>
+<?php require_once __DIR__ . '/../shared/ui.php'; $faceMachine = ($faceMachine ?? false) === true; ?>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Identity check-in · TickSecure</title><link rel="stylesheet" href="../assets/css/ticksecure.css"><?=ts_access_head('..')?><?=ts_decision_head('..')?><?=ts_design2_theme_head('..')?></head>
+<body><main class="ts-face-page ts-container <?= $faceMachine ? 'ts-face-machine' : '' ?>">
+  <?=ts_brand('..')?>
+  <header class="ts-record-heading"><div><div class="ts-section-eyebrow">Event entrance</div><h1>Identity check-in.</h1><p>Scan the ticket QR, confirm consent and look at the camera. A successful face match checks the attendee in and marks the ticket used.</p></div></header>
+  <div class="ts-face-layout">
+    <section class="ts-card ts-face-card"><h2 id="checkin-step">1. Scan ticket QR</h2>
+      <div class="ts-face-camera"><video id="checkin-video" autoplay muted playsinline aria-label="Check-in camera preview"></video><?php if ($faceMachine): ?><div class="ts-face-guide" aria-hidden="true"></div><span class="ts-face-camera-label">LIVE CAMERA</span><?php endif; ?></div>
+      <p id="checkin-status" role="status" aria-live="polite">Sign in as the event organizer or an administrator to begin.</p>
+      <div class="ts-alert ts-alert-error ts-face-result" id="checkin-error" role="alert" tabindex="-1" hidden></div>
+      <div class="ts-alert ts-alert-success ts-face-result" id="checkin-success" role="status" tabindex="-1" hidden>
+        <strong>Verification successful</strong>
+        <p id="checkin-success-message"></p>
+        <dl class="ts-face-receipt">
+          <div><dt>Event</dt><dd id="checkin-result-event"></dd></div>
+          <div><dt>Attendee / current owner</dt><dd id="checkin-result-attendee"></dd></div>
+          <div><dt>Ticket category</dt><dd id="checkin-result-category"></dd></div>
+          <div><dt>Section</dt><dd id="checkin-result-section"></dd></div>
+          <div><dt>Seat</dt><dd id="checkin-result-seat"></dd></div>
+          <div><dt>Ticket reference</dt><dd id="checkin-result-ticket"></dd></div>
+          <div><dt>Checked in at (Malaysia time)</dt><dd id="checkin-result-time"></dd></div>
+          <div><dt>Entry status</dt><dd id="checkin-result-status"></dd></div>
+        </dl>
+      </div>
+      <label class="ts-face-consent" id="checkin-supervision" hidden><input id="checkin-present" type="checkbox"><span>The attendee is physically present in front of this camera and agrees to a face check. I am not scanning a photograph or video.</span></label>
+      <p id="checkin-hint" class="ts-face-hint" role="status" hidden></p>
+      <div class="ts-face-actions"><button class="ts-btn ts-btn-primary" id="checkin-qr" disabled>Scan QR with camera</button><button class="ts-btn ts-btn-secondary" id="checkin-face" hidden>Start face camera</button><button class="ts-btn ts-btn-secondary" id="checkin-reset">Next attendee / reset</button></div>
+      <details class="mt-24"><summary>Enter QR text manually</summary><label for="qr-input">Ticket QR payload</label><textarea class="ts-input mt-12" id="qr-input" maxlength="512" placeholder="Paste the complete TKSECURE2 QR payload"></textarea><button class="ts-btn ts-btn-secondary mt-12" id="verify-btn" disabled>Check QR</button></details>
+    </section>
+    <aside class="ts-card ts-face-card"><h2>How to check in</h2><ol><li>The buyer completes NFT setup and registers their face from My Tickets.</li><li>As the event organizer or administrator, scan the buyer’s ticket QR or paste its full QR text.</li><li>Start the face camera and confirm the attendee’s presence and consent. Verification starts automatically once both are ready.</li><li>A successful match marks the ticket used and prevents duplicate entry. Select Next attendee for the next ticket.</li></ol><p><strong>Successful:</strong> the face matches the current registered ticket owner and check-in is complete.<br><strong>Failed:</strong> check-in was not confirmed. Read the message and scan the ticket again before retrying.</p>
+      <p>A QR check alone does not admit anyone. Failed face checks do not mark tickets used.</p>
+      <p class="secondary">Supervised local FYP demonstration. This face matcher does not provide certified liveness or legal identity verification. Do not admit someone using a photograph or video.</p>
+      <a class="ts-btn ts-btn-secondary" href="../index.php">Back to TickSecure</a>
+    </aside>
+  </div>
+</main>
 <script type="module" src="../assets/js/firebase-init.js"></script>
 <script type="module" src="<?=ts_asset_url('assets/js/auth-guard.js', '..')?>"></script>
-<script type="module">
-import '../assets/js/firestore-crud.js';
-
-document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('verify-btn');
-    const input = document.getElementById('qr-input');
-
-    if (!btn || !input) return;
-
-    const setScannerAvailability = (profile = window.tsCurrentUser) => {
-        const authorized = profile
-            && ['admin', 'organizer'].includes(profile.role)
-            && profile.status === 'active';
-        btn.disabled = !authorized;
-        btn.textContent = authorized ? 'Verify' : (profile ? 'Access Restricted' : 'Preparing...');
-    };
-
-    window.addEventListener('ts-auth-ready', event => setScannerAvailability(event.detail));
-    setScannerAvailability();
-
-    btn.addEventListener('click', async () => {
-        const val = input.value.trim();
-
-        btn.disabled = true;
-        btn.textContent = 'Verifying...';
-
-        try {
-            // Expected format: TKSECURE:ticketId:eventId:seatId
-            const parts = val.split(':').map(part => part.trim());
-            const [prefix, ticketId, eventId, seatId] = parts;
-            if (parts.length !== 4 || prefix !== 'TKSECURE' || !ticketId || !eventId || !seatId) {
-                throw new Error('Invalid QR format');
-            }
-
-            // TicketService delegates this state-changing operation to the
-            // protected scanTicket callable in deployed environments.
-            if (!window.tsTickets) {
-                throw new Error('Ticket services are still loading. Please try again.');
-            }
-
-            if (!await window.tsDecision('confirmEntry', 'Ticket ' + ticketId, [['Event', eventId], ['Seat', seatId]])) return;
-            const result = await window.tsTickets.verifyTicket(ticketId, eventId);
-            if (result && result.valid) {
-                window.location.href = 'valid.php?ticketId=' + encodeURIComponent(ticketId);
-            } else {
-                throw new Error(result.reason || 'Invalid ticket');
-            }
-        } catch (err) {
-            const reason = err?.message || 'Unable to verify this ticket.';
-            window.location.href = 'invalid.php?reason=' + encodeURIComponent(reason);
-        } finally {
-            setScannerAvailability();
-        }
-    });
-});
-</script>
-
-</div></main></body></html>
+<script src="<?=ts_asset_url('assets/js/vendor/jsQR-1.4.0.js', '..')?>"></script>
+<script src="<?=ts_asset_url('assets/js/face-client.js', '..')?>"></script>
+<script src="<?=ts_asset_url('assets/js/face-checkin.js', '..')?>"></script>
+</body></html>

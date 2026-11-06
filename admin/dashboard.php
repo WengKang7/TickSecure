@@ -7,7 +7,7 @@ ob_start();
     <header class="ts-admin-dashboard-hero">
         <div>
             <span class="ts-admin-dashboard-kicker">ADMINISTRATION</span>
-            <h1>Administrator dashboard</h1>
+            <h1>Dashboard.</h1>
             <p>Manage your platform, review applications and keep track of what needs attention.</p>
         </div>
         <div class="ts-admin-dashboard-hero-side">

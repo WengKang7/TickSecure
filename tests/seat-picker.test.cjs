@@ -169,3 +169,27 @@ test('reduced motion shows static people and disables the animation button', asy
     assert.equal(p.elements.get('picker-people-motion').attributes['aria-pressed'],'false');
     assert.deepEqual(p.writes,[]);
 });
+
+test('DESIGN2 2D plan includes context chairs without making them selectable or changing reservation IDs', async () => {
+    const offered = { id: 'real-seat', seatLabel: 'Main-A1', number: '40', row: 'A', status: 'AVAILABLE',
+        position: { x: 25, y: 40, width: 3, height: 3, page: 1 } };
+    const context = { seatLabel: 'Other-A2', number: '41', position: { x: 30, y: 40, width: 3, height: 3, page: 1 } };
+    const data = { seats: [offered], unitPrice: 168, maxPerBuyer: 4, categoryName: 'General admission', eventName: 'Concert', venueName: 'Hall',
+        geometry: { imageWidth: 640, imageHeight: 598, page: 1, layoutSeats: [context, { ...offered }, { ...context, seatLabel: 'Other-page', position: { ...context.position, page: 2 } }] } };
+    const before = JSON.stringify(data);
+    const p = page({ search: '?eventId=event1&sectionId=Main&qty=1', getMap: () => structuredClone(data),
+        hold: async ids => ({ seats: ids.map(id => ({ id, seatLabel: offered.seatLabel })), reservationExpiry: new Date(Date.now() + 600000).toISOString() }) });
+    await p.ready();
+    const view = p.views.at(-1), markers = view.sections[0].geometry.seatMarkers;
+    assert.equal(view.config.cleanLayout, true);
+    assert.equal(markers.length, 2, 'no duplicate chairs or chairs from a different blueprint page');
+    assert.equal(markers[0].status, 'CONTEXT');
+    assert.equal(markers[1].id, 'real-seat');
+    assert.deepEqual(JSON.parse(JSON.stringify(markers[1])).x, offered.position.x);
+    p.select(markers[0].id);
+    assert.equal(p.elements.get('picker-count').textContent, '0 of 1 seats selected');
+    assert.equal(p.elements.get('picker-seat-list').children.length, 1);
+    p.select('real-seat'); await p.click('picker-reserve');
+    assert.deepEqual(p.writes[0].ids, ['real-seat']);
+    assert.equal(JSON.stringify(data), before, 'source geometry and availability are unchanged');
+});

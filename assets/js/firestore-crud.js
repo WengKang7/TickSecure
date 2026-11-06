@@ -111,9 +111,11 @@ function withBookingAliases(booking) {
 }
 
 function withNotificationAliases(notification) {
+    const read = notification.read ?? notification.isRead ?? false;
     return {
         ...notification,
-        isRead: notification.isRead ?? notification.read ?? false
+        read,
+        isRead: read
     };
 }
 
@@ -308,13 +310,17 @@ export const NotificationService = {
 
     async getForUser(userUid = null) {
         const u = userUid || uid();
-        const snap = await getDocs(query(
-            collection(db, 'Notifications'),
-            where('recipientUid', '==', u),
-            orderBy('createdAt', 'desc'),
-            limit(50)
-        ));
-        return snap.docs.map(d => withNotificationAliases({ id: d.id, ...d.data() }));
+        let snap;
+        try {
+            snap = await getDocs(query(collection(db, 'Notifications'), where('recipientUid', '==', u), orderBy('createdAt', 'desc'), limit(50)));
+        } catch (error) {
+            // Local demos may not have deployed the optional composite index yet.
+            if (!String(error.code || '').endsWith('failed-precondition') || !/index/i.test(error.message || '')) throw error;
+            snap = await getDocs(query(collection(db, 'Notifications'), where('recipientUid', '==', u)));
+        }
+        const timestamp = value => typeof value?.toDate === 'function' ? value.toDate().getTime() : Date.parse(value || '') || 0;
+        return snap.docs.map(d => withNotificationAliases({ ...d.data(), id: d.id }))
+            .sort((a, b) => timestamp(b.createdAt) - timestamp(a.createdAt) || String(a.id).localeCompare(String(b.id))).slice(0, 50);
     },
 
     async markRead(notifId) {
@@ -322,10 +328,12 @@ export const NotificationService = {
     },
 
     async markAllRead() {
-        const items = await this.getForUser();
-        const batch = writeBatch(db);
-        items.filter(n => !n.read).forEach(n => batch.update(doc(db, 'Notifications', n.id), { read: true }));
-        await batch.commit();
+        const snap = await getDocs(query(collection(db, 'Notifications'), where('recipientUid', '==', uid()), where('read', '==', false)));
+        for (let index = 0; index < snap.docs.length; index += 450) {
+            const batch = writeBatch(db);
+            snap.docs.slice(index, index + 450).forEach(item => batch.update(doc(db, 'Notifications', item.id), { read: true }));
+            await batch.commit();
+        }
     },
 
     async delete(notifId) {

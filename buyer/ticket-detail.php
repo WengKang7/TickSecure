@@ -7,12 +7,19 @@ ob_start();
     <a class="ts-record-back" href="tickets.php">&larr; Back to My Tickets</a>
     <header class="ts-record-heading">
       <div><div class="ts-section-eyebrow">My Tickets</div><h1>Your digital ticket</h1><p class="secondary">Event entry and ownership details in one place.</p></div>
-      <div class="ts-record-actions"><a class="ts-btn ts-btn-secondary" id="view-booking" href="bookings.php" hidden>View booking</a><button class="ts-btn ts-btn-secondary" id="download-qr" type="button" disabled><?=ts_icon('download')?> Download QR</button></div>
+      <div class="ts-record-actions"><button class="ts-btn ts-btn-primary" id="ticket-flip-button" type="button" aria-pressed="false" aria-controls="ticket-flip-card" disabled>View NFT artwork</button><a class="ts-btn ts-btn-secondary" id="view-booking" href="bookings.php" hidden>View booking</a><button class="ts-btn ts-btn-secondary" id="download-qr" type="button" disabled><?=ts_icon('download')?> Download QR</button></div>
     </header>
     <div class="ts-alert ts-alert-error" id="ticket-error" role="alert" hidden></div>
+    <section class="ts-card ts-face-card" id="ticket-face-gate" hidden>
+      <h2>Face registration</h2><p id="ticket-face-message" role="status">Checking ticket identity…</p>
+      <a class="ts-btn ts-btn-primary" id="ticket-face-register" href="tickets.php">Register my face</a>
+      <a class="ts-btn ts-btn-secondary" id="ticket-face-nft" href="blockchain.php">Complete NFT setup</a>
+    </section>
     <div id="ticket-content" hidden>
       <div class="ts-ticket-detail-layout">
-        <section class="ts-ticket-pass" aria-labelledby="val-event">
+        <div class="ts-ticket-flip" id="ticket-flip-card" data-flipped="false">
+        <div class="ts-ticket-flip-inner">
+        <section class="ts-ticket-pass ts-ticket-flip-front" id="ticket-flip-front" aria-labelledby="val-event">
           <div class="ts-ticket-head">
             <div class="ts-ticket-heading-copy"><small>TickSecure digital ticket</small><h2 class="ts-ticket-event" id="val-event">Loading...</h2><div class="ts-ticket-event-facts"><span id="val-event-meta"></span><span id="val-venue"></span></div></div>
             <div id="val-status"></div>
@@ -30,6 +37,18 @@ ob_start();
             <div class="ts-ticket-reference"><span>Ticket ID</span><code id="val-ticket-id"></code></div>
           </div>
         </section>
+        <section class="ts-ticket-flip-back" id="ticket-flip-back" aria-label="Ticket NFT collectible" aria-hidden="true" inert>
+          <div class="ts-ticket-art-heading"><span>Your ticket collectible</span><span id="ticket-art-mint"></span></div>
+          <div class="ts-collectible-poster" id="ticket-art-poster">
+            <img class="ts-collectible-image" id="ticket-art-image" alt="" width="1122" height="1402" decoding="async">
+            <div class="ts-collectible-top"><span class="ts-collectible-brand">ticksecure®</span><span class="ts-collectible-series">TICKET COLLECTION</span></div>
+            <div class="ts-collectible-caption"><span class="ts-collectible-edition" id="ticket-art-edition"></span><strong class="ts-collectible-category" id="ticket-art-category"></strong><h2 class="ts-collectible-event" id="ticket-art-event"></h2><span class="ts-collectible-date" id="ticket-art-date"></span></div>
+            <div class="ts-collectible-footer"><span>KEEP THE MOMENT</span><span id="ticket-art-number"></span></div>
+          </div>
+          <div class="ts-ticket-art-footer"><span id="ticket-art-seat"></span><a href="collections.php">Open my NFT collection &rarr;</a></div>
+        </section>
+        </div>
+        </div>
         <aside class="ts-card ts-record-card" aria-labelledby="ownership-heading">
           <div class="ts-record-card-heading"><h2 id="ownership-heading">Ticket ownership</h2><div id="val-status-label"></div></div>
           <dl class="ts-record-facts ts-record-facts-stack">
@@ -41,6 +60,7 @@ ob_start();
           <p class="small secondary ts-record-policy-note" id="ticket-actions-note"></p>
           <a class="ts-record-history-link" href="#history">View ownership history &darr;</a>
           <a class="ts-btn ts-btn-secondary w-full mt-16" id="ticket-buyer-chain-link" href="blockchain.php">My NFT transactions</a>
+          <a class="ts-btn ts-btn-secondary w-full mt-16" id="ticket-face-manage" href="tickets.php">Manage face registration</a>
           <details class="ts-record-technical"><summary>Blockchain details <?=ts_icon('chevron-down')?></summary><dl class="ts-record-facts ts-record-facts-stack"><div><dt>Contract address</dt><dd class="ts-record-code" id="val-contract"></dd></div><div><dt>Mint transaction</dt><dd class="ts-record-code" id="val-tx"></dd></div><div id="ticket-chain-latest" hidden><dt>Latest confirmed Sepolia transaction</dt><dd class="ts-record-code" id="val-chain-latest"></dd><dt>Wallet recorded on Sepolia</dt><dd class="ts-record-code" id="val-chain-owner"></dd><dd class="small secondary" id="val-chain-sync"></dd></div></dl></details>
         </aside>
       </div>
@@ -51,6 +71,8 @@ ob_start();
 <script src="<?=ts_asset_url('assets/js/vendor/qrcode-generator-1.4.4.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/ticket-display.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/ticket-qr.js', '..')?>"></script>
+<script src="<?=ts_asset_url('assets/js/face-client.js', '..')?>"></script>
+<script src="<?=ts_asset_url('assets/js/collectible-art.js', '..')?>"></script>
 <script type="module" src="<?=ts_asset_url('assets/js/ticket-detail.js', '..')?>"></script>
 <?php
 $content = ob_get_clean();

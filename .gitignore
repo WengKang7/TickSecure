@@ -8,6 +8,8 @@ serviceAccountKey.json
 firebase-adminsdk*.json
 api/firebase-config.local.php
 api/maps-config.local.php
+api/face-config.local.php
+tools/face/__pycache__/
 api/*.service-account.json
 
 # Local XAMPP fallback storage

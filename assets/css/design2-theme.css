@@ -1,0 +1,570 @@
+/* Reuse DESIGN2 presentation only. Its demo scripts are never loaded. */
+@import url('design2-reference.css') layer(design2);
+/* DESIGN2 visual layer for DESIGN1. No behaviour, routing or seat geometry overrides. */
+:root {
+  --bg-page: #fff;
+  --bg-surface: #fff;
+  --bg-subtle: #fff;
+  --bg-hover: #fff;
+  --border-default: #e5e5e5;
+  --border-strong: #bcbcbc;
+  --text-primary: #111;
+  --text-secondary: #555;
+  --text-tertiary: #686868;
+  --text-disabled: #777;
+  --brand-900: #000;
+  --brand-600: #111;
+  --brand-100: #fff;
+  --shadow-card: none;
+  --shadow-modal: 0 25px 90px #0002;
+  --radius-sm: 10px;
+  --radius-md: 10px;
+  --radius-card: 10px;
+  --radius-modal: 10px;
+  --display: 'Space Grotesk', Arial, sans-serif;
+  --body: 'DM Sans', Arial, sans-serif;
+  --theme-ease: cubic-bezier(.2,.7,.3,1);
+}
+
+body { background: #fff; color: #111; font: 400 15px/1.6 var(--body); letter-spacing: 0; }
+body :is(h1,h2,h3,h4,.ts-page-title,.ts-section-title,.ts-card-title,.ts-auth-title,.ts-kpi-value) {
+  font-family: var(--display) !important; letter-spacing: -.045em;
+}
+body :is(h1,h2,h3) { font-weight: 600; }
+::selection { background: #111; color: #fff; }
+body :is(a,button,input,select,textarea,summary):focus-visible { outline: 2px solid #111; outline-offset: 4px; }
+body.ts-body-public, body.ts-body-dashboard { background: #fff; }
+body .small { font-size: 13px; }
+body .ts-container { width: min(1380px, calc(100% - 112px)); }
+
+/* Shared controls. Semantic status colours and seat availability remain distinct. */
+body .ts-btn {
+  min-height: 48px; height: auto; padding: 12px 22px; border-radius: 10px !important;
+  background: #000 !important; border-color: #000 !important; color: #fff !important;
+  box-shadow: none !important; font-size: 14px; font-weight: 550;
+  transition: transform .2s var(--theme-ease), box-shadow .2s, opacity .2s;
+}
+body .ts-btn:hover:not(:disabled):not(.disabled):not([aria-disabled="true"]) { transform: translateY(-2px); box-shadow: 0 5px 15px #0001 !important; }
+body .ts-btn-sm { min-height: 38px; padding: 8px 13px; font-size: 13px; }
+body .ts-btn-lg { min-height: 52px; padding: 14px 25px; font-size: 15px; }
+body .ts-btn:is(:disabled,.disabled,[aria-disabled="true"]) {
+  background: #fff !important; color: #777 !important; border-color: #ddd !important;
+  opacity: 1; box-shadow: none !important; transform: none; cursor: not-allowed;
+}
+body .ts-btn[aria-pressed="true"] { outline: 2px solid #111; outline-offset: 3px; }
+body .ts-icon-btn { background: #fff; color: #111; border-color: #e5e5e5; border-radius: 10px; box-shadow: none; }
+body .ts-icon-btn:hover { background: #fff; color: #000; border-color: #111; }
+body :is(.ts-input,.ts-select,.ts-textarea,.ts-decision-input) {
+  background: #fff !important; color: #111 !important; border-color: #dedede;
+  border-radius: 10px !important; font-family: var(--body); font-size: 15px; box-shadow: none;
+}
+body :is(.ts-input,.ts-select) { min-height: 48px; }
+body :is(.ts-input,.ts-select,.ts-textarea):focus { border-color: #111; box-shadow: 0 0 0 3px #00000008; }
+body :is(.ts-input,.ts-textarea)::placeholder { color: #777; opacity: 1; }
+body input:-webkit-autofill { -webkit-box-shadow: 0 0 0 1000px #fff inset; -webkit-text-fill-color: #111; }
+body :is(.ts-label,.ts-field > label) { font-size: 14px; font-weight: 550; color: #111; }
+body input:is([type="checkbox"],[type="radio"]) { accent-color: #000; }
+body :is(.ts-chip,.ts-avatar,.ts-role-pill,.ts-step-number,.ts-notification-count) { border-radius: 10px; }
+body .ts-chip { font-size: 12px; letter-spacing: 0; background: #fff; }
+body .ts-alert { background: #fff; border-color: #e5e5e5; border-left: 3px solid currentColor; }
+body :is(.ts-avatar,.ts-role-pill) { background: #fff; color: #111; border: 1px solid #e5e5e5; }
+body .ts-trust-icon { background: #fff; color: #111; border: 1px solid #e5e5e5; border-radius: 10px; }
+
+/* Shared confirmation dialogs; action text continues to explain destructive actions. */
+body .ts-decision { --decision-accent: #000; --decision-soft: #fff; --decision-icon: #111; background: #fff; color: #111; border-color: #e5e5e5; border-radius: 10px; padding: 32px; font-family: var(--body); box-shadow: var(--shadow-modal); }
+body .ts-decision::backdrop { background: #1118; backdrop-filter: blur(5px); }
+body .ts-decision:is([data-tone="danger"],[data-tone="success"]) { --decision-accent: #000; --decision-soft: #fff; --decision-icon: #111; }
+body .ts-decision :is(.ts-decision-symbol,.ts-decision-close,.ts-decision-review,.ts-decision-button) { border-radius: 10px; border-color: #e5e5e5; }
+body .ts-decision :is(.ts-decision-symbol,.ts-decision-close,.ts-decision-review) { background: #fff; color: #111; }
+body .ts-decision :is(h2,.ts-decision-subject,.ts-decision-details dd) { color: #111; }
+body .ts-decision :is(.ts-decision-message,.ts-decision-details dt,.ts-decision-hint,.ts-decision-eyebrow) { color: #686868; }
+body .ts-decision-button { background: #000; color: #fff; font-size: 14px; font-family: var(--body); }
+body .ts-modal { border-radius: 10px; box-shadow: var(--shadow-modal); }
+body #ts-access-status { background: #fff; }
+
+
+/* DESIGN2 component bridge for the existing live pages. */
+body :is(h1,h2,h3,h4,.ts-card-title,.ts-page-title,.ts-auth-title,.ts-kpi-value){font-weight:500;letter-spacing:-.055em}
+body .wrap:not(.d2-wrap){width:auto;margin-inline:0;max-width:none}
+body .d2-wrap,body .ts-container{width:min(1380px,calc(100% - 112px));margin-inline:auto}
+body .ts-btn{font-size:13px;min-height:48px;padding:13px 22px;gap:16px}
+body .ts-btn-sm{min-height:37px;font-size:12px;padding:8px 14px}
+body :is(.ts-input,.ts-select,.ts-textarea){font-size:14px;border-color:#d7d7d7}
+body .ts-label,body .ts-field>label{font-size:12px;font-weight:400}
+body :is(.ts-card,.ts-modal,.ts-ticket-card,.ts-ticket-pass,.ts-accordion,.ts-note,.ts-copy-code,.ts-venue-preview-container,.ts-admin-confirm-dialog){border-radius:10px;box-shadow:none;background:#fff;border-color:#e5e5e5}
+body .ts-card-pad{padding:26px}body .ts-card-head{padding:22px 26px;border-color:#e5e5e5}
+body .ts-card-title{font-size:20px;letter-spacing:-.04em}body .ts-card-sub{font-size:12px}
+body .ts-icon{stroke-width:1.5}
+body .ts-brand{display:inline-flex;align-items:center;gap:10px;color:#111;font:700 24px/1.3 var(--display);letter-spacing:-1.3px}
+body .ts-brand sup{font:500 11px var(--body);align-self:flex-start;margin-top:3px;margin-left:-6px;letter-spacing:0}
+body .ts-brand .ts-brand-mark{width:29px;height:28px;display:flex;gap:3px;align-items:center;flex:0 0 29px;background:none;border:0;border-radius:0;box-shadow:none;transform:rotate(-13deg)}
+body .ts-brand-mark::before{display:none}body .ts-brand-mark i{display:block;width:5px;background:currentColor}
+body .ts-brand-mark i:nth-child(1){height:15px}body .ts-brand-mark i:nth-child(2){height:28px}body .ts-brand-mark i:nth-child(3){height:21px}body .ts-brand-mark i:nth-child(4){height:12px}
+body .ts-public-header{height:85px;background:#fff;backdrop-filter:none;border-color:#e5e5e5}
+body .ts-public-header-inner{height:84px;gap:30px}body .ts-public-header-brand{gap:0}
+body .ts-public-nav{gap:30px;margin-left:64px}body .ts-public-nav a{font-size:13px;font-weight:400;padding-block:31px;color:#777}
+body .ts-public-nav a.active{color:#111}body .ts-public-nav a.active::after{height:2px;background:#111;border-radius:0}
+body .ts-public-actions{gap:18px}body .ts-public-auth-group{gap:22px}
+body #public-guest-actions>a:first-child{min-height:0;padding:8px 0;color:#111!important;background:none!important;border:0}
+body #public-guest-actions>a:first-child:hover{transform:none;text-decoration:underline}
+body .ts-wallet-mini{background:#fff;color:#111;border:0;padding:0;gap:8px}
+body .ts-public-user{background:#000;color:#fff;padding:8px 14px;border-radius:10px}
+body #public-user-link:is(:hover,:focus-visible,[aria-expanded=true]){background:#000;color:#fff;border-color:#000}
+body .ts-public-user-name{color:#fff;font-size:12px;font-weight:500}body .ts-public-user .ts-avatar{background:none;color:#fff;border:0;width:26px;height:26px}
+body .ts-public-user .ts-account-chevron{color:#fff}body .ts-public-logout{min-height:37px}
+
+/* Ticket collectibles: local colourful artwork around real, read-only ticket data. */
+body .ts-collections-page{padding:42px 0 70px}
+body .ts-collections-page [hidden]{display:none!important}
+body .ts-collection-heading{display:flex;justify-content:space-between;align-items:flex-end;gap:28px;margin-bottom:34px}
+body .ts-collection-heading h1{font:500 clamp(40px,5.2vw,72px)/1.08 var(--display);letter-spacing:-.065em;margin:18px 0}
+body .ts-collection-heading p{font-size:15px;color:#777;line-height:1.7}
+body .ts-collection-heading-actions{display:flex;gap:10px;flex-wrap:wrap;flex-shrink:0}
+body .ts-collection-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid #ddd;border-bottom:1px solid #ddd;padding:22px 0;margin-bottom:28px}
+body .ts-collection-stats>div{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:0 30px;border-right:1px solid #ddd}
+body .ts-collection-stats>div:first-child{padding-left:0}body .ts-collection-stats>div:last-child{border:0;padding-right:0}
+body .ts-collection-stats span{font-size:12px;color:#777}body .ts-collection-stats strong{font:500 35px/1 var(--display);letter-spacing:-.045em}
+body .ts-collection-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px}
+body .ts-collection-search{display:flex;align-items:center;gap:12px;min-width:180px;flex:1;border:1px solid #ddd;border-radius:10px;padding:0 15px;max-width:460px}
+body .ts-collection-search:focus-within{outline:2px solid #111;outline-offset:2px}
+body .ts-collection-search .ts-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+body .ts-collection-search>svg{width:17px;height:17px;color:#777;flex:none}
+body .ts-collection-search input{width:100%;min-width:0;border:0;outline:none;box-shadow:none;background:#fff;padding:13px 0;font:400 13px var(--body);color:#111}
+body .ts-collection-search input:focus{outline:none;box-shadow:none}
+body .ts-collection-filters{display:flex;gap:5px;flex-wrap:wrap}
+body .ts-collection-filters button{padding:11px 14px;background:#fff;border:1px solid #ddd;border-radius:10px;font:400 12px var(--body);color:#666;cursor:pointer;transition:background .18s,color .18s}
+body .ts-collection-filters button[aria-pressed=true]{background:#111;border-color:#111;color:#fff}
+body .ts-collection-filters button:focus-visible{outline:2px solid #111;outline-offset:3px}
+body .ts-collection-status{margin:0 0 24px;font-size:11px}
+body .ts-collectibles-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px 24px}
+body .ts-collectible-card{display:block;min-width:0;color:#111;text-decoration:none;border-radius:10px;outline-offset:5px}
+body .ts-collectible-card:focus-visible{outline:2px solid #111}
+body .ts-collectible-poster{position:relative;aspect-ratio:4/5;overflow:hidden;border-radius:10px;isolation:isolate;background:#182ba6;box-shadow:0 10px 25px #1111;transition:transform .35s,box-shadow .35s}
+body .ts-collectible-tropical{background:#005347}body .ts-collectible-electric{background:#791344}
+body .ts-collectible-image{display:block;width:100%;height:100%;object-fit:cover;filter:none;transition:transform .65s cubic-bezier(.2,.7,.3,1)}
+body .ts-collectible-image[hidden]{display:none}
+body .ts-collectible-poster::after{content:'';position:absolute;inset:45% 0 0;background:linear-gradient(transparent,#05051838 25%,#050518a6 100%);z-index:0;pointer-events:none}
+body .ts-collectible-top{position:absolute;top:20px;left:20px;right:20px;display:flex;justify-content:space-between;align-items:center;gap:12px;z-index:1;color:#fff;text-shadow:0 1px 8px #0005}
+body .ts-collectible-brand{font:700 17px var(--display);letter-spacing:-.055em}
+body .ts-collectible-series{font-size:8px;letter-spacing:.16em;text-align:right}
+body .ts-collectible-caption{position:absolute;bottom:57px;left:24px;right:24px;z-index:1;color:#fff;text-align:center;text-shadow:0 2px 12px #0002}
+body .ts-collectible-edition{display:block;font-size:9px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:12px;color:#ffffffcf}
+body .ts-collectible-category{display:block;font:700 clamp(22px,2.7vw,38px)/1 var(--display);letter-spacing:-.045em;text-transform:uppercase;overflow-wrap:anywhere;margin-bottom:10px}
+body .ts-collectible-event{font:500 19px/1.2 var(--display);letter-spacing:-.035em;margin:0 0 10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+body .ts-collectible-date{font-size:11px;line-height:1.4;color:#ffffffde}
+body .ts-collectible-footer{position:absolute;left:20px;right:20px;bottom:15px;border-top:1px dashed #ffffff55;padding-top:12px;display:flex;justify-content:space-between;gap:10px;z-index:1;color:#fff;font-size:8px;letter-spacing:.12em}
+body .ts-collectible-meta{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:17px 0 10px}
+body .ts-collectible-mint{font-size:11px;color:#777;display:flex;align-items:center;gap:6px}
+body .ts-collectible-mint::before{content:'';width:6px;height:6px;border-radius:10px;border:1px solid #999;background:#fff;flex:none}
+body .ts-collectible-mint.is-minted{color:#111}body .ts-collectible-mint.is-minted::before{background:#111;border-color:#111}
+body .ts-collectible-meta .ts-chip{font-size:10px}
+body .ts-collectible-bottom{display:flex;justify-content:space-between;align-items:baseline;gap:14px;border-top:1px solid #eee;padding-top:10px;font-size:12px;color:#777}
+body .ts-collectible-bottom>span:first-child{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:70%}
+body .ts-collectible-open{font-size:11px;color:#111;white-space:nowrap}
+body .ts-collection-empty{padding:65px 20px;text-align:center;border:1px dashed #ccc;border-radius:10px;background:#fff}
+body .ts-collection-empty[hidden]{display:none}body .ts-collection-empty h2{font:500 30px/1.2 var(--display);letter-spacing:-.04em;margin-bottom:14px}
+body .ts-collection-empty p{margin-bottom:22px;font-size:14px}
+@media(hover:hover) and (prefers-reduced-motion:no-preference){body .ts-collectible-card:hover .ts-collectible-poster{transform:translateY(-5px);box-shadow:0 18px 36px #1112}body .ts-collectible-card:hover .ts-collectible-image{transform:scale(1.035)}}
+@media(max-width:1100px){body .ts-collection-heading{align-items:flex-start;flex-direction:column;gap:14px}body .ts-collection-toolbar{flex-wrap:wrap}body .ts-collection-search{max-width:none}body .ts-collection-filters{margin-left:auto}body .ts-collectibles-grid{grid-template-columns:repeat(2,minmax(0,1fr))}body .ts-collectible-category{font-size:36px}}
+@media(max-width:620px){body .ts-collections-page{padding:28px 0 45px}body .ts-collection-heading h1{font-size:40px}body .ts-collection-heading p{font-size:14px}body .ts-collection-heading-actions{width:100%;gap:8px}body .ts-collection-heading-actions .ts-btn{flex:1;font-size:11px;padding-inline:12px}body .ts-collection-stats{padding:18px 0;margin-bottom:22px}body .ts-collection-stats>div{display:grid;gap:10px;padding:0 13px}body .ts-collection-stats strong{font-size:29px}body .ts-collection-stats span{font-size:10px}body .ts-collection-search{flex:1 1 100%}body .ts-collection-filters{margin:0;gap:4px}body .ts-collection-filters button{font-size:10px;padding:10px}body .ts-collection-toolbar{gap:12px}body .ts-collection-toolbar>.ts-btn{margin-left:auto;min-height:35px;padding:9px 12px;font-size:10px}body .ts-collectibles-grid{grid-template-columns:minmax(0,1fr);gap:28px}body .ts-collectible-category{font-size:36px}}
+body :is(.ts-account-menu,.ts-public-mobile-panel){background:#fff;border-color:#e5e5e5;border-radius:10px}
+body .ts-public-mobile-panel a.active{background:#fff;color:#111;border-color:#111}
+body .ts-site-footer{margin-top:0;background:#fff}body .ts-site-footer p{margin-bottom:0}
+/* Full-width editorial landing, using the original slideshow controller. */
+
+
+.ts-home .home-account-link{font-size:12px;margin-top:8px}
+.ts-home .home-showcase{border-radius:10px;position:relative;isolation:isolate;overflow:hidden;background:#111}
+.ts-home .home-slides,.ts-home .home-slide{position:absolute;inset:0}.ts-home .home-slide{opacity:0;visibility:hidden;transition:opacity 1s,visibility 1s;color:#fff}
+.ts-home .home-slide.is-active{opacity:1;visibility:visible;z-index:1}.ts-home .home-scene{width:100%;height:100%;object-fit:cover;object-position:center 61%;filter:none}
+.ts-home .home-slide::after{content:'';position:absolute;inset:0;background:linear-gradient(transparent 35%,#0009);pointer-events:none}
+.ts-home .hero-visual::after{display:none}
+
+.ts-home .hero-caption .btn{white-space:nowrap}
+.ts-home .home-carousel-controls{position:absolute;top:65px;left:30px;right:30px;z-index:3;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
+.ts-home .hero-slide-controls{margin:0;pointer-events:auto}.ts-home .home-playback{display:flex;gap:8px;pointer-events:auto}
+.ts-home .home-playback button{width:32px;height:32px;padding:6px;color:#fff;background:#000;border:1px solid #ffffff66;border-radius:10px;display:grid;place-items:center}
+.ts-home .home-playback svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5}
+.ts-home .home-closing-actions{display:grid;justify-items:end;gap:12px}
+.ts-home .home-event-card{display:block;border:0;background:#fff;min-width:0}.ts-home .home-event-cover{position:relative;height:280px;overflow:hidden;border-radius:10px;background:#111}
+.ts-home .home-event-cover img{width:100%;height:100%;object-fit:cover;transition:transform .65s cubic-bezier(.2,.7,.3,1)}.ts-home .home-event-poster{position:absolute;inset:0}
+.ts-home .home-event-card:hover .home-event-cover img{transform:scale(1.045)}
+.ts-home .home-event-type{position:absolute;left:16px;top:16px;background:#fff;color:#111;padding:6px 9px;border:1px solid #e4e4e4;border-radius:10px;font-size:10px;letter-spacing:.09em;text-transform:uppercase}
+.ts-home .home-date-stamp{position:absolute;top:16px;right:16px;display:flex;align-items:center;gap:5px;padding:6px 9px;background:#fff;color:#111;border-radius:10px;font-size:10px}
+.ts-home .home-date-stamp b{font-weight:500}.ts-home .home-event-body{padding-top:19px}
+.ts-home .home-event-date{color:#757575;font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:9px}
+.ts-home .home-event-body h3{font:500 27px/1.08 var(--display);letter-spacing:-.045em;margin:9px 0;overflow-wrap:anywhere}.ts-home .home-event-venue{font-size:12px;color:#757575}
+.ts-home .home-event-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e5e5e5;margin-top:22px;padding-top:15px}
+.ts-home .home-event-foot>span{font-size:11px;color:#777}.ts-home .home-event-foot strong{display:block;font-size:17px;font-weight:500;color:#111}
+.ts-home .home-event-foot>i{width:31px;height:31px;border:1px solid #ccc;border-radius:10px;display:grid;place-items:center}.ts-home .home-event-foot svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5}
+.ts-home .home-event-card:hover .home-event-foot>i{background:#111;color:#fff;border-color:#111}.ts-home .home-events-message{grid-column:1/-1}
+
+
+/* Sidebar-only staff workspaces, matching DESIGN2 rather than recolouring the old header. */
+body .ts-shell{grid-template-columns:245px minmax(0,1fr)}body .ts-main.dashboard-main{padding:44px 42px 60px}body .ts-page{max-width:none;margin:0;padding:0}
+body .ts-sidebar{background:#fff;color:#111;position:sticky;top:0;left:auto;width:245px;height:100dvh;border-right:1px solid #e5e5e5;box-shadow:none;padding:28px 20px;overflow:visible}
+body .ts-sidebar-head{min-height:55px;height:auto;padding:0 8px 25px;border-bottom:1px solid #e5e5e5;justify-content:space-between;gap:12px}
+body .ts-sidebar .ts-brand{color:#111;font-size:22px;letter-spacing:-1.2px;gap:8px}body .ts-sidebar .ts-brand-mark{background:none;width:26px;flex-basis:26px;gap:2px}
+body .ts-sidebar-nav{padding:0;margin-top:0;overflow:auto;flex:1;min-height:0}body .ts-sidebar-nav>.sidebar-label{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#888;margin:25px 12px 14px}
+body .ts-nav-group{margin:0}body .ts-nav-label{display:none}
+body .ts-sidebar .ts-side-link{min-height:42px;height:auto;padding:12px;gap:12px;margin:0 0 3px;font:400 13px/1.55 var(--body);color:#777;border-radius:10px;white-space:normal}
+body .ts-sidebar .ts-side-link.active{color:#111;background:#fff;box-shadow:inset 3px 0 #111;font-weight:500}body .ts-sidebar .ts-side-link:hover{color:#111;background:#fff}
+body .ts-side-link.active::before{display:none}body .ts-sidebar-foot{padding:20px 0 0;margin-top:auto;border:0}
+body .ts-sidebar .ts-profile-card{padding:0 12px 14px;background:#fff}body .ts-sidebar .ts-profile-name{color:#111;font-size:12px;font-weight:600}body .ts-sidebar .ts-profile-role{color:#777;font-size:11px}
+body .ts-sidebar .ts-avatar{width:30px;height:30px;border-radius:10px;font-size:10px;flex:none}
+body .ts-sidebar-tools{display:flex;align-items:center;gap:8px;padding:0 12px 12px}body .ts-sidebar-tools .ts-icon-btn{width:32px;height:32px}
+body .ts-sidebar-public,body .ts-sidebar-logout{display:flex;align-items:center;gap:10px;width:100%;background:#fff;color:#777;border:0;padding:9px 12px;font:400 12px var(--body);border-radius:10px}
+body .ts-sidebar-logout:hover,body .ts-sidebar-public:hover{color:#111}body .ts-sidebar-toggle{display:none}
+body .ts-sidebar .ts-attention-panel{position:absolute;top:auto;bottom:45px;left:0;right:auto;max-height:65dvh;width:min(360px,calc(100vw - 40px));z-index:100;border-radius:10px;box-shadow:0 20px 50px #0002}
+body .ts-page-head{margin:0 0 30px;align-items:flex-end}body .ts-page-title{font-size:42px;line-height:1.08;margin:13px 0}body .ts-page-subtitle{font-size:13px;line-height:1.65}
+body :is(.ts-admin-dashboard-hero,.ts-organizer-hero,.ts-organizer-event-hero){border:0;background:#fff;border-radius:0;padding:0;margin:0 0 30px;box-shadow:none;align-items:flex-end}
+body :is(.ts-admin-dashboard-hero,.ts-organizer-hero) h1{font-size:42px;font-weight:500;line-height:1.08;margin:13px 0}
+body :is(.ts-admin-dashboard-hero,.ts-organizer-hero) p{margin:0;font-size:13px}
+body :is(.ts-admin-dashboard-kicker,.ts-organizer-kicker,.ts-organizer-event-kicker){font-size:11px;letter-spacing:.14em;color:#111;font-weight:650}
+body .ts-kpi-grid{gap:0;border:1px solid #e5e5e5;border-radius:10px;margin:0 0 28px;overflow:hidden}
+body .ts-kpi-grid .ts-kpi{padding:22px;border:0;border-right:1px solid #e5e5e5;border-radius:0;box-shadow:none}body .ts-kpi-grid .ts-kpi:last-child{border-right:0}
+body .ts-kpi-top{font-size:11px;min-height:34px;gap:10px;color:#777}body .ts-kpi-icon{width:24px;height:24px;background:#fff;color:#111;border:0}
+body :is(.ts-admin-dashboard,.ts-organizer-dashboard,.ts-organizer-event-detail) .ts-kpi-value,body .ts-kpi-value{font:500 clamp(25px,2.7vw,39px)/1.15 var(--display);letter-spacing:-.065em;margin:14px 0 7px;overflow-wrap:anywhere}
+body .ts-kpi-label{font-size:10px;color:#777}body :is(.ts-admin-dashboard-grid,.ts-organizer-dashboard-grid){margin-top:0;gap:24px;grid-template-columns:1fr 1fr}
+body :is(.ts-admin-dashboard-section-head,.ts-organizer-section-head,.ts-organizer-event-section-head) h2{font-size:22px;font-weight:500;letter-spacing:-.04em}
+body :is(.ts-admin-shortcuts,.ts-organizer-shortcuts){display:block;margin-top:18px}
+body :is(.ts-admin-shortcut,.ts-organizer-shortcut){padding:16px 0;background:#fff;border:0;border-bottom:1px solid #e5e5e5;border-radius:0;box-shadow:none}
+body :is(.ts-admin-shortcut,.ts-organizer-shortcut):hover{background:#fff;border-color:#111}
+body :is(.ts-admin-shortcut-icon,.ts-organizer-shortcut-icon){background:#fff;color:#111;width:24px;height:24px;border:0}
+body :is(.ts-admin-shortcut,.ts-organizer-shortcut,.ts-admin-review-item)>svg{color:#111}
+body :is(.ts-admin-review-count,.ts-organizer-event-sales-summary){color:#111;background:#fff;border-radius:10px;border-color:#e5e5e5}
+body .ts-organizer-event-detail .ts-organizer-event-tabs{background:#fff;border:0;border-bottom:1px solid #e5e5e5;border-radius:0;padding:0}
+body .ts-organizer-event-tabs .ts-tab.active{background:#fff;color:#111;box-shadow:inset 0 -2px #111}
+body .ts-table th{color:#777;background:#fff;font-size:10px;font-weight:400;letter-spacing:.08em;border-color:#e5e5e5;padding:14px 17px}
+body .ts-table td{color:#111;border-color:#e5e5e5;font-size:12px;padding:17px}body .ts-table tbody tr:hover td{background:#fff}body .ts-table .cell-title{font-weight:550}
+body .ts-tab{color:#777;font-size:12px;font-weight:400;border-radius:10px}body .ts-tab.active{color:#111;font-weight:500}body .ts-tab.active::after{background:#111}
+body :is(.ts-tabs,.ts-filter-bar,.ts-pagination){background:#fff;border-color:#e5e5e5}body .ts-form-grid{gap:18px}
+/* Floating authentication panels with the original live forms. */
+body .ts-auth{display:block;position:relative;min-height:100dvh;background:#fff;padding:0}
+body .ts-auth-backdrop{position:fixed;inset:0;z-index:0;padding:42px 56px;overflow:hidden;background:#fff;pointer-events:none}
+body .ts-auth-backdrop-brand{font:700 24px var(--display);letter-spacing:-1.3px}body .ts-auth-backdrop h2{font:500 clamp(64px,7.7vw,118px)/.94 var(--display);letter-spacing:-.075em;margin:70px 0 36px}
+body .ts-auth-backdrop-photo{height:550px;border-radius:10px;background:url('https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1800&q=85') center/cover}
+body .ts-auth::before{content:'';position:fixed;inset:0;z-index:1;background:#1118;backdrop-filter:blur(5px);pointer-events:none}
+body .ts-auth-form-wrap{position:relative;z-index:2;min-height:100dvh;padding:32px 16px;display:grid;place-items:center}
+body .ts-auth-form{width:min(600px,100%);border:1px solid #ddd;border-radius:10px;background:#fff;padding:32px;box-shadow:0 25px 90px #0002}
+body .ts-auth-title{font:500 30px/1.08 var(--display);letter-spacing:-.055em;margin:20px 0 16px}body .ts-auth-sub{font-size:13px;line-height:1.8;margin:0 0 24px}
+body .ts-auth-fields{gap:18px}body .ts-auth-footer{font-size:12px;margin-top:20px}body .ts-auth-form .ts-form-grid{grid-template-columns:1fr}
+body .ts-role-choice{display:flex;gap:16px;margin:0 0 24px}body .ts-role-card{display:inline-flex;cursor:pointer;padding:0;border:0;border-radius:0;background:none;color:#111;box-shadow:none}
+body .ts-role-card.active{display:none}body .ts-role-card :is(svg,span){display:none}body .ts-role-card strong{font:400 12px var(--body);text-decoration:underline;text-underline-offset:5px}
+body .ts-auth-form #organizer-fields{border:0;padding:18px 0 0;border-top:1px solid #e5e5e5;border-radius:0}body .ts-success-icon{border-radius:10px;background:#fff;border:1px solid #e5e5e5;color:#111}
+body .ts-decision{width:min(600px,calc(100vw - 32px))}body .ts-decision h2{font-weight:500}
+
+/* Discovery cards use DESIGN2's unboxed editorial composition. */
+.ts-events-page,.ts-resale-page,.ts-tickets-page{background:#fff;color:#111;min-height:60vh;padding:48px 0 70px}
+body .ts-events-intro{display:block;padding:0 0 34px;margin:0;border:0;background:#fff}
+body .ts-events-intro h1{font:500 clamp(43px,5.5vw,72px)/1.08 var(--display);letter-spacing:-.055em;margin:24px 0 18px}
+body .ts-events-intro-copy{max-width:590px}body .ts-events-intro-copy p{margin:0;font-size:14px;line-height:1.8}body .ts-events-intro-copy>span{display:none}
+body .ts-events-toolbar{display:flex;align-items:center;gap:22px;padding:16px 22px;margin-bottom:28px;border:1px solid #e5e5e5;border-radius:10px;background:#fff}
+body .ts-events-toolbar .ts-search{flex:1;max-width:none}body .ts-events-toolbar .ts-input{border:0;font-size:14px}
+body .ts-event-view-switch{gap:8px}body .ts-event-view-switch .ts-btn{min-height:39px;padding:9px 17px;background:#fff!important;color:#777!important;border-color:#e5e5e5!important;font-size:12px}
+body .ts-event-view-switch .ts-btn[aria-pressed=true]{background:#111!important;color:#fff!important;border-color:#111!important}
+body .ts-events-results-head{display:flex;align-items:center;justify-content:space-between;gap:24px;margin:18px 0 28px}
+body .ts-events-results-head h2{font:500 24px var(--display);letter-spacing:-.04em;margin:0}body #events-count{font-size:12px;color:#777}
+body .ts-event-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:30px}
+body .ts-events-page .ts-event-card{border:0;background:#fff;box-shadow:none;border-radius:0;overflow:visible}body .ts-event-card:hover{transform:none;box-shadow:none}
+body .ts-events-page .ts-event-art{height:280px;padding:0;border-radius:10px;overflow:hidden;color:#fff;background:#111}body .ts-events-page .ts-event-art::after{display:none}
+body .ts-events-page .ts-events-cover{position:absolute;inset:0;background:url('https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=900&q=85') center/cover}body .ts-events-cover>*{display:none}
+body .ts-events-poster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .65s cubic-bezier(.2,.7,.3,1)}body .ts-event-card:hover .ts-events-poster{transform:scale(1.045)}
+body .ts-events-date-stamp{top:16px;right:16px;min-height:0;width:auto;flex-direction:row;gap:5px;background:#fff;color:#111;border-radius:10px;padding:6px 9px;border:1px solid #e5e5e5;box-shadow:none}
+body .ts-events-page .ts-events-date-stamp strong{font-size:10px;font-weight:500;letter-spacing:.08em}body .ts-events-date-stamp>span{font-size:10px;margin:0}
+body .ts-event-body{padding:19px 0 0}body .ts-event-date{font-size:10px;color:#757575;letter-spacing:.08em;font-weight:400}
+body .ts-event-name{font:500 27px/1.08 var(--display);margin:9px 0;letter-spacing:-.045em;overflow-wrap:anywhere}body .ts-event-meta{font-size:12px;color:#757575}
+body .ts-events-category{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.08em}body .ts-event-foot{border-top:1px solid #e5e5e5;padding-top:15px;margin-top:22px}
+body .ts-events-price>span{font-size:11px;color:#777}body .ts-events-price strong{display:block;font-size:17px;color:#111;font-weight:500}
+body .ts-events-card-action{font-size:12px;color:#111}body .ts-events-card-action>span{width:31px;height:31px;border:1px solid #ccc;border-radius:10px;color:#111;background:#fff}
+body .ts-event-card:hover .ts-events-card-action>span{background:#111;color:#fff;border-color:#111}
+body .ts-events-empty{grid-column:1/-1;padding:60px 24px;text-align:center;border:1px dashed #ccc;border-radius:10px;background:#fff}
+body .ts-events-signoff{border-top:1px solid #e5e5e5;margin-top:42px;padding-top:22px;display:flex;justify-content:space-between;gap:20px;color:#777;font-size:10px}
+/* Wide event photography, four facts and the existing working venue plan. */
+body .ts-event-detail-page{padding:0 0 70px}body .ts-event-back{margin:0;padding:28px 0;font-size:11px}
+body .ts-event-heading{align-items:flex-end;margin-bottom:28px}body .ts-event-heading h1{font:500 clamp(42px,6vw,78px)/1.08 var(--display);letter-spacing:-.055em;margin:18px 0 0}
+body .ts-event-heading-copy p{font-size:14px;margin-top:16px}
+body .ts-event-banner{height:420px;border-radius:10px;overflow:hidden;position:relative;margin-bottom:26px;background:url('https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1800&q=85') center 55%/cover}
+body .ts-event-banner .ts-event-poster-thumb{width:100%;height:100%;border:0;border-radius:10px;object-fit:cover}
+body .ts-event-detail-page:has(#event-error:not([hidden])) .ts-event-banner{display:none}
+body .ts-event-facts{gap:16px;margin-bottom:28px}body .ts-event-facts .ts-info-pill{display:block;padding:20px;border-radius:10px;background:#fff}
+body .ts-event-facts .ts-icon{display:block;margin-bottom:10px}body .ts-event-facts .ts-event-fact-label{display:block;font-size:11px;text-transform:none;font-weight:400;letter-spacing:0;margin-bottom:6px}
+body .ts-event-facts strong{font-size:13px;font-weight:550}body .ts-event-workspace{grid-template-columns:minmax(0,1fr) 350px;gap:24px;align-items:start}
+body .ts-event-layout-body{padding:18px}body .ts-event-detail-page .ts-card-title{font-size:18px;letter-spacing:-.035em}body .ts-event-booking{position:sticky;top:110px}
+body .ts-event-booking-body{padding:22px}body .ts-event-booking-price{font:500 37px/1.3 var(--display);letter-spacing:-.06em;margin:3px 0 23px}
+body .ts-event-availability{background:#fff;border-color:#e5e5e5;border-radius:10px;font-size:11px}
+body .ts-event-category{padding:14px;border-radius:10px;color:#111;background:#fff;border-color:#e5e5e5}body .ts-event-category.is-selected{background:#fff;border-color:#111;box-shadow:inset 3px 0 #111}
+body .ts-event-category-price{font-size:13px;font-weight:550}body .ts-event-more{margin-top:42px;gap:40px}body .ts-event-more>section{border:0;padding:0}
+body .ts-event-more #event-about-heading{font-size:29px}body .ts-event-about{line-height:1.9;font-size:14px}
+body :is(.ts-generated-board,.ts-seat-3d-frame,.ts-seat-people-controls,.ts-seat-view-preview,.ts-buyer-view-switch,.ts-venue-layout-panel,.ts-venue-preview-container){border-radius:10px;background-color:#fff;border-color:#e5e5e5;box-shadow:none}
+body .ts-buyer-view-switch button{border-radius:10px;background:#fff;color:#111}body .ts-buyer-view-switch button[aria-pressed=true]{background:#111;color:#fff}
+@media(max-width:900px){body .ts-event-workspace>.ts-event-layout-card{order:0}body .ts-event-workspace>.ts-event-booking{order:1}}
+body .ts-event-preview-alert{color:#111;background:#fff;border:2px solid #111;border-radius:10px}body .ts-event-preview-alert p{color:#686868}
+
+/* Buyer collection and marketplace. No payment, ownership or filter logic changes. */
+body .tickets-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:32px}
+body .tickets-heading .ts-section-title{font-size:clamp(43px,5.5vw,72px);margin:22px 0 18px}body .tickets-heading .ts-section-copy{font-size:14px;line-height:1.8;max-width:590px}
+body .tickets-heading-actions{display:flex;gap:10px;flex-wrap:wrap}body .ts-tickets-page #ticket-tabs{display:flex;flex-wrap:wrap;gap:8px;border-bottom:1px solid #e5e5e5;padding-bottom:18px;margin-bottom:28px}
+body .ts-tickets-page #ticket-tabs .ts-tab{padding:10px 16px;border:1px solid #e5e5e5;border-radius:10px;display:flex;align-items:center;gap:8px}
+body .ts-tickets-page #ticket-tabs .ts-tab.active{background:#111;color:#fff;border-color:#111}body .ts-tickets-page #ticket-tabs .ts-tab.active::after{display:none}
+body .ts-ticket-list{display:grid;grid-template-columns:1fr 1fr;gap:24px}body .ts-ticket-card{display:grid;grid-template-columns:145px minmax(0,1fr);border:1px solid #e5e5e5;border-radius:10px;overflow:hidden;background:#fff;min-height:180px}
+body .ts-ticket-thumb{position:relative;display:flex;align-items:flex-end;background:linear-gradient(transparent,#0009),url('https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=450&q=85') center/cover;color:#fff;padding:14px;font-size:12px;overflow-wrap:anywhere}
+body .ts-ticket-card-body{padding:24px;min-width:0}body .ts-ticket-card-body .ts-card-title{font-size:22px;overflow-wrap:anywhere}body .ts-ticket-card-body>.flex{gap:12px;align-items:start;flex-wrap:wrap}body .ts-ticket-card-body .ts-chip{flex:none}
+body .ts-ticket-head{background:#111}body :is(.ts-booking-ticket-row,.ts-ticket-qr,.ts-record-ticket,.ts-transfer-receipt,.ts-transfer-summary>div,.ts-transfer-avatar){background:#fff;border-color:#e5e5e5;border-radius:10px;box-shadow:none}
+body :is(.ts-transfer-kicker,.ts-transfer-arrow){color:#777}body .resale-intro{padding-bottom:30px}
+body .resale-intro h1{font:500 clamp(43px,5.5vw,72px)/1.08 var(--display);letter-spacing:-.055em;margin:24px 0 18px}body .resale-intro h1 em{font-style:normal}
+body .resale-illustration{display:none}body :is(.resale-eyebrow,.resale-benefits,.resale-market-note){font-size:11px;color:#777}
+body .resale-lead{font-size:14px;line-height:1.8;max-width:590px}body .resale-benefits{display:flex;gap:22px}body .resale-benefits span{display:flex;align-items:center;gap:8px}
+body .resale-account-links{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 0;border-block:1px solid #e5e5e5;font-size:12px}body .resale-account-links>div{display:flex;gap:24px}
+body .resale-results-heading{display:flex;align-items:center;justify-content:space-between;gap:24px;margin:34px 0 24px}body .resale-results-heading h2{font-size:30px;margin:12px 0 0}
+body .resale-filters{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr;gap:0;border:1px solid #e5e5e5;border-radius:10px;margin-bottom:28px}
+body .resale-filter{padding:15px 20px;border-right:1px solid #e5e5e5;min-width:0}body .resale-filter:last-child{border:0}
+body .resale-filter label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#777}
+body .resale-filter :is(.ts-input,.ts-select){border:0;padding-left:0;min-height:38px;height:38px;font-size:13px}body .resale-filter .ts-input-wrap .ts-input{padding-left:28px}body .resale-filter .ts-icon{left:0;top:10px}
+body .resale-signoff{display:flex;justify-content:space-between;padding-top:24px;margin-top:40px;border-top:1px solid #e5e5e5;font-size:11px;color:#777}
+body .ts-bar{background:#111;border-radius:10px}body .ts-bar.dark{background:#888}body .ts-legend-dot.gold{background:#111}body #event-sales-progress{accent-color:#111;color:#111}body #event-sales-progress::-webkit-progress-value{background:#111}
+@media(min-width:1201px){body .ts-public-header .ts-public-nav{display:flex}body .ts-public-header .ts-mobile-menu-btn{display:none}}
+@media(max-width:1400px){body .ts-public-nav{margin-left:35px;gap:24px}body .ts-public-user-name{max-width:90px}}
+@media(max-width:1200px){body .ts-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}body .ts-kpi-grid .ts-kpi:nth-child(2){border-right:0}body .ts-kpi-grid .ts-kpi:nth-child(-n+2){border-bottom:1px solid #e5e5e5}body .ts-event-grid{grid-template-columns:repeat(2,minmax(0,1fr))}body .ts-event-workspace{grid-template-columns:minmax(0,1fr) 310px}}
+@media(min-width:901px) and (max-width:1023px){body .ts-sidebar{position:sticky;left:auto}body .ts-sidebar-toggle{display:none}}
+@media(max-width:1150px){body .d2-wrap,body .ts-container{width:calc(100% - 64px)}body .ts-main.dashboard-main{padding:35px 25px}}
+@media(max-width:900px){
+ body .ts-shell{display:block}body .ts-sidebar{width:100%;height:auto;max-height:none;position:relative;top:auto;left:auto;padding:18px 20px;border-right:0;border-bottom:1px solid #e5e5e5;overflow:visible}
+ body .ts-sidebar-head{padding:0;min-height:0;border:0}body .ts-sidebar-toggle{display:inline-flex}
+ body .ts-sidebar-nav,body .ts-sidebar-foot{display:none}body .ts-sidebar.open .ts-sidebar-nav{display:block;overflow:visible;margin-top:15px}body .ts-sidebar.open .ts-sidebar-foot{display:block}
+ body .ts-sidebar .ts-side-link{min-height:42px}body .ts-main.dashboard-main{padding:28px 20px 50px}
+ body :is(.ts-admin-dashboard-grid,.ts-organizer-dashboard-grid){grid-template-columns:1fr}body .ts-event-workspace{grid-template-columns:1fr}body .ts-event-booking{position:static}
+ body .ts-event-banner{height:340px}body .ts-ticket-list{grid-template-columns:1fr}body .resale-filters{grid-template-columns:1fr 1fr}body .resale-filter:nth-child(2){border-right:0}
+ body .tickets-heading{flex-wrap:wrap}body .ts-event-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:650px){
+ body .ts-public-header{height:73px}body .ts-public-header-inner{height:72px;width:calc(100% - 36px);gap:16px}body .ts-public-actions{gap:10px}body .ts-public-auth-group{gap:12px}body .ts-brand{font-size:21px}
+ body .ts-public-user{padding:8px 10px}body .ts-public-user-name{display:none}body .ts-public-user .ts-avatar{width:22px;height:22px}
+ body .ts-page-title,body :is(.ts-admin-dashboard-hero,.ts-organizer-hero) h1{font-size:37px}body :is(.ts-admin-dashboard-hero,.ts-organizer-hero,.ts-page-head){align-items:flex-start;flex-direction:column;gap:20px}
+ body .ts-card-pad{padding:18px}body .ts-card-head{padding:18px}body .ts-kpi-grid .ts-kpi{padding:17px}body .ts-kpi-top{font-size:10px}
+ body .ts-event-grid{grid-template-columns:1fr}body .ts-events-toolbar{flex-wrap:wrap;padding:12px;gap:12px}body .ts-events-toolbar .ts-search{flex:1 1 100%}body .ts-event-view-switch{display:flex;width:100%}
+ body .ts-events-intro h1,body .tickets-heading .ts-section-title,body .resale-intro h1{font-size:clamp(38px,10vw,55px)}body .ts-events-page .ts-event-art{height:260px}body .ts-event-facts .ts-info-pill{padding:16px}
+ body .ts-event-heading h1{font-size:clamp(34px,9vw,50px)}body .ts-event-banner{height:260px}body .resale-filter{padding:12px}body .resale-account-links{align-items:flex-start;flex-direction:column}body .resale-account-links>div{flex-wrap:wrap;gap:14px}
+ body .ts-ticket-card{grid-template-columns:95px minmax(0,1fr)}body .ts-ticket-card-body{padding:16px}body .ts-ticket-card-body .ts-card-title{font-size:20px}
+ body .ts-auth-form,body .ts-decision{padding:24px}body .ts-auth-backdrop{padding:24px}
+}
+@media(max-width:620px){
+ body .d2-wrap,body .ts-container{width:calc(100% - 36px)}
+ 
+ 
+ .ts-home .home-carousel-controls{top:62px;left:20px;right:20px}
+ .ts-home .home-event-cover{height:260px}.ts-home .home-closing-actions{justify-items:start}body .ts-tickets-page #ticket-tabs .ts-tab{flex:1 1 calc(50% - 8px);font-size:11px;padding:10px}
+ body .ts-site-footer .footer-top{flex-direction:column}body .ts-site-footer .footer-links{flex-wrap:wrap;gap:18px}body .ts-site-footer .footer-bottom{flex-direction:column}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}body *,body *::before,body *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}body .ts-btn:hover{transform:none}}
+
+/* Reference navigation: booking records remain reachable through the account menu. */
+body .ts-public-nav [data-nav-key=bookings]{display:none}
+body .ts-header-search{display:none}
+body .ts-public-user:has(.ts-account-chevron:not([hidden]))>.ts-avatar{display:none}
+body .ts-header-notifications{border:0;width:32px;height:37px}
+body .ts-header-notifications{position:relative;overflow:visible}
+body .ts-buyer-notification-count{position:absolute;top:-3px;right:-7px;min-width:18px;height:18px;padding:0 4px;display:grid;place-items:center;border:2px solid #fff;border-radius:10px;background:#111;color:#fff;font:600 9px/1 var(--body);pointer-events:none}
+body .ts-buyer-notification-count[hidden]{display:none}
+body .ts-buyer-notifications-page .ts-section-title-row{align-items:end;gap:24px}
+body .ts-notification-toolbar{display:flex;gap:10px;flex-wrap:wrap}
+body .ts-buyer-notification{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:24px;border-bottom:1px solid #e5e5e5;background:#fff}
+body .ts-buyer-notification:last-child{border-bottom:0}
+body .ts-buyer-notification.is-unread{box-shadow:inset 3px 0 #111}
+body .ts-notification-copy{min-width:0;flex:1}
+body .ts-notification-copy h2{font:500 18px/1.4 var(--display);letter-spacing:-.025em;margin:0 0 8px}
+body .ts-notification-copy p{font-size:14px;line-height:1.7;overflow-wrap:anywhere;margin:0 0 9px}
+body .ts-notification-copy time{display:block;font-size:11px}
+body .ts-notification-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+body .ts-notification-empty{padding:55px 24px;text-align:center}
+body .ts-notification-empty h2{font:500 26px/1.3 var(--display);margin-bottom:10px}
+body .ts-help-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;margin-top:32px}
+body .ts-help-grid>section{display:flex;flex-direction:column;align-items:flex-start;padding:28px}
+body .ts-help-number{font-size:10px;letter-spacing:.12em;color:#777}
+body .ts-help-grid h2{font:500 28px/1.15 var(--display);letter-spacing:-.04em;margin:22px 0 16px}
+body .ts-help-grid p{font-size:14px;line-height:1.85;color:#666;margin-bottom:24px}
+body .ts-help-grid .ts-btn{margin-top:auto}
+body .ts-help-faq{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.4fr);gap:70px;margin:65px 0 20px;padding-top:35px;border-top:1px solid #ddd}
+body .ts-help-faq-heading h2{font:500 36px/1.15 var(--display);letter-spacing:-.04em;margin:17px 0}
+body .ts-help-faq-heading p{font-size:14px;line-height:1.8}
+body .ts-help-questions>details{border:0;border-bottom:1px solid #e5e5e5;border-radius:0;padding:22px 0}
+body .ts-help-questions>details:first-child{padding-top:0}
+body .ts-help-questions summary{font-size:15px;line-height:1.6;font-weight:500}
+body .ts-help-questions details p{font-size:14px;line-height:1.85;color:#666;margin-top:14px}
+@media(max-width:900px){body .ts-help-grid{grid-template-columns:1fr}body .ts-help-faq{grid-template-columns:1fr;gap:25px}body .ts-buyer-notification{align-items:flex-start;flex-direction:column;gap:18px}body .ts-notification-actions{justify-content:flex-start}}
+@media(max-width:620px){body .ts-buyer-notifications-page .ts-section-title-row{align-items:flex-start;flex-direction:column}body .ts-help-grid>section,body .ts-buyer-notification{padding:22px}body .ts-help-faq{margin-top:40px}}
+.ts-home .hero-aside .home-account-link{display:flex;width:fit-content;margin-top:12px}
+@media(min-width:1401px){body .ts-public-nav{margin-left:64px;gap:30px}}
+
+@media(min-width:1201px){body .ts-public-nav{margin-left:64px;gap:30px}}
+@media(min-width:621px){.ts-home .home-carousel-controls{top:auto;bottom:155px;right:auto;gap:16px}.ts-home .home-playback button{width:24px;height:24px;border:0;background:transparent;padding:3px}}
+
+body :is(.ts-admin-dashboard-section-head,.ts-organizer-section-head,.ts-organizer-event-section-head)>svg{color:#111}
+body.ts-body-public .ts-page-title,body.ts-body-public h1.ts-section-title{font-size:clamp(32px,5vw,62px);font-weight:500;line-height:1.08}
+body .ts-auth-form{position:relative}
+body .ts-auth-form>a:first-child{display:grid;place-items:center;position:absolute;right:22px;top:22px;width:32px;height:32px;font-size:0;color:#777;border-radius:10px}
+body .ts-auth-form>a:first-child::after{content:'×';font:400 24px/1 var(--body)}
+body .ts-auth-form:has(#login-form)>.ts-alert-info{display:none}
+
+/* Standalone entry-verification screens use the same light panels. */
+body .ts-verify-shell{background:#fff;color:#111}
+body .ts-verify-card{background:#fff;color:#111;border:1px solid #e5e5e5;border-radius:10px;box-shadow:0 25px 90px #0001}
+body .ts-verify-card h1{font-size:32px;font-weight:500}
+body .ts-verify-card .ts-card{background:#fff!important;color:#111!important;border-color:#e5e5e5!important}
+body .ts-camera{background:#fff;color:#777;border:1px dashed #bbb;border-radius:10px}
+body .ts-verify-invalid .ts-detail-value{color:var(--error)!important}
+body .ts-verify-result-icon{border-radius:10px}
+
+/* Override the old discovery single-result layout and align metadata like DESIGN2. */
+body.ts-body-public main>.ts-container{width:min(1380px,calc(100% - 112px));max-width:1380px;margin-inline:auto}
+body .ts-events-page .ts-event-card:hover{transform:none;border-color:#e5e5e5;box-shadow:none}
+body .ts-events-page .ts-event-card:focus-visible{outline:2px solid #111;outline-offset:5px}
+body .ts-events-page .ts-event-body{display:grid;grid-template-columns:minmax(0,1fr) auto;align-content:start;min-width:0;padding:19px 0 0}
+body .ts-events-page .ts-events-card-type{grid-column:1;grid-row:1;color:#757575;font-size:10px;font-weight:400;letter-spacing:.08em}
+body .ts-events-page .ts-event-date{grid-column:2;grid-row:1;display:block;text-align:right;color:#757575;font-size:10px;font-weight:400;letter-spacing:.04em;text-transform:uppercase}
+body .ts-events-page .ts-event-date>span{display:none}
+body .ts-events-page .ts-event-name{grid-column:1/-1;grid-row:2;font:500 27px/1.08 var(--display);letter-spacing:-.045em;margin:9px 0}
+body .ts-events-page .ts-event-meta{grid-column:1/-1;grid-row:3;font-size:12px;color:#757575;margin-top:0}
+body .ts-events-page .ts-event-meta svg{width:14px;height:14px;color:#757575}
+body .ts-events-page .ts-event-foot{grid-column:1/-1;grid-row:4;margin-top:22px;padding-top:15px;gap:14px}
+body .ts-events-page .ts-events-card-price strong{color:#111;font-size:17px;font-weight:500}
+body .ts-events-page .ts-events-cover::after{display:none}
+body .ts-events-toolbar .ts-event-view-switch{background:#fff;padding:0;border-radius:10px}
+body .ts-events-toolbar .ts-event-view-switch .ts-btn{border-radius:10px;box-shadow:none}
+body .ts-events-page .ts-event-grid[data-single=true]{grid-template-columns:repeat(3,minmax(0,1fr))}
+body .ts-events-page .ts-event-grid[data-single=true] .ts-event-card{display:block}
+body .ts-events-page .ts-event-grid[data-single=true] .ts-event-art{height:280px;min-height:0}
+body .ts-events-page .ts-event-grid[data-single=true] .ts-event-body{padding:19px 0 0}
+body .ts-events-page .ts-event-grid[data-single=true] .ts-event-name{font-size:27px;margin:9px 0}
+body .ts-events-page .ts-event-grid[data-single=true] .ts-event-foot{margin-top:22px}
+@media(max-width:1200px){body .ts-events-page .ts-event-grid[data-single=true]{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1150px){body.ts-body-public main>.ts-container{width:calc(100% - 64px)}}
+@media(max-width:650px){body .ts-events-page .ts-event-grid[data-single=true]{grid-template-columns:1fr}body .ts-events-page .ts-event-grid[data-single=true] .ts-event-art{height:260px}}
+@media(max-width:620px){body.ts-body-public main>.ts-container{width:calc(100% - 36px)}}
+
+body .ts-btn[aria-pressed=true]:not(:focus-visible){outline:none}
+
+/* New landing sections inherit DESIGN2's original responsive rules directly. */
+.ts-home .hero h1{letter-spacing:-.075em}
+.ts-home .hero-photo-top,.ts-home .hero-caption{z-index:2}
+@media(max-width:620px){.ts-home .home-closing-actions{width:100%;justify-items:stretch}}
+
+body{line-height:1.55}
+
+/* Match the reference sidebar's compact account and notification links. */
+body .ts-sidebar-tools>button[aria-label=Search],body .ts-sidebar-tools>#header-avatar,body .ts-sidebar .ts-profile-card>.ts-avatar{display:none}
+body .ts-sidebar-tools .ts-icon-btn{width:auto;height:auto;min-height:32px;gap:10px;justify-content:flex-start;border:0;background:#fff;color:#777;font-size:12px;font-weight:400}
+body .ts-sidebar:has(.ts-sidebar-nav[aria-label="Event Organizer navigation"]) .ts-sidebar-tools{display:none}
+
+/* Shared DESIGN2 plan presentation. Physical geometry and seat states remain authoritative. */
+body .ts-clean-venue-board{background:#fff!important;border-color:#dedede!important;border-radius:10px;box-shadow:none;color:#111}
+body .ts-clean-venue-board>.ts-venue-map{max-height:none;background:#fff;border-radius:10px}
+body .ts-clean-venue-board .ts-ocr-seat .ts-seat-frame{fill:#fff;stroke:#111;stroke-width:1px;vector-effect:non-scaling-stroke;filter:none;transition:fill .15s,stroke .15s}
+body .ts-clean-venue-board .ts-ocr-seat text{fill:#111;font-family:var(--body);font-weight:400;letter-spacing:0}
+body .ts-clean-venue-board .ts-map-stage{fill:#111;stroke:none}
+body .ts-clean-venue-board .ts-map-stage-label{fill:#fff;font-family:var(--body)}
+body .ts-clean-venue-board .ts-ocr-seat:is(:hover,:focus-visible):not([aria-disabled=true]) .ts-seat-frame{fill:#eee;stroke:#111;stroke-width:1.5px}
+body .ts-clean-venue-board .ts-seat-selection-ring{stroke:#111;stroke-width:1px;vector-effect:non-scaling-stroke}
+body .ts-clean-venue-board .ts-ocr-seat[aria-pressed=true]:not([aria-disabled=true]) .ts-seat-frame{fill:#111;stroke:#111;stroke-width:1px}
+body .ts-clean-venue-board .ts-ocr-seat[aria-pressed=true] text{fill:#fff}
+body .ts-clean-venue-board .ts-ocr-seat:is([aria-pressed=true],:focus-visible) .ts-seat-selection-ring{visibility:visible}
+body .ts-clean-venue-board .ts-seat-context{cursor:default}
+body .ts-clean-venue-board .ts-seat-context .ts-seat-frame,
+body #ven-board .ts-ocr-seat[data-category-id=""][aria-disabled=true] .ts-seat-frame,
+body #ven-board:has(.is-category-selected) .ts-ocr-seat:not(.is-category-selected) .ts-seat-frame{fill:#fafafa;stroke:#c0c0c0}
+body .ts-clean-venue-board .ts-seat-context text,
+body #ven-board .ts-ocr-seat[data-category-id=""][aria-disabled=true] text,
+body #ven-board:has(.is-category-selected) .ts-ocr-seat:not(.is-category-selected) text{fill:#777}
+body .ts-clean-venue-board .ts-ocr-seat:is(.ts-seat-sold,.ts-seat-held,.ts-seat-blocked) .ts-seat-frame{fill:#d9d9d9;stroke:#c7c7c7;opacity:1}
+body .ts-clean-venue-board .ts-ocr-seat:is(.ts-seat-sold,.ts-seat-held,.ts-seat-blocked) text{fill:#666}
+body .ts-clean-venue-board .ts-map-section>polygon{stroke:#bcbcbc;stroke-width:1px;vector-effect:non-scaling-stroke}
+body .ts-clean-venue-board .ts-map-section:is(.active,.is-selected,:focus-visible)>polygon{stroke:#111;stroke-width:2px;filter:none}
+body .ts-clean-venue-board .ts-map-section:hover>polygon{stroke:#111;filter:none}
+body .ts-clean-venue-board .ts-map-section>polygon[fill=transparent]{stroke:transparent}
+body .ts-clean-venue-board .ts-map-section:is(.active,.is-selected,:hover,:focus-visible)>polygon[fill=transparent]{stroke:#111;stroke-width:1px}
+
+/* The event overview and seat picker share the reference's plan + ticket panel proportions. */
+body .ts-event-workspace,body .ts-seat-page .ts-seat-picker-layout{grid-template-columns:minmax(0,1fr) 350px;gap:24px;align-items:start}
+body .ts-event-detail-page .ts-event-layout-card .ts-card-head{padding:22px 24px}
+body .ts-event-detail-page .ts-event-layout-body{padding:18px}
+body .ts-event-detail-page #ven-board{background:#fff;border:1px solid #dedede;border-radius:10px;min-height:260px;padding:18px}
+body .ts-event-detail-page #ven-board>.ts-venue-map{max-height:none}
+body .ts-event-detail-page .ts-event-booking .ts-card-head{padding:23px}
+body .ts-event-detail-page .ts-event-booking .ts-card-title{font-size:23px;font-weight:500}
+body .ts-event-detail-page .ts-event-booking-body{padding:22px}
+body .ts-event-detail-page .ts-event-category-list{max-height:none;overflow:visible;padding:0;margin:0}
+body .ts-event-detail-page .ts-event-category{border:1px solid #dedede!important;min-height:90px;padding:16px;border-radius:10px;box-shadow:none;color:#111;background:#fff}
+body .ts-event-detail-page .ts-event-category.is-selected{border-color:#111!important;box-shadow:inset 3px 0 #111}
+body .ts-event-detail-page .ts-event-category>span>strong{font-size:14px;font-weight:500}
+body .ts-event-detail-page .ts-event-category>span>strong::before{content:'';display:inline-block;vertical-align:-2px;width:13px;height:13px;border:1px solid #bbb;border-radius:10px;margin-right:8px;box-sizing:border-box}
+body .ts-event-detail-page .ts-event-category.is-selected>span>strong::before{border:4px solid #111}
+body .ts-event-detail-page .ts-event-category>span>.small,body .ts-event-detail-page .ts-event-remaining{color:#777;font-size:12px}
+body .ts-event-detail-page .ts-event-category-price{color:#111;font-size:14px;font-weight:500}
+body .ts-event-detail-page .ts-event-quantity-controls .ts-icon-btn{background:#fff;color:#111;border-color:#dedede}
+body .ts-event-detail-page #quantity-plus{background:#111;color:#fff;border-color:#111}
+
+body .ts-seat-page{padding:32px 0 70px}
+body .ts-seat-page .ts-seat-steps{justify-content:flex-start;margin:0 0 28px;padding:0;border:0;background:#fff}
+body .ts-seat-page .ts-step{font-size:12px;color:#777;font-weight:400}
+body .ts-seat-page .ts-step.active{color:#111}
+body .ts-seat-page .ts-step-num{background:#fff;border:1px solid #ccc;color:#777;border-radius:10px}
+body .ts-seat-page .ts-step.active .ts-step-num,body .ts-seat-page .ts-step.done .ts-step-num{background:#111;border-color:#111;color:#fff}
+body .ts-seat-page .ts-step-line{background:#ddd;max-width:70px}
+body .ts-seat-plan-panel{min-width:0;padding:24px;border-color:#dedede}
+body .ts-seat-plan-heading{display:flex;justify-content:space-between;align-items:center;gap:20px}
+body .ts-seat-plan-heading>svg{width:25px;height:25px;flex:none}
+body .ts-seat-page .ts-seat-plan-heading h1.ts-section-title{font:500 clamp(28px,3vw,42px)/1.1 var(--display);letter-spacing:-.045em;margin:10px 0}
+body .ts-seat-page #picker-event{font-size:14px;color:#666}
+body .ts-seat-page #picker-instructions{font-size:12px;line-height:1.7}
+body .ts-seat-page .ts-buyer-view-toolbar{gap:14px;padding-top:18px;border-top:1px solid #e5e5e5;margin-top:22px;flex-wrap:wrap}
+body .ts-seat-page .ts-seat-tool-buttons{gap:6px;flex-wrap:wrap}
+body .ts-seat-page .ts-seat-tool-buttons .ts-btn{min-height:36px;padding:7px 11px;font-size:12px}
+body .ts-seat-navigation-hint{font-size:12px;margin-top:12px}
+body .ts-seat-page .ts-seat-legend{gap:18px;flex-wrap:wrap;font-size:12px;color:#666}
+body .ts-seat-page .ts-seat-legend span::before{width:12px;height:12px;border:1px solid #111;border-radius:4px;background:#fff}
+body .ts-seat-page .ts-seat-legend .selected::before{background:#111;border-color:#111}
+body .ts-seat-page .ts-seat-legend .unavailable::before{background:#d9d9d9;border-color:#c7c7c7}
+body .ts-seat-page .ts-seat-legend .context::before{background:#fafafa;border-color:#c0c0c0}
+body .ts-seat-page #buyer-seat-map{padding:18px;background:#fff;border:1px solid #dedede;border-radius:10px;overflow:hidden}
+body .ts-seat-page #buyer-seat-map>.ts-venue-map{max-height:none}
+body .ts-seat-page .ts-picker-seat-option{background:#fff;border-color:#ccc;border-radius:10px;color:#111}
+body .ts-seat-page .ts-picker-seat-option[aria-pressed=true]{background:#111;border-color:#111;color:#fff}
+body .ts-seat-page .ts-picker-seat-option:disabled{background:#d9d9d9;color:#666;border-color:#c7c7c7}
+body .ts-seat-page .ts-seat-order-panel{padding:24px;border-color:#d7d7d7;position:sticky;top:110px}
+body .ts-seat-order-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:24px;border-bottom:1px solid #e5e5e5}
+body .ts-seat-order-head h2{font:500 24px/1.2 var(--display);letter-spacing:-.035em}
+body .ts-seat-order-head>svg{width:20px;height:20px;flex:none}
+body .ts-seat-order-category{padding:24px 0}
+body .ts-seat-page #picker-category{font:500 20px/1.4 var(--display);letter-spacing:-.03em;overflow-wrap:anywhere;color:#111}
+body .ts-seat-page .ts-picker-category-name{display:block;font:400 13px/1.6 var(--body);letter-spacing:0;margin-bottom:8px}
+body .ts-seat-page .ts-picker-unit-price{font:500 36px/1.2 var(--display);letter-spacing:-.06em;margin-right:8px}
+body .ts-seat-page #picker-category small{font:400 11px var(--body);letter-spacing:0;color:#777}
+body .ts-seat-order-selection{padding:16px;border:1px solid #dedede;border-radius:10px;background:#fff}
+body .ts-seat-order-selection h3{font-size:13px;font-weight:600;letter-spacing:0;margin:0}
+body .ts-seat-order-selection #picker-count{font-size:12px;color:#777;margin-top:8px}
+body .ts-seat-page .ts-seat-pill{background:#111;color:#fff;border:1px solid #111;border-radius:10px;padding:6px 10px;font-size:12px;overflow-wrap:anywhere}
+body .ts-seat-order-fee{display:flex;justify-content:space-between;gap:12px;font-size:12px;margin-top:24px}
+body .ts-seat-page .ts-generation-total{padding:20px 0 0;border:0;border-top:1px solid #ddd;border-radius:0;background:#fff;color:#111;font-size:14px;align-items:start}
+body .ts-seat-page #picker-total{font-size:20px;color:#111;white-space:nowrap}
+body .ts-seat-page .ts-seat-order-panel .ts-simple-details{border:0;border-top:1px solid #e5e5e5;border-radius:0;padding:18px 0 0}
+body .ts-seat-page .ts-seat-order-panel summary{font-size:12px}
+body .ts-seat-page #picker-back{font-size:12px}
+@media(max-width:1050px){body .ts-event-workspace,body .ts-seat-page .ts-seat-picker-layout{grid-template-columns:minmax(0,1fr) 310px;gap:18px}body .ts-seat-plan-panel,body .ts-seat-page .ts-seat-order-panel{padding:18px}}
+@media(max-width:900px){body .ts-event-workspace,body .ts-seat-page .ts-seat-picker-layout{grid-template-columns:minmax(0,1fr)}body .ts-seat-page .ts-seat-order-panel,body .ts-event-booking{position:static}}
+@media(max-width:620px){body .ts-seat-page{padding:22px 0 44px}body .ts-seat-page .ts-seat-steps{gap:8px}body .ts-seat-page .ts-step{font-size:10px;gap:6px;flex:1;min-width:0;white-space:normal}body .ts-seat-page .ts-step-num{flex:none;width:24px;height:24px;font-size:11px}body .ts-seat-page .ts-step-line{flex:0 0 12px;max-width:12px}body .ts-seat-plan-panel{padding:16px}body .ts-seat-page #buyer-seat-map,body .ts-event-detail-page #ven-board{padding:8px}body .ts-seat-plan-heading>svg{display:none}body .ts-seat-page .ts-seat-tool-buttons{width:100%;display:grid;grid-template-columns:40px 40px minmax(0,1fr)}body .ts-seat-page #picker-refresh{grid-column:1/-1}body .ts-seat-page .ts-seat-legend{gap:12px;font-size:10px}}
+
+/* Local identity registration and supervised entrance check-in. */
+.ts-face-page{padding-top:40px;padding-bottom:64px}
+.ts-face-layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,1fr);gap:24px;align-items:start}
+.ts-face-card{padding:28px;margin-bottom:24px;background:#fff;border:1px solid #ddd;border-radius:10px}
+.ts-face-card h2{font-size:24px;margin:0 0 16px}.ts-face-card h3{font-size:18px;margin-top:24px}
+.ts-face-card p,.ts-face-card li{font-size:16px;line-height:1.65;margin-bottom:16px}
+.ts-face-card ol{padding-left:22px}.ts-face-card video{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;background:#111;border-radius:10px;margin:20px 0}
+.ts-face-consent{display:flex;gap:12px;align-items:flex-start;font-size:15px;line-height:1.6;margin:20px 0}
+.ts-face-consent input{margin-top:6px;flex-shrink:0;width:18px;height:18px;accent-color:#000}
+.ts-face-result{display:block;font-size:18px;line-height:1.6;padding:20px;margin:20px 0;scroll-margin:24px}.ts-face-hint{font-weight:600;color:#111}.ts-face-result:focus{outline:2px solid currentColor;outline-offset:3px}
+.ts-face-receipt{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 24px;margin:20px 0 0;padding-top:18px;border-top:1px solid #d5e5dc}.ts-face-receipt>div{min-width:0}.ts-face-receipt dt{font-size:13px;font-weight:500;color:#486357;line-height:1.5;margin-bottom:4px}.ts-face-receipt dd{margin:0;font-size:16px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}.ts-face-result>strong{font-size:21px}.ts-face-card #checkin-success-message{margin:8px 0 0;font-size:16px}@media(max-width:520px){.ts-face-receipt{grid-template-columns:1fr;gap:14px}}
+.ts-ticket-flip{min-width:0;perspective:1600px;align-self:start}.ts-ticket-flip-inner{position:relative;transform-style:preserve-3d;transition:transform .7s cubic-bezier(.2,.7,.2,1)}.ts-ticket-flip[data-flipped="true"] .ts-ticket-flip-inner{transform:rotateY(180deg)}.ts-ticket-flip-front,.ts-ticket-flip-back{backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:10px;overflow:hidden}.ts-ticket-flip .ts-ticket-flip-front{min-height:600px;margin:0;transform:rotateY(0deg)}.ts-ticket-flip-back{position:absolute;inset:0;transform:rotateY(180deg);background:#fff;border:1px solid #e5e5e5;padding:24px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:20px}.ts-ticket-art-heading,.ts-ticket-art-footer{width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:13px;color:#111}.ts-ticket-art-heading>span:first-child{font-weight:600}.ts-ticket-art-heading>span:last-child{color:#666;font-size:12px}.ts-ticket-flip-back .ts-collectible-poster{width:min(100%,336px);flex:none}.ts-ticket-art-footer a{color:#111;text-decoration:underline;text-underline-offset:4px}.ts-ticket-art-footer>span{overflow-wrap:anywhere}.ts-ticket-art-footer{font-size:12px}@media(prefers-reduced-motion:reduce){.ts-ticket-flip-inner{transition:none}}@media(max-width:520px){.ts-ticket-flip-back{padding:20px}.ts-ticket-art-heading,.ts-ticket-art-footer{align-items:flex-start;flex-direction:column;gap:8px}.ts-ticket-flip .ts-ticket-flip-front{min-height:620px}}
+.ts-face-actions{display:flex;flex-wrap:wrap;gap:10px}.ts-face-page [hidden],#ticket-face-gate[hidden]{display:none!important}
+.ts-face-machine{max-width:1180px}.ts-face-camera{position:relative}.ts-face-machine .ts-face-camera{margin:20px 0;background:#111;border-radius:10px;overflow:hidden}.ts-face-machine .ts-face-camera video{margin:0;min-height:260px;object-fit:contain}.ts-face-guide{position:absolute;inset:15% 28%;border:2px dashed #ffffff80;border-radius:45%;pointer-events:none}.ts-face-camera-label{position:absolute;bottom:16px;left:16px;font-size:11px;letter-spacing:2px;color:#fff;background:#111;padding:6px 10px;border-radius:10px;pointer-events:none}.ts-face-machine #checkin-status{min-height:52px}.ts-face-machine #checkin-success{font-size:18px;padding:20px}.ts-face-machine .ts-face-actions .ts-btn{flex:1 1 180px}
+@media(max-width:760px){.ts-face-layout{grid-template-columns:1fr}.ts-face-card{padding:20px}.ts-face-actions .ts-btn{flex:1 1 160px}}

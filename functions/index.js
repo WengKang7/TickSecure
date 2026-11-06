@@ -894,7 +894,9 @@ exports.transferTicket = onCall({ region, enforceAppCheck: false }, async (reque
 
         const timestamp = now();
         recipientUid = recipient.uid;
+        tx.delete(db.collection('TicketFaces').doc(ticketId));
         tx.update(ticketRef, {
+            faceRegistrationStatus: 'REQUIRED',
             ownerUid: recipient.uid,
             walletAddress: recipientWallet,
             status: 'VALID',
@@ -1204,7 +1206,9 @@ exports.purchaseResale = onCall({ region, enforceAppCheck: false }, async (reque
             paymentStatus: 'SIMULATED_PAID',
             updatedAt: timestamp,
         });
+        tx.delete(db.collection('TicketFaces').doc(listing.ticketId));
         tx.update(ticketRef, {
+            faceRegistrationStatus: 'REQUIRED',
             ownerUid: uid,
             walletAddress: buyerWallet,
             status: 'VALID',
@@ -1283,16 +1287,7 @@ exports.scanTicket = onCall({ region, enforceAppCheck: false }, async (request) 
             return { valid: false, reason: 'Ticket is no longer valid for entry.' };
         }
 
-        const timestamp = now();
-        tx.update(ticketRef, { status: 'USED', usedAt: timestamp, updatedAt: timestamp });
-        tx.set(db.collection('AuditLogs').doc(), auditDoc(
-            'ticket_verified', 'ticket', ticketId, actor, { eventId }
-        ));
-        return {
-            valid: true,
-            reason: 'ENTRY ALLOWED',
-            ticket: { id: ticketId, ...ticket, status: 'USED', usedAt: timestamp },
-        };
+        throw new HttpsError('failed-precondition', 'Face verification is required. Use the local identity check-in scanner.');
     });
 });
 

@@ -74,8 +74,8 @@ test('guests can browse home, events, and event details at either deployment bas
 
 test('direct guest links to every restricted area redirect without granting access', async () => {
     for (const route of ['/buyer/booking-category.php', '/buyer/checkout.php', '/buyer/tickets.php',
-        '/buyer/wallet.php', '/buyer/complaints.php', '/admin/dashboard.php', '/organizer/dashboard.php',
-        '/verification/scanner.php', '/verification/valid.php', '/verification/invalid.php',
+        '/buyer/wallet.php', '/buyer/complaints.php', '/buyer/collections.php', '/buyer/face-registration.php', '/admin/dashboard.php', '/organizer/dashboard.php',
+        '/verification/scanner.php', '/verification/face-machine.php', '/verification/valid.php', '/verification/invalid.php',
         '/public/resale.php', '/public/resale-detail.php', '/BUYER/TICKETS.PHP']) {
         const result = await visit(route);
         assert.deepEqual(result.redirects, ['/ticksecure-ui/auth/login.php']);
@@ -102,7 +102,7 @@ test('verified active buyer can enter booking and resale and see account feature
 });
 
 test('role restrictions keep buyers out of organizer, admin, and scanner pages', async () => {
-    for (const route of ['/admin/dashboard.php', '/organizer/dashboard.php', '/verification/scanner.php']) {
+    for (const route of ['/admin/dashboard.php', '/organizer/dashboard.php', '/verification/scanner.php', '/verification/face-machine.php']) {
         const result = await visit(route, { user, profile: buyer });
         assert.deepEqual(result.redirects, ['/ticksecure-ui/public/events.php']);
         assert.equal(result.attributes.has('data-ts-access'), false);
@@ -111,6 +111,7 @@ test('role restrictions keep buyers out of organizer, admin, and scanner pages',
         const options = { user, profile: { ...buyer, role } };
         assert.equal((await visit('/' + role + '/dashboard.php', options)).attributes.get('data-ts-access'), 'granted');
         assert.equal((await visit('/verification/scanner.php', options)).attributes.get('data-ts-access'), 'granted');
+        assert.equal((await visit('/verification/face-machine.php', options)).attributes.get('data-ts-access'), 'granted');
     }
 });
 

@@ -14,7 +14,6 @@ ob_start();
     <?php endif; ?>
     <a class="ts-event-back small secondary" href="events.php">&larr; Back to events</a>
     <div class="ts-event-heading">
-      <img id="event-poster" class="ts-event-poster-thumb" alt="Event poster" hidden>
       <div class="ts-event-heading-copy">
         <div class="ts-section-eyebrow" id="ev-category">Event details</div>
         <h1 id="ev-title">Loading event...</h1>
@@ -27,6 +26,7 @@ ob_start();
     </div>
     <div class="ts-alert ts-alert-error mb-20" id="event-error" role="alert" hidden></div>
 
+    <div class="ts-event-banner"><img id="event-poster" class="ts-event-poster-thumb detail-photo" alt="Event poster" hidden></div>
     <div class="ts-event-facts" aria-label="Event information">
       <div class="ts-info-pill"><?=ts_icon('calendar')?><div><span class="ts-event-fact-label">Date &amp; time</span><div id="ev-date"><strong>Loading...</strong></div></div></div>
       <div class="ts-info-pill"><?=ts_icon('map-pin')?><div><span class="ts-event-fact-label">Venue</span><div id="ev-venue"><strong>Loading...</strong></div></div></div>
@@ -37,7 +37,7 @@ ob_start();
     <div class="ts-seat-generation-layout ts-event-workspace">
       <section class="ts-card ts-event-layout-card" aria-labelledby="venue-heading">
         <div class="ts-card-head">
-          <div><h2 class="ts-card-title" id="venue-heading">Venue layout</h2><div class="ts-card-sub" id="ven-name">Loading venue...</div></div>
+          <div><h2 class="ts-card-title" id="venue-heading">2D seating plan</h2><div class="ts-card-sub" id="ven-name">Loading venue...</div></div>
           <span class="ts-chip ts-chip-neutral" id="ven-status">Seating plan</span>
         </div>
         <div class="ts-event-layout-body">

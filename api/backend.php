@@ -966,7 +966,9 @@ function backend_transfer_ticket(FirebaseAdminRest $firebase, string $uid, array
             'toWallet' => $recipientWallet,
             'timestamp' => $timestamp,
         ];
+        $transaction->delete('TicketFaces', $ticketId);
         $transaction->update('NFTTickets', $ticketId, [
+            'faceRegistrationStatus' => 'REQUIRED',
             'ownerUid' => (string)$recipient['uid'],
             'walletAddress' => $recipientWallet,
             'status' => 'VALID',
@@ -1314,7 +1316,9 @@ function backend_purchase_resale(FirebaseAdminRest $firebase, string $uid, array
             'paymentStatus' => 'SIMULATED_PAID',
             'updatedAt' => $timestamp,
         ]);
+        $transaction->delete('TicketFaces', $ticketId);
         $transaction->update('NFTTickets', $ticketId, [
+            'faceRegistrationStatus' => 'REQUIRED',
             'ownerUid' => $uid,
             'walletAddress' => $buyerWallet,
             'status' => 'VALID',
@@ -1393,18 +1397,7 @@ function backend_scan_ticket(FirebaseAdminRest $firebase, string $uid, array $da
         if (($ticket['status'] ?? '') !== 'VALID') {
             return ['valid' => false, 'reason' => 'Ticket is no longer valid for entry.'];
         }
-        $timestamp = backend_now();
-        $transaction->update('NFTTickets', $ticketId, ['status' => 'USED', 'usedAt' => $timestamp, 'updatedAt' => $timestamp]);
-        $transaction->create('AuditLogs', backend_new_document_id(), backend_audit_doc(
-            'ticket_verified',
-            'ticket',
-            $ticketId,
-            $actor,
-            ['eventId' => $eventId]
-        ));
-        $ticket['status'] = 'USED';
-        $ticket['usedAt'] = $timestamp;
-        return ['valid' => true, 'reason' => 'ENTRY ALLOWED', 'ticket' => $ticket];
+        backend_fail(412, 'Face verification is required. Use the identity check-in scanner.', 'failed-precondition');
     });
 }
 

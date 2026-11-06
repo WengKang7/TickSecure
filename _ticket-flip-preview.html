@@ -1,0 +1,75 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ticket flip — sample UI preview</title><link rel="stylesheet" href="assets/css/ticksecure.css"><link rel="stylesheet" href="assets/css/design2-reference.css"><link rel="stylesheet" href="assets/css/design2-theme.css"></head><body><p style="padding:12px 24px;font:12px sans-serif">UI preview · sample ticket</p><main class="ts-record-page ts-ticket-detail-page">
+  <div class="ts-container">
+    <a class="ts-record-back" href="tickets.php">&larr; Back to My Tickets</a>
+    <header class="ts-record-heading">
+      <div><div class="ts-section-eyebrow">My Tickets</div><h1>Your digital ticket</h1><p class="secondary">Event entry and ownership details in one place.</p></div>
+      <div class="ts-record-actions"><button class="ts-btn ts-btn-primary" id="ticket-flip-button" type="button" aria-pressed="false" aria-controls="ticket-flip-card" disabled>View NFT artwork</button><a class="ts-btn ts-btn-secondary" id="view-booking" href="bookings.php" hidden>View booking</a><button class="ts-btn ts-btn-secondary" id="download-qr" type="button" disabled> Download QR</button></div>
+    </header>
+    <div class="ts-alert ts-alert-error" id="ticket-error" role="alert" hidden></div>
+    <section class="ts-card ts-face-card" id="ticket-face-gate" hidden>
+      <h2>Face registration</h2><p id="ticket-face-message" role="status">Checking ticket identity…</p>
+      <a class="ts-btn ts-btn-primary" id="ticket-face-register" href="tickets.php">Register my face</a>
+      <a class="ts-btn ts-btn-secondary" id="ticket-face-nft" href="blockchain.php">Complete NFT setup</a>
+    </section>
+    <div id="ticket-content" hidden>
+      <div class="ts-ticket-detail-layout">
+        <div class="ts-ticket-flip" id="ticket-flip-card" data-flipped="false">
+        <div class="ts-ticket-flip-inner">
+        <section class="ts-ticket-pass ts-ticket-flip-front" id="ticket-flip-front" aria-labelledby="val-event">
+          <div class="ts-ticket-head">
+            <div class="ts-ticket-heading-copy"><small>TickSecure digital ticket</small><h2 class="ts-ticket-event" id="val-event">Loading...</h2><div class="ts-ticket-event-facts"><span id="val-event-meta"></span><span id="val-venue"></span></div></div>
+            <div id="val-status"></div>
+          </div>
+          <div class="ts-ticket-body">
+            <div class="ts-ticket-grid">
+              <div><div class="ts-ticket-label">Category</div><div class="ts-ticket-value" id="val-category"></div></div>
+              <div><div class="ts-ticket-label">Section</div><div class="ts-ticket-value" id="val-section"></div></div>
+              <div><div class="ts-ticket-label">Seat</div><div class="ts-ticket-value" id="val-seat"></div></div>
+            </div>
+            <div class="ts-ticket-entry">
+              <div id="qr-container" class="ts-ticket-qr" aria-label="Ticket entry code"></div>
+              <div class="ts-ticket-entry-copy"><h3 id="entry-heading">Entry QR code</h3><p class="secondary" id="qr-note">Present this QR code at the event entrance. Entry staff check the current ticket status.</p><p class="small secondary">Each ticket allows one entry. Keep your QR code private.</p></div>
+            </div>
+            <div class="ts-ticket-reference"><span>Ticket ID</span><code id="val-ticket-id"></code></div>
+          </div>
+        </section>
+        <section class="ts-ticket-flip-back" id="ticket-flip-back" aria-label="Ticket NFT collectible" aria-hidden="true" inert>
+          <div class="ts-ticket-art-heading"><span>Your ticket collectible</span><span id="ticket-art-mint"></span></div>
+          <div class="ts-collectible-poster" id="ticket-art-poster">
+            <img class="ts-collectible-image" id="ticket-art-image" alt="" width="1122" height="1402" decoding="async">
+            <div class="ts-collectible-top"><span class="ts-collectible-brand">ticksecure®</span><span class="ts-collectible-series">TICKET COLLECTION</span></div>
+            <div class="ts-collectible-caption"><span class="ts-collectible-edition" id="ticket-art-edition"></span><strong class="ts-collectible-category" id="ticket-art-category"></strong><h2 class="ts-collectible-event" id="ticket-art-event"></h2><span class="ts-collectible-date" id="ticket-art-date"></span></div>
+            <div class="ts-collectible-footer"><span>KEEP THE MOMENT</span><span id="ticket-art-number"></span></div>
+          </div>
+          <div class="ts-ticket-art-footer"><span id="ticket-art-seat"></span><a href="collections.php">Open my NFT collection &rarr;</a></div>
+        </section>
+        </div>
+        </div>
+        <aside class="ts-card ts-record-card" aria-labelledby="ownership-heading">
+          <div class="ts-record-card-heading"><h2 id="ownership-heading">Ticket ownership</h2><div id="val-status-label"></div></div>
+          <dl class="ts-record-facts ts-record-facts-stack">
+            <div><dt>Current owner wallet</dt><dd class="ts-record-code" id="val-owner"></dd></div>
+            <div><dt>Token ID</dt><dd class="ts-record-code" id="val-token-id"></dd></div>
+            <div><dt>Blockchain status</dt><dd id="val-mint-status"></dd></div>
+          </dl>
+          <div class="ts-record-ticket-actions"><a class="ts-btn ts-btn-secondary" href="#" id="btn-transfer" hidden> Transfer</a><a class="ts-btn ts-btn-primary" href="#" id="btn-resale" hidden>List for resale</a></div>
+          <p class="small secondary ts-record-policy-note" id="ticket-actions-note"></p>
+          <a class="ts-record-history-link" href="#history">View ownership history &darr;</a>
+          <a class="ts-btn ts-btn-secondary w-full mt-16" id="ticket-buyer-chain-link" href="blockchain.php">My NFT transactions</a>
+          <a class="ts-btn ts-btn-secondary w-full mt-16" id="ticket-face-manage" href="tickets.php">Manage face registration</a>
+          <details class="ts-record-technical"><summary>Blockchain details </summary><dl class="ts-record-facts ts-record-facts-stack"><div><dt>Contract address</dt><dd class="ts-record-code" id="val-contract"></dd></div><div><dt>Mint transaction</dt><dd class="ts-record-code" id="val-tx"></dd></div><div id="ticket-chain-latest" hidden><dt>Latest confirmed Sepolia transaction</dt><dd class="ts-record-code" id="val-chain-latest"></dd><dt>Wallet recorded on Sepolia</dt><dd class="ts-record-code" id="val-chain-owner"></dd><dd class="small secondary" id="val-chain-sync"></dd></div></dl></details>
+        </aside>
+      </div>
+      <section class="ts-card ts-record-card ts-record-history" id="history" aria-labelledby="history-heading"><div class="ts-transfer-page-heading"><h2 id="history-heading">Ownership history</h2><a class="ts-btn ts-btn-secondary" id="ticket-transfer-history-link" href="ticket-transfers.php">Sender &amp; receiver details</a></div><div class="ts-timeline" id="timeline-container"></div></section>
+    </div>
+  </div>
+</main>
+<script>
+window.tsCurrentUser={uid:'preview-buyer'};
+window.tsFace={request:async()=>({registered:true,eligible:true,qr:'SAMPLE-NOT-AN-ENTRY-CODE'})};
+window.tsTickets={getTicket:async()=>({id:'preview-ticket',ownerUid:'preview-buyer',eventId:'preview-event',eventName:'After Hours Festival',categoryName:'VIP Access',sectionId:'North',seatId:'A12',walletAddress:'0x0000000000000000000000000000000000000000',status:'VALID',mintingStatus:'MINTED',transactionHash:'sample',createdAt:'2026-11-06T08:00:00Z'})};
+window.tsEvents={getEvent:async()=>({name:'After Hours Festival',date:'2026-12-31',time:'18:00',venueName:'Festival Hall',status:'PUBLISHED'})};
+window.tsBookings={getBooking:async()=>null};
+window.addEventListener('load',()=>window.dispatchEvent(new Event('ts-auth-ready')));
+</script>
+<script src="assets/js/collectible-art.js"></script><script src="assets/js/ticket-display.js"></script><script src="assets/js/vendor/qrcode-generator-1.4.4.js"></script><script src="assets/js/ticket-qr.js"></script><script type="module" src="assets/js/ticket-detail.js"></script></body></html>

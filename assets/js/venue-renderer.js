@@ -34,7 +34,8 @@ window.tsVenueRenderer = {
         // One shared physical size per page; scanned positions and IDs stay intact.
         const uniformWidth = median(markers.map(marker => (marker.width || 2.8) / 104 * imageWidth)) || 12;
         const uniformHeight = median(markers.map(marker => (marker.height || 2.8) / 106 * imageHeight)) || 12;
-        const sharedWidth = uniformWidth / imageWidth * 104, sharedHeight = uniformHeight / imageHeight * 106;
+        const squareSize = Math.min(uniformWidth, uniformHeight);
+        const sharedWidth = squareSize / imageWidth * 104, sharedHeight = squareSize / imageHeight * 106;
         const longestNumber = Math.max(1, ...markers.map(marker => String(marker.number || marker.label || '?').length));
         // Fit even four-digit numbers inside dense plans; strokes must not
         // consume the gaps between small seats. All clean frames share a size.
@@ -69,8 +70,8 @@ window.tsVenueRenderer = {
             }
             x = Math.max(w / 2 + 2, Math.min(102 - w / 2, x));
             y = Math.max(h / 2 + 1, Math.min(105 - h / 2, y));
-            svg.appendChild(node('rect', { class: 'ts-map-stage', x: x - w / 2, y: y - h / 2, width: w, height: h, rx: .6, fill: '#263539' }));
-            svg.appendChild(node('text', { x, y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', fill: '#ffffff', 'font-size': 2.6, 'font-weight': 700 }, 'STAGE'));
+            svg.appendChild(node('rect', { class: 'ts-map-stage', x: x - w / 2, y: y - h / 2, width: w, height: h, rx: 1.1, fill: '#111111' }));
+            svg.appendChild(node('text', { class: 'ts-map-stage-label', x, y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', fill: '#ffffff', 'font-size': 1.5, 'font-weight': 700, 'letter-spacing': '.18' }, 'STAGE'));
         };
         const standing = layout === 'standing-bowl';
         if (!scanned) {
@@ -129,7 +130,7 @@ window.tsVenueRenderer = {
             (section.geometry?.seatMarkers || []).forEach((marker, index) => {
                 const markerId = marker.id || `${id}:${index}`;
                 const state = marker.status || 'AVAILABLE';
-                const disabled = ['SOLD', 'HELD', 'BLOCKED'].includes(state) || Boolean(options.onCategorySelect && !marker.categoryId);
+                const disabled = ['SOLD', 'HELD', 'BLOCKED', 'CONTEXT'].includes(state) || Boolean(options.onCategorySelect && !marker.categoryId);
                 const seat = node('g', { class: 'ts-ocr-seat' + (marker.status ? ' ts-seat-' + state.toLowerCase() : ''),
                     'aria-label': `Seat ${id}-${marker.label || 'unlabelled'}${marker.status ? ', ' + state.toLowerCase() : ''}`,
                     'data-seat-label': marker.label || '', 'data-seat-id': markerId, 'data-category-id': marker.categoryId || '',
@@ -137,7 +138,12 @@ window.tsVenueRenderer = {
                 seat.appendChild(node('title', {}, `Seat ${id}-${marker.label || 'unlabelled'}${marker.categoryName ? ' · ' + marker.categoryName : ''}`));
                 const w = options.cleanLayout ? sharedWidth : marker.width || (outlineOnly ? 3.2 : 2.8), h = options.cleanLayout ? sharedHeight : marker.height || (outlineOnly ? 3.2 : 2.8);
                 const attrs = { class: 'ts-seat-frame', fill: outlineOnly ? 'transparent' : /^#[0-9a-f]{6}$/i.test(marker.color || '') ? marker.color : '#e4f1e9', stroke: outlineOnly ? '#eef4ff' : '#23734b', 'stroke-width': options.cleanLayout ? Math.min(.3, w * .09, h * .09) : '.3', 'pointer-events': 'all' };
-                if (options.cleanLayout) seat.appendChild(node('rect', { ...attrs, x: marker.x - w / 2, y: marker.y - h / 2, width: w, height: h, rx: Math.min(.25, w * .12, h * .12) }));
+                if (options.cleanLayout) {
+                    const ring = Math.min(w, h) * .10;
+                    seat.appendChild(node('rect', { class: 'ts-seat-selection-ring', x: marker.x - w / 2 - ring, y: marker.y - h / 2 - ring,
+                        width: w + ring * 2, height: h + ring * 2, rx: Math.min(w, h) * .30 + ring, fill: 'none', 'pointer-events': 'none', visibility: 'hidden' }));
+                    seat.appendChild(node('rect', { ...attrs, x: marker.x - w / 2, y: marker.y - h / 2, width: w, height: h, rx: Math.min(w, h) * .30 }));
+                }
                 else if (marker.shape === 'circle') seat.appendChild(node('ellipse', { ...attrs, cx: marker.x, cy: marker.y, rx: w / 2, ry: h / 2 }));
                 else if (marker.shape === 'rect' && marker.rotation) {
                     const sx = (section.geometry.imageWidth || 104) / 104, sy = (section.geometry.imageHeight || 106) / 106, angle = marker.rotation * Math.PI / 180;

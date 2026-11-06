@@ -7,7 +7,7 @@ ob_start();
     <header class="ts-organizer-hero">
         <div>
             <span class="ts-organizer-kicker">EVENT ORGANIZER</span>
-            <h1>Organizer dashboard</h1>
+            <h1>Dashboard.</h1>
             <p id="organizer-welcome">Your events, ticket sales and next steps in one place.</p>
         </div>
         <div class="ts-organizer-hero-side">

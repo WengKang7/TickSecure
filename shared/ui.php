@@ -52,7 +52,7 @@ function ts_icon(string $name, string $class = ''): string
 
 function ts_brand(string $base = '.'): string
 {
-    return '<a class="ts-brand" href="'.$base.'/index.php"><span class="ts-brand-mark"></span><span>TickSecure</span></a>';
+    return '<a class="ts-brand brand" href="'.$base.'/index.php" aria-label="TickSecure home"><span class="ts-brand-mark brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>ticksecure</span><sup>®</sup></a>';
 }
 
 function ts_status(string $text, string $tone = 'neutral'): string
@@ -69,6 +69,17 @@ function ts_asset_url(string $path, string $base = '.'): string
 {
     $file = __DIR__ . '/../' . $path;
     return $base . '/' . $path . '?v=' . filemtime($file);
+}
+
+// DESIGN2 presentation only; the original page controls and scripts stay intact.
+function ts_design2_theme_head(string $base = '.'): string
+{
+    return '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="'.ts_asset_url('assets/css/design2-theme.css', $base).'">';
+}
+
+function ts_design2_footer(string $base = '.'): string
+{
+    return '<footer id="footer" class="ts-site-footer"><div class="wrap d2-wrap"><div class="footer-top"><div>'.ts_brand($base).'<p class="footer-tagline">For the music. For the moment. For you.</p></div><nav class="footer-links" aria-label="Footer navigation"><a href="'.$base.'/public/events.php">Discover events</a><a href="'.$base.'/public/resale.php">Verified resale</a><a href="'.$base.'/organizer/dashboard.php">Organizer studio ↗</a></nav></div><div class="footer-bottom"><span>© '.date('Y').' TickSecure. All rights reserved.</span><span>For the live experience.</span></div></div></footer>';
 }
 
 function ts_access_head(string $base = '.'): string
@@ -147,12 +158,12 @@ function render_public_page(
     echo '<!doctype html><html lang="en"><head>
       <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
       <title>'.htmlspecialchars($title).' &middot; TickSecure</title>
-      <link rel="stylesheet" href="'.ts_asset_url('assets/css/ticksecure.css', $base).'">'.ts_access_head($base).ts_decision_head($base).'
+      <link rel="stylesheet" href="'.ts_asset_url('assets/css/ticksecure.css', $base).'">'.ts_access_head($base).ts_decision_head($base).ts_design2_theme_head($base).'
     </head><body class="ts-body-public">
-      <header class="ts-public-header" data-app-root="'.htmlspecialchars($base).'">
-        <div class="ts-public-header-inner">
-          <div class="ts-public-header-brand">'.ts_brand($base).'<nav class="ts-public-nav" aria-label="Main navigation">'.ts_public_navigation_links($base, $active).'</nav></div>
-          <div class="ts-public-actions">
+      <header id="header" class="ts-public-header" data-app-root="'.htmlspecialchars($base).'">
+        <div class="ts-public-header-inner nav wrap d2-wrap">
+          <div class="ts-public-header-brand">'.ts_brand($base).'<nav class="ts-public-nav nav-links" aria-label="Main navigation">'.ts_public_navigation_links($base, $active).'</nav></div>
+          <div class="ts-public-actions nav-end">
             <a class="ts-icon-btn ts-header-search" href="'.$base.'/public/events.php#event-search" aria-label="Search events" title="Search events">'.ts_icon('search').'</a>
             <div id="public-guest-actions" class="ts-public-auth-group">
               <a class="ts-btn ts-btn-secondary ts-btn-sm" href="'.$base.'/auth/login.php">Sign in</a>
@@ -162,7 +173,7 @@ function render_public_page(
               <a id="public-wallet-mini" class="ts-wallet-mini'.$walletActive.'" data-nav-key="wallet" data-ts-buyer-only href="'.$base.'/buyer/wallet.php" style="display:none"'.($active === 'wallet' ? ' aria-current="page"' : '').'>
                 <span class="ts-wallet-dot" aria-hidden="true"></span>'.ts_icon('wallet').'<span class="ts-wallet-label">Wallet</span><span id="public-wallet-text">Not connected</span>
               </a>
-              <a class="ts-icon-btn ts-header-notifications'.($active === 'notifications' ? ' active' : '').'" data-ts-buyer-only href="'.$base.'/buyer/notifications.php" aria-label="Notifications"'.($active === 'notifications' ? ' aria-current="page"' : '').'>'.ts_icon('bell').'</a>
+              <a id="buyer-notifications-link" class="ts-icon-btn ts-header-notifications'.($active === 'notifications' ? ' active' : '').'" data-ts-buyer-only href="'.$base.'/buyer/notifications.php" aria-label="Notifications"'.($active === 'notifications' ? ' aria-current="page"' : '').'>'.ts_icon('bell').'<span class="ts-buyer-notification-count" id="buyer-notifications-count" aria-hidden="true" hidden></span></a>
               <div class="ts-public-account" id="public-account">
               <a id="public-user-link" class="ts-public-user'.$profileActive.'" href="'.$base.'/buyer/profile.php" aria-label="My profile"'.($active === 'profile' ? ' aria-current="page"' : '').'>
                 <span id="public-user-name" class="ts-public-user-name">User</span>
@@ -171,7 +182,11 @@ function render_public_page(
               </a>
               <nav id="public-account-menu" class="ts-account-menu" aria-label="Buyer account" hidden>
                 <a id="account-profile-link" href="'.$base.'/buyer/profile.php">'.ts_icon('user').'<span>Profile</span></a>
-                <a id="account-collections-link" href="'.$base.'/buyer/tickets.php">'.ts_icon('layers').'<span>Collections (NFT)</span></a>
+                <a id="account-collections-link" href="'.$base.'/buyer/collections.php">'.ts_icon('layers').'<span>Collections (NFT)</span></a>
+                <a href="'.$base.'/buyer/bookings.php">'.ts_icon('calendar').'<span>My Bookings</span></a>
+                <a href="'.$base.'/buyer/blockchain.php">'.ts_icon('activity').'<span>My blockchain</span></a>
+                <a href="'.$base.'/buyer/resale.php">'.ts_icon('ticket').'<span>My listings</span></a>
+                <a href="'.$base.'/buyer/ticket-transfers.php">'.ts_icon('arrow-right').'<span>Sent &amp; received</span></a>
                 <button id="account-logout-btn" type="button">'.ts_icon('logout').'<span>Logout</span></button>
               </nav>
               </div>
@@ -187,13 +202,13 @@ function render_public_page(
             <a href="'.$base.'/public/events.php?view=saved" data-ts-auth-only data-ts-buyer-only hidden>Saved events</a>
             <a href="'.$base.'/buyer/notifications.php" data-ts-auth-only data-ts-buyer-only hidden>Notifications</a>
             <a id="mobile-profile-link" href="'.$base.'/buyer/profile.php" data-ts-auth-only hidden>My profile</a>
-            <a href="'.$base.'/buyer/tickets.php" data-ts-auth-only data-ts-buyer-only hidden>Collections (NFT)</a>
+            <a href="'.$base.'/buyer/collections.php" data-ts-auth-only data-ts-buyer-only hidden>Collections (NFT)</a>
             <button id="mobile-logout-btn" type="button" data-ts-auth-only hidden>Logout</button>
             <a href="'.$base.'/auth/login.php" data-ts-guest-only>Sign in</a><a href="'.$base.'/auth/register.php" data-ts-guest-only>Create account</a>
           </div>
         </nav>
       </header>
-      '.$content.ts_modal_and_toast().ts_decision_dialog($base).'
+      '.$content.ts_design2_footer($base).ts_modal_and_toast().ts_decision_dialog($base).'
       <script type="module" src="'.$base.'/assets/js/firebase-init.js"></script>
       <script type="module" src="'.ts_asset_url('assets/js/firebase-services.js', $base).'"></script>
       <script type="module" src="'.ts_asset_url('assets/js/firestore-crud.js', $base).'"></script>
@@ -201,6 +216,7 @@ function render_public_page(
       <script type="module" src="'.ts_asset_url('assets/js/auth-guard.js', $base).'"></script>
       <script src="'.$base.'/assets/js/ui.js"></script>
       <script src="'.ts_asset_url('assets/js/public-navigation.js', $base).'"></script>
+      <script src="'.ts_asset_url('assets/js/buyer-notifications.js', $base).'"></script>
     </body></html>';
 }
 
@@ -257,10 +273,10 @@ function ts_admin_confirmation_dialog(): string
 function ts_dashboard_notifications(string $role, string $base): string
 {
     if ($role !== 'admin') {
-        return '<a class="ts-icon-btn" href="'.$base.'/organizer/notifications.php" aria-label="Notifications">'.ts_icon('bell').'</a>';
+        return '<a class="ts-icon-btn" href="'.$base.'/organizer/notifications.php" aria-label="Notifications">'.ts_icon('bell').'<span class="ts-sidebar-notification-label">Notifications</span></a>';
     }
     return '<div class="ts-admin-attention" id="admin-attention" data-review-base="'.htmlspecialchars($base.'/admin/', ENT_QUOTES).'">
-        <button type="button" class="ts-icon-btn ts-attention-toggle" id="admin-attention-toggle" aria-label="Notifications" aria-expanded="false" aria-controls="admin-attention-panel">'.ts_icon('bell').'<span class="ts-attention-dot" id="admin-attention-dot" aria-hidden="true" hidden></span></button>
+        <button type="button" class="ts-icon-btn ts-attention-toggle" id="admin-attention-toggle" aria-label="Notifications" aria-expanded="false" aria-controls="admin-attention-panel">'.ts_icon('bell').'<span class="ts-sidebar-notification-label">Notifications</span><span class="ts-attention-dot" id="admin-attention-dot" aria-hidden="true" hidden></span></button>
         <section class="ts-attention-panel" id="admin-attention-panel" aria-labelledby="admin-attention-heading" hidden>
             <div class="ts-attention-head"><h2 id="admin-attention-heading">Needs your attention</h2><button type="button" class="ts-icon-btn" id="admin-attention-close" aria-label="Close notifications">'.ts_icon('x').'</button></div>
             <p class="ts-attention-status" id="admin-attention-status" role="status" aria-live="polite">Loading pending actions...</p>
@@ -276,14 +292,14 @@ function render_dashboard_page(string $role, string $title, string $active, stri
     $roleName = $role === 'admin' ? 'Administrator' : 'Event Organizer';
     $initial = $role === 'admin' ? 'AD' : 'NS';
     $person = $role === 'admin' ? 'Admin Account' : 'Nova Stage';
-    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'.htmlspecialchars($title).' · TickSecure</title><link rel="stylesheet" href="'.ts_asset_url('assets/css/ticksecure.css', $base).'">'.ts_access_head($base).ts_decision_head($base).'</head><body class="ts-body-dashboard"><div class="ts-shell">';
-    echo '<aside class="ts-sidebar"><div class="ts-sidebar-head">'.ts_brand($base).'</div><nav class="ts-sidebar-nav">'.ts_sidebar_links($role, $active, $base).'</nav><div class="ts-sidebar-foot"><div class="ts-profile-card"><div class="ts-avatar" id="sidebar-avatar">'.$initial.'</div><div class="ts-profile-meta"><div class="ts-profile-name" id="sidebar-name">'.$person.'</div><div class="ts-profile-role">'.$roleName.'</div></div></div></div></aside>';
-    echo '<main class="ts-main"><header class="ts-dashboard-header"><div class="flex items-center gap-12"><button class="ts-icon-btn ts-sidebar-toggle">'.ts_icon('menu').'</button><div><div class="ts-breadcrumb">'.htmlspecialchars($breadcrumb ?: $roleName).'</div><div class="ts-dashboard-title">'.htmlspecialchars($title).'</div></div></div><div class="ts-dashboard-actions"><button class="ts-icon-btn">'.ts_icon('search').'</button>'.ts_dashboard_notifications($role, $base).'<span class="ts-role-pill">'.$roleName.'</span><div class="ts-avatar" id="header-avatar">'.$initial.'</div><button class="ts-icon-btn ts-logout-btn" title="Log out" style="margin-left: 10px;">'.ts_icon('logout').'</button></div></header><div class="ts-page">'.$content.'</div></main></div>'.ts_modal_and_toast().ts_decision_dialog($base).$notificationScript.'<script type="module" src="'.$base.'/assets/js/firebase-init.js"></script><script type="module" src="'.ts_asset_url('assets/js/firebase-services.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/firestore-crud.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/validation.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/auth-guard.js', $base).'"></script><script src="'.$base.'/assets/js/ui.js"></script><script src="'.ts_asset_url('assets/js/dashboard-logout.js', $base).'"></script></body></html>';
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'.htmlspecialchars($title).' · TickSecure</title><link rel="stylesheet" href="'.ts_asset_url('assets/css/ticksecure.css', $base).'">'.ts_access_head($base).ts_decision_head($base).ts_design2_theme_head($base).'</head><body class="ts-body-dashboard d2-staff-workspace"><div class="ts-shell dashboard-shell">';
+    echo '<aside class="ts-sidebar sidebar"><div class="ts-sidebar-head d2-sidebar-brand">'.ts_brand($base).'<button type="button" class="ts-btn ts-btn-sm ts-sidebar-toggle" aria-label="Toggle workspace menu">Menu</button></div><nav class="ts-sidebar-nav" aria-label="'.$roleName.' navigation"><div class="sidebar-label">'.$roleName.'</div>'.ts_sidebar_links($role, $active, $base).'</nav><div class="ts-sidebar-foot sidebar-bottom"><div class="ts-profile-card"><div class="ts-avatar" id="sidebar-avatar">'.$initial.'</div><div class="ts-profile-meta"><div class="ts-profile-name" id="sidebar-name">'.$person.'</div><div class="ts-profile-role">'.$roleName.'</div></div></div><div class="ts-sidebar-tools"><button type="button" class="ts-icon-btn" aria-label="Search">'.ts_icon('search').'</button>'.ts_dashboard_notifications($role, $base).'<div class="ts-avatar" id="header-avatar">'.$initial.'</div></div><a class="ts-sidebar-public" href="'.$base.'/public/events.php">'.ts_icon('arrow-right').'Visit public website</a><button type="button" class="ts-logout-btn ts-sidebar-logout" title="Log out">'.ts_icon('logout').'Logout</button></div></aside>';
+    echo '<main class="ts-main dashboard-main" aria-label="'.htmlspecialchars($title).'"><div class="ts-page">'.$content.'</div></main></div>'.ts_modal_and_toast().ts_decision_dialog($base).$notificationScript.'<script type="module" src="'.$base.'/assets/js/firebase-init.js"></script><script type="module" src="'.ts_asset_url('assets/js/firebase-services.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/firestore-crud.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/validation.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/auth-guard.js', $base).'"></script><script src="'.$base.'/assets/js/ui.js"></script><script src="'.ts_asset_url('assets/js/dashboard-logout.js', $base).'"></script></body></html>';
 }
 
 function render_auth_page(string $title, string $content, string $base = '..'): void
 {
-    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'.htmlspecialchars($title).' · TickSecure</title><link rel="stylesheet" href="'.ts_asset_url('assets/css/ticksecure.css', $base).'">'.ts_decision_head($base).'</head><body><div class="ts-auth"><section class="ts-auth-art"><div style="position:relative;z-index:2">'.ts_brand($base).'</div><div class="ts-auth-copy"><div class="ts-section-eyebrow" style="color:#D5B98E">Verified. Traceable. Fair.</div><h1>Premium ticketing with ownership you can trust.</h1><p>TickSecure keeps the buying experience familiar while verified NFT ownership, controlled resale and single-use entry protection work quietly in the background.</p></div><div class="ts-auth-trust"><span>✓ Verified ownership</span><span>✓ Controlled resale</span><span>✓ Secure entry</span></div></section><main class="ts-auth-form-wrap"><div class="ts-auth-form">'.$content.'</div></main></div>'.ts_modal_and_toast().ts_decision_dialog($base).'<script type="module" src="'.$base.'/assets/js/firebase-init.js"></script><script type="module" src="'.ts_asset_url('assets/js/firebase-services.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/firestore-crud.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/validation.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/auth-guard.js', $base).'"></script><script src="'.$base.'/assets/js/ui.js"></script></body></html>';
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'.htmlspecialchars($title).' · TickSecure</title><link rel="stylesheet" href="'.ts_asset_url('assets/css/ticksecure.css', $base).'">'.ts_decision_head($base).ts_design2_theme_head($base).'</head><body class="ts-body-auth"><div class="ts-auth"><div class="ts-auth-backdrop" aria-hidden="true"><div class="ts-auth-backdrop-brand">ticksecure®</div><h2>Less ordinary.<br>More live.</h2><div class="ts-auth-backdrop-photo"></div></div><main class="ts-auth-form-wrap"><div class="ts-auth-form">'.$content.'</div></main></div>'.ts_modal_and_toast().ts_decision_dialog($base).'<script type="module" src="'.$base.'/assets/js/firebase-init.js"></script><script type="module" src="'.ts_asset_url('assets/js/firebase-services.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/firestore-crud.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/validation.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/auth-guard.js', $base).'"></script><script src="'.$base.'/assets/js/ui.js"></script></body></html>';
 }
 
 function ts_page_head(string $title, string $subtitle = '', string $actions = ''): string

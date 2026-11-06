@@ -12,6 +12,7 @@ function records() {
         'Users/sender':{role:'buyer',status:'active',emailVerified:true,walletAddress:senderWallet},
         'Users/recipient':{role:'buyer',status:'active',emailVerified:true,walletAddress:recipientWallet},
         'NFTTickets/ticket':{ownerUid:'sender',walletAddress:senderWallet,eventId:'event',eventName:'Concert',status:'VALID',transferHistory:[],seatId:'B03'},
+        'TicketFaces/ticket':{ownerUid:'sender',ciphertext:'old-encrypted-template'},
         'Events/event':{status:'PUBLISHED',transferEnabled:true,maxTicketsPerBuyer:2}
     };
 }
@@ -38,6 +39,8 @@ test('PHP transfer atomically changes the owner and rejects ineligible transfers
         const ticket=result.records['NFTTickets/ticket'];
         assert.equal(ticket.ownerUid,'recipient');assert.equal(ticket.walletAddress,recipientWallet);assert.equal(ticket.status,'VALID');
         assert.equal(ticket.transferHistory.length,1);assert.equal(ticket.transferHistory[0].fromUid,'sender');
+        assert.equal(result.records['TicketFaces/ticket'],undefined,'old face deleted atomically');
+        assert.equal(ticket.faceRegistrationStatus,'REQUIRED');
         assert.equal(ticket.transferHistory[0].toUid,'recipient');assert.equal(ticket.seatId,'B03');
         for(const collection of ['Notifications','AuditLogs','BlockchainTransactions']) assert.equal(Object.keys(result.records).filter(k=>k.startsWith(collection+'/')).length,1);
     }

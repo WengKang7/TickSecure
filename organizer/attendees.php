@@ -3,7 +3,7 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<?=ts_page_head('Attendee Management', 'View booking, ticket and event-entry verification status for your events.', '<select class="ts-select"><option>Aurora After Dark</option></select>')?>
+<?=ts_page_head('Attendee Management', 'View booking, ticket and event-entry verification status for your events.', '<a class="ts-btn ts-btn-primary" href="../verification/face-machine.php">Check in attendees</a>')?>
 <div class="ts-grid-2 mb-24">
     <div class="ts-card ts-kpi">
         <div class="ts-kpi-top"><span>Verified Attendees</span><span

@@ -78,7 +78,7 @@
         for (const item of projected) {
             const { face, points } = item, seat = scene.seats[face.seatIndex];
             let color = face.color || palette[face.kind] || palette.available;
-            if (face.kind === 'chair') color = seat.status === 'CONTEXT' ? palette.context : selected.has(seat.id) ? palette.selected : ['AVAILABLE','MINE'].includes(seat.status) ? palette.available : palette.unavailable;
+            if (face.kind === 'chair') color = seat.status === 'CONTEXT' ? palette.context : seat.status === 'HIGHLIGHTED' || selected.has(seat.id) ? palette.selected : ['AVAILABLE','MINE'].includes(seat.status) ? palette.available : palette.unavailable;
             const light = .69 + Math.max(0, Model.dot(face.normal, [-.38,.83,.4])) * .38;
             polygon(ctx, points);
             if (face.kind === 'screen') {

@@ -4,15 +4,18 @@ ob_start();
 ?>
 <main class="ts-section-tight ts-seat-page">
   <div class="ts-container">
-    <div class="ts-steps">
+    <div class="ts-steps ts-seat-steps" aria-label="Booking progress">
       <div class="ts-step done"><span class="ts-step-num">&#10003;</span>Category</div><span class="ts-step-line"></span>
       <div class="ts-step active"><span class="ts-step-num">2</span>Choose Seats</div><span class="ts-step-line"></span>
       <div class="ts-step"><span class="ts-step-num">3</span>Checkout</div>
     </div>
     <div class="ts-seat-picker-layout">
-      <section class="ts-card ts-card-pad">
-        <h1 class="ts-section-title">Choose your seats</h1>
-        <p class="muted mt-8" id="picker-event">Loading the event seating plan...</p>
+      <section class="ts-card ts-card-pad ts-seat-plan-panel" aria-labelledby="picker-heading">
+        <div class="ts-seat-plan-heading"><div>
+          <div class="ts-section-eyebrow">Your place in the crowd</div>
+          <h1 class="ts-section-title" id="picker-heading">Choose your seats.</h1>
+          <p class="muted mt-8" id="picker-event">Loading the event seating plan...</p>
+        </div><?=ts_icon('ticket')?></div>
         <p class="small muted mt-8" id="picker-instructions">Choose a seat to preview its view toward the stage, then reserve your selection.</p>
         <div class="ts-buyer-view-toolbar mt-20">
           <div class="ts-buyer-view-switch" role="group" aria-label="Seating view">
@@ -26,6 +29,7 @@ ob_start();
             <button type="button" class="ts-btn ts-btn-ghost" id="picker-refresh">Refresh availability</button>
           </div>
         </div>
+        <p class="small muted ts-seat-navigation-hint">Use + to zoom. Drag to explore the venue.</p>
         <div class="ts-seat-legend mt-16"><span>Available</span><span class="selected">Selected</span><span class="unavailable">Held / sold</span><span class="context" id="picker-context-legend" hidden>Other seats</span></div>
         <div class="ts-buyer-view-heading mt-16" id="picker-3d-heading" hidden>
           <strong id="picker-view-status" aria-live="polite">Venue overview</strong>
@@ -52,12 +56,15 @@ ob_start();
         <input class="ts-input" id="picker-search" placeholder="Row or seat identifier" maxlength="80">
         <div class="ts-picker-seat-list mt-12" id="picker-seat-list" aria-label="Available seat identifiers"></div></details>
       </section>
-      <aside class="ts-card ts-card-pad">
-        <div class="ts-card-title">Your selection</div>
-        <p class="muted mt-8" id="picker-category"></p>
+      <aside class="ts-card ts-card-pad ts-seat-order-panel" aria-labelledby="picker-order-heading">
+        <div class="ts-seat-order-head"><div><h2 class="ts-card-title" id="picker-order-heading">Your tickets</h2><p class="small muted mt-8">Choose your seats, then reserve.</p></div><?=ts_icon('ticket')?></div>
+        <div class="ts-seat-order-category"><span class="small muted">Selected ticket category</span><p id="picker-category" class="mt-8"></p></div>
+        <div class="ts-seat-order-selection"><h3>Your selection</h3>
         <p class="small mt-12" id="picker-count" role="status" aria-live="polite">Choose your seats.</p>
         <div class="ts-seat-pills mt-12" id="picker-selected"></div>
-        <div class="ts-generation-total mt-16"><span>Total including RM20 service charge</span><strong id="picker-total">—</strong></div>
+        </div>
+        <p class="ts-seat-order-fee"><span>Service charge</span><span>RM20.00</span></p>
+        <div class="ts-generation-total mt-16"><span>Total (simulated)</span><strong id="picker-total">—</strong></div>
         <div class="ts-alert ts-alert-error mt-16" id="picker-error" role="alert" hidden></div>
         <div class="ts-alert ts-alert-info mt-16" id="picker-hold" role="status" hidden>Seats held for <strong id="picker-countdown"></strong></div>
         <button type="button" class="ts-btn ts-btn-primary w-full mt-20" id="picker-reserve" disabled>Reserve selected seats</button>

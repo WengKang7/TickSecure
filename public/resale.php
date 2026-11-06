@@ -3,7 +3,6 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<link rel="stylesheet" href="<?=ts_asset_url('assets/css/resale-page.css', '..')?>">
 <main class="ts-resale-page"><div class="ts-container">
   <header class="resale-intro">
     <div class="resale-intro-copy">

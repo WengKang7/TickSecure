@@ -8,10 +8,10 @@ ob_start();
 <p class="ts-auth-sub">Choose how you will use TickSecure.</p>
 <input type="hidden" id="selected-role" name="role" value="buyer">
 <div class="ts-role-choice mb-24">
-    <div class="ts-role-card active" data-role="buyer">
-        <?=ts_icon('ticket', 'ts-icon-lg')?><strong>Ticket Buyer</strong><span>Discover events, purchase secure tickets and manage resale.</span></div>
-    <div class="ts-role-card" data-role="organizer">
-        <?=ts_icon('building', 'ts-icon-lg')?><strong>Event Organizer</strong><span>Create events and manage ticket configuration after approval.</span></div>
+    <button type="button" class="ts-role-card active" data-role="buyer">
+        <?=ts_icon('ticket', 'ts-icon-lg')?><strong>Create a buyer account</strong><span>Discover events, purchase secure tickets and manage resale.</span></button>
+    <button type="button" class="ts-role-card" data-role="organizer">
+        <?=ts_icon('building', 'ts-icon-lg')?><strong>Apply as an organizer</strong><span>Create events and manage ticket configuration after approval.</span></button>
 </div>
 <div class="ts-auth-fields" id="registration-form" novalidate>
     <div class="ts-field"><label class="ts-label" for="registration-name">Full Name</label><input class="ts-input" id="registration-name" name="fullName" autocomplete="name" maxlength="100" placeholder="Your full name" required>

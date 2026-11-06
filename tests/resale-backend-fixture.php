@@ -50,6 +50,9 @@ class FirebaseFirestoreTransaction {
     public function create(string $collection, string $id, array $fields): void {
         $this->writing = true; $this->records[$collection . '/' . $id] = $fields;
     }
+    public function delete(string $collection, string $id): void {
+        $this->writing = true; unset($this->records[$collection . '/' . $id]);
+    }
     public function update(string $collection, string $id, array $fields): void {
         $this->writing = true;
         $key = $collection . '/' . $id;

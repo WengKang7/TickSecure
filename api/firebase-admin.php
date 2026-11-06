@@ -548,6 +548,11 @@ final class FirebaseAdminRest
         ];
     }
 
+    public function deleteWrite(string $collection, string $id): array
+    {
+        return ['delete' => $this->documentName($collection, $id)];
+    }
+
     /** @param array<string,mixed> $document @return array<string,mixed> */
     private static function decodeDocument(array $document): array
     {
@@ -674,6 +679,11 @@ final class FirebaseFirestoreTransaction
     public function update(string $collection, string $id, array $fields): void
     {
         $this->pendingWrites[] = $this->firebase->updateWrite($collection, $id, $fields);
+    }
+
+    public function delete(string $collection, string $id): void
+    {
+        $this->pendingWrites[] = $this->firebase->deleteWrite($collection, $id);
     }
 
     /** @return list<array<string,mixed>> */

@@ -10,6 +10,8 @@ class Element {
     set innerHTML(value) { this.html = value; this.children = []; }
     get innerHTML() { return this.html || ''; }
     setAttribute(name, value) { this.attributes[name] = value; }
+    getAttribute(name) { return this.attributes[name] ?? null; }
+    removeAttribute(name) { delete this.attributes[name]; }
     addEventListener(name, callback) { this.listeners[name] = callback; }
     append(...children) { this.children.push(...children); }
     appendChild(child) { this.children.push(child); }
@@ -29,6 +31,10 @@ function createPage(name, options = {}) {
     const window = {
         location: { search: '?id=' + (name === 'booking-detail' ? 'booking-1' : 'ticket-1') },
         tsCurrentUser: { uid: 'buyer-1' },
+        tsFace: { request: async () => {
+            if (options.faceError) throw Error('Face service unavailable');
+            return options.identity || { registered: true, eligible: true, qr: 'TKSECURE2:ticket-1:event-1:registration:' + 'a'.repeat(64) };
+        } },
         addEventListener(type, callback) { if (type === 'ts-auth-ready') ready = callback; },
         tsBookings: { getBooking: async () => options.booking || booking },
         tsEvents: { getEvent: async () => { if (options.eventError) throw Error('Unavailable'); return options.event || event; } },
@@ -41,7 +47,7 @@ function createPage(name, options = {}) {
         }
     };
     const context = vm.createContext({ window, document: { getElementById: id => elements.get(id), createElement: () => new Element() }, URLSearchParams, URL, Intl, console, setTimeout });
-    for (const script of ['ticket-display.js', 'vendor/qrcode-generator-1.4.4.js', 'ticket-qr.js', name + '.js'])
+    for (const script of ['ticket-display.js', 'vendor/qrcode-generator-1.4.4.js', 'ticket-qr.js', 'collectible-art.js', name + '.js'])
         vm.runInContext(fs.readFileSync(path.join(root, 'assets/js', script), 'utf8'), context);
     return { window, elements, ready: () => ready() };
 }
@@ -99,6 +105,22 @@ test('used tickets suppress the QR and ticket actions, and event rules disable i
     assert.equal(restricted.elements.get('btn-transfer').hidden, true);
     assert.equal(restricted.elements.get('btn-resale').hidden, true);
 });
+test('ticket flips to the same collectible artwork and back without replacing its QR',async()=>{
+    const p=createPage('ticket-detail');await p.ready();
+    const button=p.elements.get('ticket-flip-button'),front=p.elements.get('ticket-flip-front'),back=p.elements.get('ticket-flip-back');
+    const qr=p.elements.get('qr-container').innerHTML;
+    assert.equal(p.elements.get('ticket-art-image').src,p.window.tsCollectibleArt.artwork(ticket).src);
+    assert.equal(p.elements.get('ticket-art-event').textContent,ticket.eventName);
+    assert.equal(p.elements.get('ticket-art-mint').textContent,'NFT not minted yet');
+    assert.equal(button.disabled,false);button.listeners.click();
+    assert.equal(button.getAttribute('aria-pressed'),'true');assert.equal(front.inert,true);assert.equal(back.inert,false);
+    assert.equal(back.getAttribute('aria-hidden'),'false');assert.equal(button.textContent,'Show entry ticket');
+    assert.equal(p.elements.get('qr-container').innerHTML,qr);
+    button.listeners.click();assert.equal(front.inert,false);assert.equal(back.inert,true);
+    assert.equal(button.getAttribute('aria-pressed'),'false');assert.equal(p.elements.get('download-qr').disabled,false);
+    p.window.tsCurrentUser=null;await p.ready();
+    assert.equal(button.disabled,true);assert.equal(button.getAttribute('aria-pressed'),'false');assert.equal(p.elements.get('ticket-content').hidden,true);
+});
 
 test('ownership history includes transfers and the original issuance without inserting wallet data as HTML', async () => {
     const p = createPage('ticket-detail', { ticket: { ...ticket, transferHistory: [{ fromWallet: '<old-wallet>', toWallet: '<new-wallet>', timestamp: booking.createdAt }] } });
@@ -131,4 +153,24 @@ test('a different owner and stale signed-out requests cannot display ticket deta
     await initial;
     assert.equal(pending.elements.get('ticket-content').hidden, true);
     assert.equal(pending.elements.get('download-qr').disabled, true);
+});
+
+test('unregistered tickets and unavailable face service never expose ticket details or QR', async () => {
+    const p = createPage('ticket-detail', {identity:{registered:false,eligible:true,message:'Register your face'}});
+    await p.ready();
+    assert.equal(p.elements.get('ticket-content').hidden,true);
+    assert.equal(p.elements.get('ticket-face-gate').hidden,false);
+    assert.equal(p.elements.get('ticket-face-register').href,'face-registration.php?ticketId=ticket-1');
+    assert.equal(p.elements.get('download-qr').disabled,true);
+    assert.equal(p.elements.get('ticket-flip-button').disabled,true);
+    const fail = createPage('ticket-detail',{faceError:true}); await fail.ready();
+    assert.equal(fail.elements.get('ticket-content').hidden,true);
+    assert.equal(fail.elements.get('download-qr').disabled,true);
+});
+
+test('missing event or a pending NFT never produces an entry QR even for a registered face', async () => {
+    const p = createPage('ticket-detail',{eventError:true}); await p.ready();
+    assert.equal(p.elements.get('download-qr').disabled,true);
+    const pending = createPage('ticket-detail',{identity:{registered:true,eligible:false,qr:null}}); await pending.ready();
+    assert.equal(pending.elements.get('download-qr').disabled,true);
 });

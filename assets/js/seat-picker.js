@@ -33,7 +33,7 @@
         motion.setAttribute('aria-pressed', String(!!viewInfo.showPeople && !!viewInfo.peopleMotion));
         motion.textContent = viewInfo.reducedMotion ? 'Reduced motion' : viewInfo.peopleMotion === false ? 'Play animation' : 'Pause animation';
         motion.title = viewInfo.reducedMotion ? 'Animation is paused to match your reduced-motion preference.' : '';
-        el('picker-context-legend').hidden = !active || !model?.geometry?.layoutSeats?.length;
+        el('picker-context-legend').hidden = !model?.geometry?.layoutSeats?.length;
         el('picker-3d-fallback').hidden = !failed3D;
         el('picker-overview').hidden = !viewInfo.viewSeatId;
         const seat = mapSeats().get(viewInfo.viewSeatId);
@@ -80,6 +80,20 @@
         el('picker-hold').hidden = !hold;
         renderPreview();
     }
+    // Context chairs are visual references only; selection still uses model.seats.
+    function planMarkers(page, positioned) {
+        const offered = positioned.filter(seat => (seat.position.page || 1) === page);
+        const labels = new Set(offered.map(seat => seat.seatLabel));
+        const context = (model.geometry.layoutSeats || []).filter(seat =>
+            seat.position && Number.isFinite(seat.position.x) && Number.isFinite(seat.position.y)
+            && (seat.position.page || 1) === page && !labels.has(seat.seatLabel));
+        return [
+            ...context.map((seat, index) => ({ ...seat.position, id: `context:${page}:${index}`, label: seat.seatLabel,
+                number: seat.number || seat.seatLabel, status: 'CONTEXT' })),
+            ...offered.map(seat => ({ ...seat.position, id: seat.id, label: seat.seatLabel,
+                number: seat.number || seat.seatLabel, status: seat.status === 'MINE' ? 'AVAILABLE' : seat.status }))
+        ];
+    }
     function toggle(id) {
         if (busy) return;
         const seat = mapSeats().get(id); if (!seat) return;
@@ -115,10 +129,8 @@
             const pages = [...new Set(positioned.map(s => s.position.page || 1))];
             const sections = pages.map(page => ({ sectionId: 'PAGE_' + page, name: model.categoryName, seatCount: positioned.filter(s => (s.position.page || 1) === page).length,
                 geometry: { type: 'polygon', layout: 'ocr', page, imageWidth: model.geometry.pages?.[page]?.imageWidth || model.geometry.imageWidth, imageHeight: model.geometry.pages?.[page]?.imageHeight || model.geometry.imageHeight,
-                    decorations: model.geometry.pages?.[page]?.decorations || (page === model.geometry.page ? model.geometry.decorations : []), points: [], seatMarkers: positioned.filter(s => (s.position.page || 1) === page).map(seat => ({
-                        ...seat.position, id: seat.id, label: seat.seatLabel, number: seat.number || seat.seatLabel, status: seat.status === 'MINE' ? 'AVAILABLE' : seat.status
-                    })) } }));
-            window.tsVenueRenderer.renderBoard('buyer-seat-map', sections, { seatOnly: true, selectedSeatIds: [...selected], viewport, editTool: 'pan',
+                    decorations: model.geometry.pages?.[page]?.decorations || (page === model.geometry.page ? model.geometry.decorations : []), points: [], seatMarkers: planMarkers(page, positioned) } }));
+            window.tsVenueRenderer.renderBoard('buyer-seat-map', sections, { cleanLayout: true, seatOnly: true, selectedSeatIds: [...selected], viewport, editTool: 'pan',
                 onViewportChange: value => { viewport = value; }, onSeatSelect: (_, label, event, id) => toggle(id) });
         }
         const filter = el('picker-search').value.trim().toLowerCase(), list = el('picker-seat-list'); list.replaceChildren();
@@ -142,7 +154,9 @@
             const records = mapSeats(); [...selected].forEach(id => { if (!records.has(id) || !['AVAILABLE', 'MINE'].includes(records.get(id).status)) selected.delete(id); });
             if (initial) model.seats.filter(s => s.status === 'MINE').slice(0, quantity).forEach(s => selected.add(s.id));
             if (hold && hold.seats.some(s => records.get(s.id)?.status !== 'MINE')) { hold = null; error('Your previous hold is no longer valid. Choose seats again.'); }
-            el('picker-event').textContent = `${model.eventName} · ${model.venueName}`; el('picker-category').textContent = `${model.categoryName} · RM${model.unitPrice.toFixed(2)} per seat`;
+            el('picker-event').textContent = `${model.eventName} · ${model.venueName}`;
+            el('picker-category').replaceChildren(create('span', 'ts-picker-category-name', model.categoryName),
+                create('strong', 'ts-picker-unit-price', `RM${model.unitPrice.toFixed(2)}`), create('small', '', '/ person'));
             render();
         } catch (failure) { if (requestVersion === version) error(failure.message || 'Could not refresh availability.'); }
         finally { if (requestVersion === version) loading = false; }

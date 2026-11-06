@@ -240,6 +240,32 @@ test('dense clean maps keep four-digit numbers centered inside uniform seat boxe
     assert.equal(JSON.stringify(section), original);
 });
 
+test('clean reference chairs stay inert while selected real seats retain keyboard activation and rounded frames', () => {
+    const p = runtime(), selected = [];
+    p.data[0].geometry.seatMarkers = [
+        { id: 'reference', label: '1', number: '1', x: 20, y: 30, status: 'CONTEXT', width: 3, height: 3 },
+        { id: 'offered', label: '2', number: '2', x: 25, y: 30, status: 'AVAILABLE', width: 3, height: 3 }
+    ];
+    p.context.window.tsVenueRenderer.renderBoard(p.board.id, p.data, { cleanLayout: true, seatOnly: true, selectedSeatIds: ['offered'],
+        onSeatSelect: (...args) => selected.push(args[3]) });
+    const seats = p.board.querySelectorAll('g').filter(node => node.attributes['data-seat-id']);
+    assert.equal(seats[0].attributes['aria-disabled'], 'true');
+    assert.equal(seats[0].attributes.tabindex, '-1');
+    seats[0].listeners.click({});
+    assert.deepEqual(selected, []);
+    seats[1].listeners.keydown({ key: 'Enter', preventDefault() {} });
+    assert.deepEqual(selected, ['offered']);
+    assert.equal(seats[1].attributes['aria-pressed'], 'true');
+    assert.equal(p.board.querySelectorAll('.ts-seat-selection-ring').length, 2);
+    const frame = p.board.querySelectorAll('.ts-seat-frame')[0];
+    assert.ok(Number(frame.attributes.rx) > 0);
+    const svg = p.board.querySelectorAll('svg')[0];
+    const width = Number(frame.attributes.width) / 104 * 104;
+    const height = Number(frame.attributes.height) / 106 * 106;
+    assert.ok(Math.abs(width - height) < .000001, 'clean symbols are physically square on a square source image');
+    assert.equal(svg.attributes.preserveAspectRatio, 'none');
+});
+
 test('shape-detected seats explain automatic numbering instead of showing a fabricated zero OCR confidence', () => {
     const p = runtime();
     Object.assign(p.data[0].geometry, { source: 'shape-detection', confidence: 0, seatMarkers: [{ id: 'a', label: '1', number: '1', row: 'A', x: 20, y: 30 }] });

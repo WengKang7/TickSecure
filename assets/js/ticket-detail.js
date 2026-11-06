@@ -2,6 +2,21 @@ const el = id => document.getElementById(id);
 const display = window.tsTicketDisplay;
 let loadVersion = 0;
 let downloadSvg = '', downloadId = '';
+let artworkReady = false;
+function flipTicket(flipped) {
+    el('ticket-flip-card').setAttribute('data-flipped', String(flipped));
+    el('ticket-flip-button').setAttribute('aria-pressed', String(flipped));
+    el('ticket-flip-button').textContent = flipped ? 'Show entry ticket' : 'View NFT artwork';
+    el('ticket-flip-front').setAttribute('aria-hidden', String(flipped));
+    el('ticket-flip-back').setAttribute('aria-hidden', String(!flipped));
+    el('ticket-flip-front').inert = flipped;
+    el('ticket-flip-back').inert = !flipped;
+}
+el('ticket-flip-button').addEventListener('click', () => {
+    if (!artworkReady || el('ticket-content').hidden) return;
+    flipTicket(el('ticket-flip-button').getAttribute('aria-pressed') !== 'true');
+});
+el('ticket-art-image').addEventListener('error', () => { el('ticket-art-image').hidden = true; });
 el('download-qr').addEventListener('click', () => {
     if (!downloadSvg || el('download-qr').disabled) return;
     const url = URL.createObjectURL(new Blob([downloadSvg], { type: 'image/svg+xml' }));
@@ -19,6 +34,9 @@ window.addEventListener('ts-auth-ready', async () => {
     el('ticket-error').hidden = true;
     el('download-qr').disabled = true;
     el('view-booking').hidden = true;
+    el('ticket-face-gate').hidden = true;
+    artworkReady = false; flipTicket(false); el('ticket-flip-button').disabled = true;
+    el('ticket-art-image').removeAttribute('src');
     downloadSvg = '';
     if (!window.tsCurrentUser?.uid) return;
     const uid = window.tsCurrentUser.uid;
@@ -29,6 +47,17 @@ window.addEventListener('ts-auth-ready', async () => {
         if (version !== loadVersion) return;
         if (!record || record.ownerUid !== uid) throw Error('This ticket could not be found or is no longer in your account.');
         const ticket = { ...record, id };
+        const identity = await window.tsFace.request('status', { ticketId: id });
+        if (version !== loadVersion) return;
+        el('ticket-face-manage').href = 'face-registration.php?ticketId=' + encodeURIComponent(id);
+        if (!identity.registered && ticket.status !== 'USED') {
+            el('ticket-face-gate').hidden = false;
+            el('ticket-face-message').textContent = identity.message;
+            el('ticket-face-register').href = 'face-registration.php?ticketId=' + encodeURIComponent(id);
+            el('ticket-face-register').hidden = !identity.eligible;
+            el('ticket-face-nft').href = 'blockchain.php?ticketId=' + encodeURIComponent(id);
+            return;
+        }
         el('ticket-transfer-history-link').href = 'ticket-transfers.php?ticketId=' + encodeURIComponent(id);
         el('ticket-buyer-chain-link').href = 'blockchain.php?ticketId=' + encodeURIComponent(id);
         const [eventResult, bookingResult, transferResult] = await Promise.allSettled([
@@ -41,6 +70,18 @@ window.addEventListener('ts-auth-ready', async () => {
         const booking = bookingResult.status === 'fulfilled' ? bookingResult.value : null;
         const transfers = transferResult.status === 'fulfilled' && Array.isArray(transferResult.value?.records) ? transferResult.value.records : [];
         const demo = booking?.paymentStatus === 'SIMULATED_PAID';
+        const artwork = window.tsCollectibleArt.artwork(ticket);
+        el('ticket-art-poster').className = 'ts-collectible-poster ts-collectible-' + artwork.key;
+        el('ticket-art-image').hidden = false;
+        el('ticket-art-image').src = artwork.src;
+        el('ticket-art-image').alt = artwork.name + ' collectible artwork';
+        el('ticket-art-edition').textContent = artwork.name;
+        el('ticket-art-category').textContent = ticket.categoryName || 'Event pass';
+        el('ticket-art-event').textContent = ticket.eventName || event?.name || 'Event ticket';
+        el('ticket-art-date').textContent = display.eventDate(ticket, event);
+        el('ticket-art-number').textContent = '#' + String(ticket.id).slice(-8).toUpperCase();
+        el('ticket-art-seat').textContent = 'Seat ' + (ticket.seatId || 'not assigned');
+        el('ticket-art-mint').textContent = window.tsCollectibleArt.mintState(ticket).label;
         el('val-event').textContent = ticket.eventName || event?.name || 'Event';
         el('val-event-meta').textContent = display.eventDate(ticket, event);
         el('val-venue').textContent = event?.venueName || ticket.venueName || 'Venue details unavailable';
@@ -84,16 +125,16 @@ window.addEventListener('ts-auth-ready', async () => {
                 : 'Transfer and resale are available only when permitted by the event rules and current ticket status.';
         el('qr-container').replaceChildren();
         el('entry-heading').textContent = 'Entry unavailable';
-        if (valid && (!event || published)) {
+        if (valid && published && identity.qr) {
             try {
                 const seat = String(ticket.seatId || '');
                 if (!/^[A-Za-z0-9_-]{1,160}$/.test(ticket.eventId || '') || !seat || seat.includes(':')) throw Error('Ticket entry data is incomplete. Please contact support.');
-                downloadSvg = window.tsTicketQr.svg(`TKSECURE:${id}:${ticket.eventId}:${seat}`);
+                downloadSvg = window.tsTicketQr.svg(identity.qr);
                 downloadId = id;
                 el('qr-container').innerHTML = downloadSvg;
                 el('entry-heading').textContent = 'Ready for entry';
                 el('download-qr').disabled = false;
-                el('qr-note').textContent = 'Present this QR code at the event entrance. Entry staff check current ownership and usage status.';
+                el('qr-note').textContent = 'Present this QR code and verify your face at the entrance. Your face must match this ticket’s registration.';
             } catch (error) { el('qr-note').textContent = error.message || 'QR code unavailable. Refresh to try again.'; }
         } else {
             el('qr-note').textContent = 'Entry QR is unavailable for this ticket or event status.';
@@ -122,6 +163,7 @@ window.addEventListener('ts-auth-ready', async () => {
         });
         el('timeline-container').replaceChildren(...rows);
         el('ticket-content').hidden = false;
+        artworkReady = true; el('ticket-flip-button').disabled = false;
     } catch (error) {
         if (version !== loadVersion) return;
         el('ticket-error').textContent = error.message || 'Your ticket could not be loaded. Please try again.';

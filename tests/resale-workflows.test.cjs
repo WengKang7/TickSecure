@@ -14,6 +14,7 @@ function records() {
         'Users/buyer': actor('buyer'), 'Users/other': actor('buyer'), 'Users/seller': actor('buyer'), 'Users/admin': actor('admin'), 'Users/organizer': actor('organizer'), 'Users/otherOrganizer': actor('organizer'),
         'Events/event': { status: 'PUBLISHED', organizerUid: 'organizer', resaleEnabled: true, resaleStartDate: '2000-01-01', resaleDeadline: '2099-12-31', maxTicketsPerBuyer: 2, maxResaleMarkup: 10, categories: { A: { name: 'VIP', price: 100 } } },
         'NFTTickets/ticket': { eventId: 'event', sectionId: 'A', categoryName: 'VIP', ownerUid: 'seller', status: 'LISTED_FOR_RESALE', seatId: 'A1', walletAddress: wallet },
+        'TicketFaces/ticket': {ownerUid:'seller',ciphertext:'old-template'},
         'ResaleListings/listing': { organizerUid: 'organizer', eventId: 'event', sectionId: 'A', ticketId: 'ticket', sellerUid: 'seller', buyerUid: '', originalPrice: 100, resalePrice: 105, maxAllowedPrice: 110, status: 'ACTIVE', ruleCompliance: 'COMPLIANT' }
     };
 }
@@ -32,10 +33,11 @@ function backend(initial) {
                 if (target.key) return snapshot(target.key);
                 const docs = Object.keys(data).filter(key => key.startsWith(target.name + '/') && target.filters.every(([field, value]) => data[key][field] === value)).map(snapshot);
                 return { docs, size: docs.length };
-            }, set(target, fields) { writes.push([target.key, fields, true]); }, update(target, fields) { writes.push([target.key, fields, false]); } };
+            }, delete(target) { writes.push([target.key, null, true]); }, set(target, fields) { writes.push([target.key, fields, true]); }, update(target, fields) { writes.push([target.key, fields, false]); } };
             const result = await action(tx);
             if ([...reads].some(([key, version]) => (versions.get(key) || 0) !== version)) continue;
             writes.forEach(([key, fields, replace]) => {
+                if (fields === null) { delete data[key]; versions.set(key, (versions.get(key) || 0) + 1); return; }
                 const value = replace ? {} : { ...data[key] };
                 for (const [field, content] of Object.entries(fields)) value[field] = content?.fixtureUnion ? [...(value[field] || []), ...content.fixtureUnion] : content;
                 data[key] = value; versions.set(key, (versions.get(key) || 0) + 1);
@@ -93,7 +95,7 @@ scenario('mismatched event ticket cannot be moderated', 'suspendResaleListing', 
 scenario('sold listing cannot be suspended', 'suspendResaleListing', 'organizer', s => { s['ResaleListings/listing'].status='SOLD'; }, 'failed-precondition');
 scenario('moderation does not revive a used ticket', 'suspendResaleListing', 'organizer', s => { s['NFTTickets/ticket'].status='USED'; });
 scenario('buyer cannot suspend listing', 'suspendResaleListing', 'buyer', null, 'permission-denied');
-scenario('unverified active admin scans a valid ticket', 'scanTicket', 'admin', s => { s['Users/admin'].emailVerified = false; s['NFTTickets/ticket'].status = 'VALID'; }, null, {eventId:'event'});
+scenario('QR-only scan cannot bypass face verification', 'scanTicket', 'admin', s => { s['Users/admin'].emailVerified = false; s['NFTTickets/ticket'].status = 'VALID'; }, 'failed-precondition', {eventId:'event'});
 scenario('suspended admin cannot scan tickets', 'scanTicket', 'admin', s => { s['Users/admin'].status = 'suspended'; s['Users/admin'].emailVerified = false; s['NFTTickets/ticket'].status = 'VALID'; }, 'permission-denied', {eventId:'event'});
 scenario('unverified organizer cannot scan tickets', 'scanTicket', 'organizer', s => { s['Users/organizer'] = {role:'organizer',status:'active',emailVerified:false}; s['NFTTickets/ticket'].status = 'VALID'; }, 'permission-denied', {eventId:'event'});
 
@@ -120,6 +122,12 @@ test('Firebase and PHP execute matching resale transactions and reject invalid o
                 }
             }
             if (s.action === 'purchaseResale') {
+                if (s.records['ResaleListings/listing'].status !== 'SOLD') {
+                    assert.equal(node.data['TicketFaces/ticket'], undefined);
+                    assert.equal(phpResults[index].records['TicketFaces/ticket'], undefined);
+                } else {
+                    assert.deepEqual(node.data['TicketFaces/ticket'],s.records['TicketFaces/ticket'],'receipt retry must not remove a newer registration');
+                }
                 assert.equal(result.totalAmount, 125);
                 assert.equal(phpResults[index].result.totalAmount, 125);
             }

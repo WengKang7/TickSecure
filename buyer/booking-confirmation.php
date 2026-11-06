@@ -50,6 +50,7 @@ ob_start();
                         href="bookings.php" id="btn-view-booking" hidden>View Booking</a><a class="ts-btn ts-btn-secondary"
                         href="tickets.php" id="confirmation-tickets-link">View My Tickets</a><a class="ts-btn ts-btn-secondary" id="confirmation-chain-link" href="blockchain.php">NFT details</a><a class="ts-btn ts-btn-tertiary"
                         href="../public/events.php" id="confirmation-events-link">Back to Events</a></div>
+                <p class="secondary mt-24">After NFT setup, open each ticket in My Tickets and register your face to unlock its entry QR. Face registration does not use SepoliaETH.</p>
             </div>
             <div class="ts-accordion" style="margin:0 22px 22px"><button class="ts-accordion-trigger">Technical
                     transaction details <span

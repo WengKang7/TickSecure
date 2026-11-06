@@ -169,6 +169,6 @@ test('rendered buyer account options link to the existing profile and ticket col
     const html=execFileSync(php,['-r',"require $argv[1]; render_public_page('Test','tickets','','..');",path.join(root,'shared/ui.php')],{encoding:'utf8'});
     assert.match(html,/<nav id="public-account-menu"[^>]*hidden>/);
     assert.match(html,/<a id="account-profile-link" href="..\/buyer\/profile.php">/);
-    assert.match(html,/<a id="account-collections-link" href="..\/buyer\/tickets.php">/);
+    assert.match(html,/<a id="account-collections-link" href="..\/buyer\/collections.php">/);
     assert.match(html,/Collections \(NFT\)/);assert.match(html,/id="account-logout-btn" type="button"/);
 });

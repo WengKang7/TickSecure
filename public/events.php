@@ -3,16 +3,15 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<link rel="stylesheet" href="<?=ts_asset_url('assets/css/events-page.css', '..')?>">
 <main class="ts-events-page">
   <div class="ts-container">
     <header class="ts-events-intro">
       <div>
-        <div class="ts-section-eyebrow">TickSecure / Discover</div>
-        <h1>Find your next<br><em>great experience.</em></h1>
+        <div class="ts-section-eyebrow">The live calendar</div>
+        <h1>Find your frequency.</h1>
       </div>
       <div class="ts-events-intro-copy">
-        <p>Explore live events, find your favourite moments, and make plans worth looking forward to.</p>
+        <p>A new favourite artist. A weekend worth travelling for. Discover the moments you’ll wish lasted longer.</p>
         <span><?=ts_icon('ticket')?> Your next experience starts here</span>
       </div>
     </header>
