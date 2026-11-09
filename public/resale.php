@@ -7,23 +7,15 @@ ob_start();
   <header class="resale-intro">
     <div class="resale-intro-copy">
       <p class="resale-eyebrow">Official secondary market</p>
-      <h1>Great moments.<br><em>Second chances.</em></h1>
-      <p class="resale-lead">Buy tickets from verified current owners within organizer-defined resale rules.</p>
+      <h1>Your next night.<br><em>Still possible.</em></h1>
+      <p class="resale-lead">Plans change. Great nights are still out there. Find a ticket from a verified current owner, with the event and seat details in one place.</p>
       <div class="resale-benefits"><span><?=ts_icon('shield')?> Verified ownership</span><span><?=ts_icon('ticket')?> Controlled resale</span></div>
     </div>
-    <div class="resale-illustration" aria-hidden="true">
-      <div class="resale-orbit resale-orbit-one"></div><div class="resale-orbit resale-orbit-two"></div>
-      <div class="resale-paper-ticket">
-        <div class="resale-ticket-top"><span>TICKSECURE</span><?=ts_icon('ticket')?></div>
-        <div class="resale-ticket-title">A new plan.<br><em>Your moment.</em></div>
-        <div class="resale-ticket-bottom"><span><?=ts_icon('shield')?> Verified ownership</span><div class="resale-ticket-bars"></div></div>
-      </div>
-      <div class="resale-verified-seal"><?=ts_icon('shield')?><span>Another way<br><strong>to be there.</strong></span></div>
-    </div>
+    <aside class="resale-intro-note"><span class="resale-note-icon"><?=ts_icon('ticket')?></span><span class="resale-eyebrow">Another way to be there</span><h2>A new owner.<br>The same moment.</h2><p>Organizer-defined price rules and recorded ticket handovers keep your next experience in reach.</p></aside>
   </header>
   <nav class="resale-account-links" aria-label="Your resale activity"><span>Your resale space</span><div><a href="../buyer/resale.php"><?=ts_icon('ticket')?> My listings <?=ts_icon('arrow-right')?></a><a href="../buyer/resale-purchases.php"><?=ts_icon('wallet')?> My resale purchases <?=ts_icon('arrow-right')?></a></div></nav>
   <section class="resale-market" aria-labelledby="resale-results-heading">
-    <div class="resale-results-heading"><div><p class="resale-eyebrow">Find your way in</p><h2 id="resale-results-heading">Verified resale tickets<span>.</span></h2></div><span class="resale-market-note"><?=ts_icon('shield')?> Organizer rules apply</span></div>
+    <div class="resale-results-heading"><div><p class="resale-eyebrow">Find your way in</p><h2 id="resale-results-heading">Explore resale tickets.</h2></div><span class="resale-market-note" id="resale-results-count" role="status">Finding available tickets…</span></div>
     <div class="resale-filters" role="search" aria-label="Find resale tickets">
       <div class="resale-filter resale-filter-search"><label for="resale-search">Search tickets</label><div class="ts-input-wrap"><?=ts_icon('search')?><input class="ts-input" id="resale-search" type="search" placeholder="Event or ticket category"></div></div>
       <div class="resale-filter"><label for="resale-event-filter">Event</label><select class="ts-select" id="resale-event-filter"><option value="">All events</option></select></div>
@@ -39,20 +31,30 @@ ob_start();
 
 <script type="module">
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+let resaleViewVersion = 0;
+const money = value => 'RM' + Number(value || 0).toLocaleString('en-MY', {minimumFractionDigits:2,maximumFractionDigits:2});
+function eventDate(event) {
+    const date = event.date ? new Date(`${event.date}T${event.time || '00:00'}+08:00`) : null;
+    if (!date || Number.isNaN(date.getTime())) return 'Date to be announced';
+    return new Intl.DateTimeFormat('en-MY', {day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Kuala_Lumpur',
+        ...(event.time ? {hour:'numeric',minute:'2-digit',hour12:true} : {})}).format(date);
+}
+function posterUrl(value) {
+    try { const url = new URL(value || '', window.location.href); return value && ['http:', 'https:'].includes(url.protocol) ? url.href : ''; }
+    catch (_) { return ''; }
+}
 window.addEventListener('ts-auth-ready', async () => {
+    const version = ++resaleViewVersion;
     const grid = document.getElementById('resale-grid');
     try {
         const listings = await window.tsResale.getActiveListings();
+        const eventRequests = new Map();
         const records = await Promise.all(listings.map(async r => {
-            let eventName = r.eventInfo?.name || r.eventName || r.eventId || 'Untitled event';
-            if (!r.eventInfo?.name && r.eventId) {
-                try {
-                    const event = await window.tsEvents.getEvent(r.eventId);
-                    if (event?.name) eventName = event.name;
-                } catch (_) { /* Listing snapshot remains available. */ }
-            }
-            return { ...r, displayEventName: eventName };
+            if (r.eventId && !eventRequests.has(r.eventId)) eventRequests.set(r.eventId, window.tsEvents.getEvent(r.eventId).catch(() => null));
+            const event = { ...(r.eventInfo || {}), ...(await eventRequests.get(r.eventId) || {}) };
+            return { ...r, displayEvent: event, displayEventName: event.name || r.eventName || 'Untitled event' };
         }));
+        if (version !== resaleViewVersion) return;
         const search = document.getElementById('resale-search');
         const eventFilter = document.getElementById('resale-event-filter');
         const categoryFilter = document.getElementById('resale-category-filter');
@@ -64,6 +66,7 @@ window.addEventListener('ts-auth-ready', async () => {
         categoryFilter.innerHTML = '<option value="">All categories</option>' +
             categories.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('');
         const render = () => {
+            if (version !== resaleViewVersion) return;
             const term = search.value.trim().toLowerCase();
             const visible = records.filter(r =>
                 (!eventFilter.value || r.eventId === eventFilter.value) &&
@@ -78,44 +81,35 @@ window.addEventListener('ts-auth-ready', async () => {
             let html = '';
             for (const r of visible) {
             const eventName = r.displayEventName;
+            const event = r.displayEvent, photo = posterUrl(event.posterUrl);
+            const description = String(event.description || '').replace(/\s+/g, ' ').trim();
             const seller = String(r.sellerWallet || r.sellerUid || '');
             const sellerAbbr = seller ? (seller.substring(0, 6) + '...' + seller.substring(Math.max(6, seller.length - 4))) : 'Unknown';
             html += `
-            <a class="ts-card ts-card-pad" href="resale-detail.php?id=${encodeURIComponent(String(r.id || ''))}">
-                <div class="flex justify-between items-center">
-                    <div class="ts-card-title">${esc(eventName)}</div>
-                    <span class="ts-chip ts-chip-${r.ruleCompliance === 'VIOLATION' ? 'error' : 'success'}">${r.ruleCompliance === 'VIOLATION' ? 'Under review' : 'Rule compliant'}</span>
-                </div>
-                <div class="ts-divider"></div>
-                <div class="ts-detail-grid">
-                    <div class="ts-detail-item">
-                        <div class="ts-detail-label">Category</div>
-                        <div class="ts-detail-value">${esc(r.categoryName || 'Any')}</div>
-                    </div>
-                    <div class="ts-detail-item">
-                        <div class="ts-detail-label">Seat</div>
-                        <div class="ts-detail-value">${esc(r.seatId || 'Any')}</div>
-                    </div>
-                    <div class="ts-detail-item">
-                        <div class="ts-detail-label">Original</div>
-                        <div class="ts-detail-value">RM${esc(r.originalPrice || 0)}</div>
-                    </div>
-                    <div class="ts-detail-item">
-                        <div class="ts-detail-label">Resale</div>
-                        <div class="ts-detail-value">RM${esc(r.resalePrice || 0)}</div>
-                    </div>
-                </div>
-                <div class="small secondary mt-16">Seller ${esc(sellerAbbr)}</div>
+            <a class="ts-card resale-event-card" href="resale-detail.php?id=${encodeURIComponent(String(r.id || ''))}">
+                <div class="resale-event-art"><div class="resale-event-cover" aria-hidden="true"><span>TICKSECURE / LIVE</span><strong>Good nights.<br>Another chance.</strong><span>${esc(event.eventCategory || 'Live event')}</span></div>
+                    ${photo ? `<img class="resale-event-photo" src="${esc(photo)}" alt="" loading="lazy" decoding="async">` : ''}
+                    <span class="resale-art-label">RESALE TICKET</span></div>
+                <div class="resale-event-body"><div class="resale-card-top"><span>${esc(event.eventCategory || 'Live event')}</span><span class="ts-chip ts-chip-${r.ruleCompliance === 'VIOLATION' ? 'error' : 'success'}">${r.ruleCompliance === 'VIOLATION' ? 'Under review' : 'Rule compliant'}</span></div>
+                <h3>${esc(eventName)}</h3><div class="resale-event-meta"><span>${esc(eventDate(event))}</span><span>${esc(event.venueName || 'Venue to be announced')}</span></div>
+                ${description ? `<p class="resale-event-description">${esc(description.slice(0, 130))}${description.length > 130 ? '…' : ''}</p>` : ''}
+                <dl class="resale-seat-facts"><div><dt>Ticket category</dt><dd>${esc(r.categoryName || 'Not specified')}</dd></div><div><dt>Seat</dt><dd>${esc(r.seatId || 'Not assigned')}</dd></div></dl>
+                <div class="resale-card-price"><div><span>Resale price</span><strong>${esc(money(r.resalePrice))}</strong></div><div><span>Original price</span><span>${esc(money(r.originalPrice))}</span></div></div>
+                <div class="resale-card-footer"><span>Seller ${esc(sellerAbbr)}</span><strong>View ticket <span aria-hidden="true">↗</span></strong></div></div>
             </a>`;
             }
             grid.innerHTML = html || '<div class="text-center secondary" style="grid-column:1/-1; padding:40px;">No resale listings match these filters.</div>';
+            document.getElementById('resale-results-count').textContent = `${visible.length} ticket${visible.length === 1 ? '' : 's'} available · Service charge added at checkout`;
+            grid.querySelectorAll('.resale-event-photo').forEach(image => image.addEventListener('error', () => { image.hidden = true; }));
         };
         [eventFilter, categoryFilter, priceSort].forEach(control => control.addEventListener('change', render));
         search.addEventListener('input', render);
         render();
     } catch (err) {
+        if (version !== resaleViewVersion) return;
         console.error(err);
         grid.innerHTML = '<div class="text-center" style="grid-column:1/-1; padding:40px; color:var(--ts-danger);">Failed to load listings.</div>';
+        document.getElementById('resale-results-count').textContent = 'Listings could not be loaded';
     }
 });
 </script>

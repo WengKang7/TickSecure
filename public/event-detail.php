@@ -77,6 +77,10 @@ ob_start();
       </aside>
     </div>
 
+    <section class="ts-card ts-event-location" aria-labelledby="event-location-heading">
+      <div class="ts-event-location-info"><div class="ts-section-eyebrow">Getting there</div><h2 id="event-location-heading">Find the venue.</h2><strong id="event-location-name">Venue information</strong><p id="event-location-address">The venue address will appear here.</p><p class="small secondary" id="event-location-status" role="status">Loading venue location…</p><a class="ts-btn ts-btn-secondary" id="event-location-link" href="https://www.openstreetmap.org/" target="_blank" rel="noopener noreferrer" hidden>Open in OpenStreetMap <?=ts_icon('arrow-right')?></a></div>
+      <div class="ts-event-location-map-wrap"><div id="event-location-map" aria-label="Venue location map" hidden></div><p id="event-location-empty">Loading the venue map…</p></div>
+    </section>
     <div class="ts-event-more">
       <section class="ts-card ts-card-pad" aria-labelledby="event-about-heading">
         <h2 class="ts-card-title" id="event-about-heading">About the event</h2>
@@ -100,6 +104,9 @@ ob_start();
 <script src="<?=ts_asset_url('assets/js/venue-renderer.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/seat-category-model.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/event-policy.js', '..')?>"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="<?=ts_asset_url('assets/js/event-location.js', '..')?>"></script>
 <script type="module" src="<?=ts_asset_url('assets/js/event-detail.js', '..')?>"></script>
 
 <?php

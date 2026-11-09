@@ -65,6 +65,15 @@ ob_start();
         </section>
     </div>
     <aside class="ts-review-aside">
+        <section class="ts-card ts-card-pad" aria-labelledby="ai-review-heading">
+            <h2 class="ts-card-title" id="ai-review-heading">AI content review</h2>
+            <p class="mt-16"><strong id="ai-review-status">Not checked</strong></p>
+            <p id="ai-review-reason" class="small secondary mt-12" role="status" aria-live="polite"></p>
+            <p id="ai-review-evidence" class="small mt-12"></p>
+            <p id="ai-review-time" class="small secondary mt-12"></p>
+            <button id="btn-ai-review" class="ts-btn ts-btn-secondary mt-16" type="button" hidden>Run AI check</button>
+            <p class="small secondary mt-16">Gemini checks submitted text for harmful intent. This does not certify legality, permits or event authenticity. A pass still requires your approval.</p>
+        </section>
         <section class="ts-card ts-card-pad" aria-labelledby="review-submission-heading">
             <h2 class="ts-card-title" id="review-submission-heading">Submission Summary</h2>
             <dl class="ts-review-facts ts-review-facts-single mt-16">

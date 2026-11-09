@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const wallet = '0x' + '1'.repeat(40);
 function records(status = 'PUBLISHED') {
-    return {
+    const result = {
         'Users/admin': { role: 'admin', status: 'active', emailVerified: true },
         'Users/organizer': { role: 'organizer', status: 'active', emailVerified: true },
         'Users/buyer': { role: 'buyer', status: 'active', emailVerified: true, walletAddress: wallet },
@@ -18,6 +18,11 @@ function records(status = 'PUBLISHED') {
         'NFTTickets/listed-ticket': { eventId: 'event', ownerUid: 'buyer', status: 'LISTED_FOR_RESALE', seatId: 'A2' },
         'ResaleListings/listing': { eventId: 'event', ticketId: 'listed-ticket', sellerUid: 'buyer', status: 'ACTIVE', resalePrice: 100 }
     };
+    const event = result['Events/event'];
+    const content = { name: event.name, description: event.description, eventCategory: '', venueName: '', venueLocation: '', ticketCategories: ['VIP'] };
+    result['EventContentReviews/event'] = { decision: 'PASS', policyVersion: 'event-safety-v1',
+        contentHash: require('node:crypto').createHash('sha256').update(JSON.stringify(content)).digest('hex') };
+    return result;
 }
 function run(cases) {
     const php = process.env.PHP_BINARY || (process.platform === 'win32' ? 'C:/xampp/php/php.exe' : 'php');
@@ -140,22 +145,12 @@ function cloudRestore(options = {}) {
     return { service: context.service, data, calls };
 }
 
-test('Firebase restoration changes only an unavailable event and records notification atomically', async () => {
+test('restoration delegates to the trusted server instead of publishing directly', async () => {
     const c = cloudRestore();
     const before = structuredClone(c.data);
     await c.service.restoreEvent('event');
-    assert.equal(c.data['Events/event'].status, 'PUBLISHED');
-    assert.equal(c.data['Events/event'].statusHistory.at(-1).from, 'SUSPENDED');
-    assert.deepEqual(c.data['Bookings/booking'], before['Bookings/booking']);
-    assert.deepEqual(c.data['NFTTickets/ticket'], before['NFTTickets/ticket']);
-    assert.deepEqual(c.data['ResaleListings/listing'], before['ResaleListings/listing']);
-    assert.ok(Object.values(c.data).some(value => value.type === 'event_restored'));
-    for (const options of [{ role: 'buyer' }, { status: 'CANCELLED' }, { status: 'PENDING_REVIEW' }]) {
-        const rejected = cloudRestore(options);
-        const original = structuredClone(rejected.data);
-        await assert.rejects(rejected.service.restoreEvent('event'));
-        assert.deepEqual(rejected.data, original);
-    }
+    assert.deepEqual(c.data, before, 'no browser Firestore writes');
+    assert.deepEqual(JSON.parse(JSON.stringify(c.calls)), [{ request: { eventId: 'event', status: 'PUBLISHED', restore: true }, config: { name: 'moderateEvent' } }]);
 });
 
 test('local restoration uses an explicit restore request instead of ordinary approval', async () => {

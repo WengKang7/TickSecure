@@ -127,7 +127,7 @@ ob_start();
     <h2 class="ts-card-title" id="configuration-review-title">Review before submitting</h2>
     <p id="review-event-summary" class="secondary mt-8"></p>
     <div id="review-category-summary" class="small secondary mt-16"></div>
-    <p class="small secondary mt-16">Your event will be sent to the administrator for approval. It stays private until approved. Save Draft if you want to continue editing later.</p>
+    <p class="small secondary mt-16">Submitted event text is sent to Google Gemini for a content-safety check. Harmful submissions are automatically rejected with a reason; passed submissions await administrator approval. It stays private until approved. Save Draft if you want to continue editing later.</p>
     <button class="ts-btn ts-btn-primary mt-20" id="submit-config-btn">Submit for Administrator Approval</button>
 </section>
 <script src="<?=ts_asset_url('assets/js/event-policy.js', '..')?>"></script>

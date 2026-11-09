@@ -453,7 +453,12 @@ body{line-height:1.55}
 
 /* Match the reference sidebar's compact account and notification links. */
 body .ts-sidebar-tools>button[aria-label=Search],body .ts-sidebar-tools>#header-avatar,body .ts-sidebar .ts-profile-card>.ts-avatar{display:none}
-body .ts-sidebar-tools .ts-icon-btn{width:auto;height:auto;min-height:32px;gap:10px;justify-content:flex-start;border:0;background:#fff;color:#777;font-size:12px;font-weight:400}
+body .ts-sidebar-tools{padding:0 0 3px;width:100%}
+body .ts-sidebar-tools>.ts-admin-attention{width:100%;min-width:0}
+body .ts-sidebar-tools>.ts-icon-btn,body .ts-sidebar-tools .ts-attention-toggle{display:flex;align-items:center;justify-content:flex-start;width:100%;height:auto;min-height:38px;gap:10px;padding:9px 12px;border:0;background:#fff;color:#777;font:400 12px/1.55 var(--body);text-align:left}
+body .ts-sidebar-tools .ts-attention-toggle>.ts-icon{flex-shrink:0}
+body .ts-sidebar-tools .ts-sidebar-notification-label{white-space:nowrap}
+body .ts-sidebar-tools .ts-attention-dot{position:static;flex:0 0 8px;width:8px;height:8px;margin-left:auto;box-shadow:none}
 body .ts-sidebar:has(.ts-sidebar-nav[aria-label="Event Organizer navigation"]) .ts-sidebar-tools{display:none}
 
 /* Shared DESIGN2 plan presentation. Physical geometry and seat states remain authoritative. */

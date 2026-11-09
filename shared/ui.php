@@ -159,6 +159,8 @@ function render_public_page(
       <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
       <title>'.htmlspecialchars($title).' &middot; TickSecure</title>
       <link rel="stylesheet" href="'.ts_asset_url('assets/css/ticksecure.css', $base).'">'.ts_access_head($base).ts_decision_head($base).ts_design2_theme_head($base).'
+      <link rel="stylesheet" href="'.ts_asset_url('assets/css/buyer-motion.css', $base).'">
+      <link rel="stylesheet" href="'.ts_asset_url('assets/css/buyer-ticket-pages.css', $base).'">
     </head><body class="ts-body-public">
       <header id="header" class="ts-public-header" data-app-root="'.htmlspecialchars($base).'">
         <div class="ts-public-header-inner nav wrap d2-wrap">

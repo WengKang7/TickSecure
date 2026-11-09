@@ -147,6 +147,10 @@ Do not change an event to `SUSPENDED`/`CANCELLED` directly in the Firebase
 Console while using PHP mode; there is no deployed Cloud Function trigger to
 sweep listings in that case.
 
+## Gemini event content review
+
+Local event submission and admin moderation now use the server-owned AI gate. See [event AI review setup](../docs/event-ai-review.md) for the private Gemini key file, PASS/REJECT/REVIEW/error behavior, deployment and tests. Existing published events are retained. Unchecked pending events need **Run AI check** before approval. The browser cannot supply or overwrite the trusted verdict.
+
 ## Password recovery
 
 `checkPasswordResetEmail` is the signed-out account check accepted by `backend.php`. It uses the private service account to look up the Firebase Auth email, then reads only the matching `Users/{uid}` profile. It returns `{registered: true|false}`; it never returns user IDs, profile fields, credentials, or reset links. The other public read is `getEventAvailability`, enabled with the checkout flag: it returns only category allocations and remaining counts for published events. Ticket/profile mutations still require a verified Firebase ID token, and the endpoint remains opt-in and loopback-only.

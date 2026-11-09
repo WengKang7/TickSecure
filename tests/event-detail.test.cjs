@@ -67,6 +67,7 @@ function createPage(options = {}) {
     let availabilityReads = 0;
     let favoriteReads = 0;
     const writes = [];
+    const locationCalls = [];
     const context = {
         URL, URLSearchParams,
         console: { info() {} },
@@ -75,6 +76,7 @@ function createPage(options = {}) {
         window: {
             location: { origin: 'http://localhost', search: options.search || '?id=event-1', href: '' },
             tsCurrentUser: options.guest ? null : { uid: 'buyer-1', role: 'buyer' },
+            tsEventLocation: {show:venue=>locationCalls.push(['show',venue]),clear:(...args)=>locationCalls.push(['clear',...args])},
             addEventListener: (type, callback) => { if (type === 'ts-auth-ready') ready = callback; },
             setInterval: callback => { context.pollAvailability = callback; return 1; },
             clearInterval() {},
@@ -106,9 +108,23 @@ function createPage(options = {}) {
     vm.runInContext(fs.readFileSync(path.join(root, 'assets/js/venue-renderer.js'), 'utf8'), context);
     vm.runInContext(fs.readFileSync(path.join(root, 'assets/js/event-policy.js'), 'utf8'), context);
     vm.runInContext(fs.readFileSync(path.join(root, 'assets/js/event-detail.js'), 'utf8'), context);
-    return { elements, context, writes, ready: () => ready(), venueReads: () => venueReads,
+    return { elements, context, writes, locationCalls, ready: () => ready(), venueReads: () => venueReads,
         availabilityReads: () => availabilityReads, favoriteReads: () => favoriteReads };
 }
+
+test('saved venue location is displayed even when the seating blueprint is not active',async()=>{
+    const draft={...venue,location:{latitude:3.139,longitude:101.6869},layoutStatus:'DRAFT',sections:[]};
+    const page=createPage({getVenue:async()=>draft});await page.ready();
+    assert.equal(page.locationCalls.find(call=>call[0]==='show')[1].location,draft.location);
+    assert.match(page.elements.get('ven-board').children[0].textContent,/not available yet/);
+    assert.equal(page.venueReads(),1,'location and layout share one existing venue lookup');
+});
+
+test('guest map uses the existing venue access boundary and does not retain a prior map',async()=>{
+    const page=createPage({guest:true});await page.ready();
+    assert.equal(page.locationCalls.some(call=>call[0]==='show'),false);
+    assert.match(page.locationCalls.at(-1)[1],/Sign in/);assert.equal(page.venueReads(),0);
+});
 
 test('explicit organizer preview loads event information but cannot save, select, book or change quantity', async () => {
     const page = createPage({ search: '?id=event-1&preview=1&sectionId=A&qty=3' });

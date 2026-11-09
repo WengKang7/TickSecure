@@ -4,7 +4,7 @@
  * Exposed globally as window.ts<ServiceName> for use by page scripts.
  */
 import { db, auth, storage } from './firebase-init.js';
-import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261104-admin-accounts';
+import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261109-event-review';
 import {
     collection, doc, addDoc, setDoc, getDoc, getDocs,
     updateDoc, deleteDoc, deleteField, query, where, orderBy, limit,
@@ -813,117 +813,31 @@ export const EventService = {
     },
 
     async submitForApproval(eventId) {
-        const evt = await this.getEvent(eventId);
-        if (!evt) throw new Error('Event not found.');
-        if (evt.status !== 'DRAFT') throw new Error('Only draft events can be submitted.');
-        await updateDoc(doc(db, 'Events', eventId), {
-            status: 'PENDING_REVIEW',
-            statusHistory: arrayUnion({ from: 'DRAFT', to: 'PENDING_REVIEW', changedBy: uid(), timestamp: iso() }),
-            updatedAt: iso()
-        });
-        await AuditService.log('event_submitted', 'event', eventId);
+        return invokeCallable({ eventId: String(eventId || '').trim() }, { name: 'submitEventForReview' });
+    },
+
+    async checkEventContent(eventId) {
+        return invokeCallable({ eventId: String(eventId || '').trim() }, { name: 'checkEventContent' });
     },
 
     async approveEvent(eventId) {
-        if (usingLocalPhpBackend()) {
-            return invokeCallable({ eventId: String(eventId || '').trim(), status: 'PUBLISHED' }, { name: 'moderateEvent' });
-        }
-        await updateDoc(doc(db, 'Events', eventId), {
-            status: 'PUBLISHED',
-            statusHistory: arrayUnion({ from: 'PENDING_REVIEW', to: 'PUBLISHED', changedBy: uid(), timestamp: iso() }),
-            updatedAt: iso()
-        });
-        const evt = await this.getEvent(eventId);
-        await AuditService.log('event_approved', 'event', eventId);
-        if (evt) await NotificationService.create(evt.organizerUid, `Your event "${evt.name}" has been approved and published!`, 'event_approved', 'event', eventId);
+        return invokeCallable({ eventId: String(eventId || '').trim(), status: 'PUBLISHED' }, { name: 'moderateEvent' });
     },
 
     async restoreEvent(eventId) {
-        const id = String(eventId || '').trim();
-        if (!id) throw new Error('Select an event to make available.');
-        if (usingLocalPhpBackend()) {
-            return invokeCallable({ eventId: id, status: 'PUBLISHED', restore: true }, { name: 'moderateEvent' });
-        }
-        const actorUid = uid();
-        const eventRef = doc(db, 'Events', id);
-        const notificationRef = doc(collection(db, 'Notifications'));
-        await runTransaction(db, async transaction => {
-            const actor = await transaction.get(doc(db, 'Users', actorUid));
-            const snapshot = await transaction.get(eventRef);
-            if (!actor.exists() || actor.data().role !== 'admin' || actor.data().status !== 'active') {
-                throw new Error('Only an active administrator can make an event available.');
-            }
-            if (!snapshot.exists() || snapshot.data().status !== 'SUSPENDED') {
-                throw new Error('Only unavailable events can be made available. Refresh the event and try again.');
-            }
-            const event = snapshot.data();
-            const timestamp = iso();
-            transaction.update(eventRef, {
-                status: 'PUBLISHED', updatedAt: timestamp,
-                statusHistory: arrayUnion({ from: 'SUSPENDED', to: 'PUBLISHED', changedBy: actorUid, timestamp })
-            });
-            if (event.organizerUid) transaction.set(notificationRef, {
-                recipientUid: event.organizerUid,
-                message: `Your event "${event.name}" is available again under its existing sales rules.`,
-                type: 'event_restored', relatedEntityType: 'event', relatedEntityId: id,
-                read: false, createdAt: timestamp
-            });
-        });
-        return { eventId: id, status: 'PUBLISHED' };
+        return invokeCallable({ eventId: String(eventId || '').trim(), status: 'PUBLISHED', restore: true }, { name: 'moderateEvent' });
     },
 
     async rejectEvent(eventId, reason) {
-        if (usingLocalPhpBackend()) {
-            return invokeCallable({
-                eventId: String(eventId || '').trim(),
-                status: 'REJECTED',
-                reason: String(reason || '').trim()
-            }, { name: 'moderateEvent' });
-        }
-        await updateDoc(doc(db, 'Events', eventId), {
-            status: 'REJECTED', rejectReason: reason,
-            statusHistory: arrayUnion({ from: 'PENDING_REVIEW', to: 'REJECTED', reason, changedBy: uid(), timestamp: iso() }),
-            updatedAt: iso()
-        });
-        const evt = await this.getEvent(eventId);
-        await AuditService.log('event_rejected', 'event', eventId, { reason });
-        if (evt) await NotificationService.create(evt.organizerUid, `Your event "${evt.name}" was rejected: ${reason}`, 'event_rejected', 'event', eventId);
+        return invokeCallable({ eventId: String(eventId || '').trim(), status: 'REJECTED', reason: String(reason || '').trim() }, { name: 'moderateEvent' });
     },
 
     async suspendEvent(eventId, reason) {
-        if (usingLocalPhpBackend()) {
-            return invokeCallable({
-                eventId: String(eventId || '').trim(),
-                status: 'SUSPENDED',
-                reason: String(reason || '').trim()
-            }, { name: 'moderateEvent' });
-        }
-        const evt = await this.getEvent(eventId);
-        await updateDoc(doc(db, 'Events', eventId), {
-            status: 'SUSPENDED',
-            statusHistory: arrayUnion({ from: evt?.status || '', to: 'SUSPENDED', reason, changedBy: uid(), timestamp: iso() }),
-            updatedAt: iso()
-        });
-        await AuditService.log('event_suspended', 'event', eventId, { reason });
-        if (evt) await NotificationService.create(evt.organizerUid, `Your event "${evt.name}" has been made unavailable: ${reason}`, 'event_suspended', 'event', eventId);
+        return invokeCallable({ eventId: String(eventId || '').trim(), status: 'SUSPENDED', reason: String(reason || '').trim() }, { name: 'moderateEvent' });
     },
 
     async cancelEvent(eventId, reason) {
-        if (usingLocalPhpBackend()) {
-            return invokeCallable({
-                eventId: String(eventId || '').trim(),
-                status: 'CANCELLED',
-                reason: String(reason || '').trim()
-            }, { name: 'moderateEvent' });
-        }
-        const evt = await this.getEvent(eventId);
-        await updateDoc(doc(db, 'Events', eventId), {
-            status: 'CANCELLED',
-            statusHistory: arrayUnion({ from: evt?.status || '', to: 'CANCELLED', reason, changedBy: uid(), timestamp: iso() }),
-            updatedAt: iso()
-        });
-        await AuditService.log('event_cancelled', 'event', eventId, { reason });
-        if (evt) await NotificationService.create(evt.organizerUid, `Your event "${evt.name}" has been cancelled: ${reason}`, 'event_cancelled', 'event', eventId);
+        return invokeCallable({ eventId: String(eventId || '').trim(), status: 'CANCELLED', reason: String(reason || '').trim() }, { name: 'moderateEvent' });
     },
 
     async deleteEvent(eventId) {

@@ -7,6 +7,13 @@ final class TicketFaceService {
     public function __construct(private object $db, private string $key, private $recognize) {
         if (strlen($key) !== 32) face_fail('Face encryption is not configured.', 'unavailable', 503);
     }
+    public function session(array $claims): array {
+        return $this->db->transaction(function ($tx) use ($claims) {
+            $user = $tx->get('Users', (string)$claims['sub']);
+            face_actor($user, $claims, true);
+            return ['uid' => $claims['sub'], 'role' => $user['role'], 'name' => (string)($user['fullName'] ?? '')];
+        });
+    }
     private function context(object $tx, array $claims, string $id, bool $staff = false): array {
         $uid = (string)$claims['sub'];
         $user = $tx->get('Users', $uid);

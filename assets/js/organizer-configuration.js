@@ -293,10 +293,21 @@
                 const data = rules();
                 ['maxTicketsPerBuyer', 'maxResaleMarkup', 'maxResalePrice'].forEach(key => { data[key] = Number(data[key]) || 0; });
                 await window.tsEvents.saveCompletedConfiguration(eventId, categories, data);
-                await window.tsEvents.submitForApproval(eventId);
+                el('submit-config-btn').textContent = 'Checking event content with AI…';
+                const result = await window.tsEvents.submitForApproval(eventId);
                 dirty = false;
+                if (result?.status === 'REJECTED') {
+                    window.location.href = `event-detail.php?id=${encodeURIComponent(eventId)}`;
+                    return;
+                }
+                if (result?.contentReview?.decision === 'REVIEW') {
+                    error('AI needs clarification: ' + result.contentReview.reason + ' Your event remains a draft. Edit its details and submit again.');
+                    lock(false);
+                    return;
+                }
                 window.location.href = 'events.php';
             } catch (reason) { error(reason.message || 'The event could not be submitted.'); lock(false); }
+            finally { el('submit-config-btn').textContent = 'Submit for approval'; }
         });
     });
 })();

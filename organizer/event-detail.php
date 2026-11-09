@@ -24,6 +24,7 @@ ob_start();
         </div>
     </header>
     <div id="event-detail-error" class="ts-alert ts-alert-error mt-24" role="alert" hidden></div>
+    <div id="event-content-review" class="ts-alert ts-alert-info mt-24" role="status" hidden></div>
     <div data-tabs id="event-detail-tabs" hidden>
         <nav class="ts-tabs ts-organizer-event-tabs" aria-label="Event detail sections">
             <button class="ts-tab active" data-tab="overview">Overview</button>
@@ -158,6 +159,12 @@ window.addEventListener('ts-auth-ready', async () => {
         };
         const tone = toneMap[normalizedStatus] || 'neutral';
         document.getElementById('status-chips').innerHTML = `<span class="ts-chip ts-chip-${tone}">${esc(normalizedStatus.replace(/_/g, ' '))}</span>`;
+        const reviewNotice = document.getElementById('event-content-review');
+        reviewNotice.hidden = !event.contentReview;
+        if (event.contentReview) {
+            const labels = { PASS: 'AI content check passed', REJECT: 'Automatically rejected by AI content review', REVIEW: 'AI needs clarification', ERROR: 'AI content check unavailable' };
+            reviewNotice.textContent = `${labels[event.contentReview.decision] || 'AI content review'}: ${event.contentReview.reason || ''}${normalizedStatus === 'REJECTED' ? ' Return to My Events and choose Revise to edit and resubmit.' : ''}`;
+        }
 
         document.getElementById('overview-venue').textContent = event.venueName || 'Unassigned';
         

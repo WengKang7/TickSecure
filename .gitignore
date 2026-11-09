@@ -32,3 +32,12 @@ tmp/
 # Operating system
 .DS_Store
 Thumbs.db
+
+# Mobile build outputs (source and pubspec.lock are retained).
+mobile/checkin/.dart_tool/
+mobile/checkin/build/
+mobile/checkin/android/.gradle/
+mobile/checkin/android/local.properties
+mobile/checkin/android/key.properties
+*.jks
+*.keystore

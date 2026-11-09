@@ -29,6 +29,7 @@ try {
     $runtime = face_runtime_config();
     $service = new TicketFaceService($firebase, $runtime['key'], fn ($frames) => face_extract($frames, $runtime['python']));
     $result = match ($input['action'] ?? '') {
+        'session' => $service->session($claims),
         'status' => $service->status($claims, face_id($input['ticketId'] ?? null)),
         'enroll' => $service->enroll($claims, face_id($input['ticketId'] ?? null), (array)($input['frames'] ?? []), ($input['consent'] ?? false) === true),
         'remove' => $service->remove($claims, face_id($input['ticketId'] ?? null)),

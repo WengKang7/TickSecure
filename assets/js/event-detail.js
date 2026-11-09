@@ -279,14 +279,18 @@ function renderEvent(event) {
 }
 
 async function loadVenue(event, version) {
+    const fallback = {name:event.venueName, address:event.venueLocation};
+    window.tsEventLocation?.clear('The organizer has not added a map location for this venue yet.', fallback);
     if (!event.venueId) { showLayoutMessage('The organizer has not selected a venue layout yet.'); return; }
     if (!window.tsCurrentUser?.uid) {
+        window.tsEventLocation?.clear('Sign in to view the saved venue map location.', fallback);
         showLayoutMessage('Sign in to view the approved seating layout. You can browse ticket categories here.');
         return;
     }
     try {
         const venue = await window.tsVenues.getVenue(event.venueId);
         if (version !== loadVersion) return;
+        window.tsEventLocation?.show(venue ? {...venue, name:venue.name || event.venueName, address:venue.address || event.venueLocation} : fallback);
         if (!venue || venue.layoutStatus !== 'ACTIVE' || !Array.isArray(venue.sections) || !venue.sections.length) {
             showLayoutMessage('The venue seating layout is not available yet.');
             return;
@@ -303,6 +307,7 @@ async function loadVenue(event, version) {
     } catch (error) {
         if (version !== loadVersion) return;
         console.info('Venue layout unavailable:', error);
+        window.tsEventLocation?.clear('The venue location could not be loaded. Please try again.', fallback);
         showLayoutMessage('The approved seating layout could not be loaded. Event details and ticket categories are shown here.');
     }
 }
@@ -368,6 +373,7 @@ el('save-event-btn').addEventListener('click', async () => {
 
 window.addEventListener('ts-auth-ready', async () => {
     const version = ++loadVersion;
+    window.tsEventLocation?.clear('Loading venue location…');
     if (availabilityTimer !== null) window.clearInterval(availabilityTimer);
     availability = null;
     availabilityLoading = false;
@@ -396,6 +402,7 @@ window.addEventListener('ts-auth-ready', async () => {
     } catch (error) {
         if (version !== loadVersion) return;
         currentEvent = null;
+        window.tsEventLocation?.clear('Choose an available event to view its venue location.');
         availability = null;
         el('event-remaining').textContent = 'Remaining seats unavailable';
         el('availability-note').textContent = '';

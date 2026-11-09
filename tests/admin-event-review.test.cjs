@@ -8,6 +8,7 @@ const root = path.join(__dirname, '..');
 const php = fs.readFileSync(path.join(root, 'admin/event-review.php'), 'utf8');
 const event = {
     name: 'Live at the Hall', organizerUid: 'organizer&1', organizerName: 'Organizer One', status: 'PENDING_REVIEW',
+    contentReview: { decision: 'PASS', reason: 'Ordinary concert.', provider: 'Google Gemini' },
     date: '2026-11-25', time: '20:30', eventCategory: 'Concert', description: 'Full event description.\nSecond paragraph.',
     venueId: 'hall&1', venueName: 'Selected Hall', venueLocation: 'Submitted venue address', posterUrl: '/ticksecure-ui/uploads/posters/art.png',
     categories: { A: { name: 'VIP 1', price: 267, quantity: 25 }, B: { name: 'VIP 2', price: 568, quantity: 100 },
@@ -24,6 +25,30 @@ const venue = { name: 'Current Hall', address: 'Current address', capacity: 1250
     sections: ['A', 'B', 'C', 'D', 'E'].map(sectionId => ({ sectionId, name: 'Physical ' + sectionId, seatCount: 250 })) };
 const organizer = { fullName: 'Applicant Name', email: 'organizer@example.com', status: 'active' };
 const organization = { organizationName: 'Example Events', organizationPhone: '0123456789', organizationAddress: 'Organization address' };
+
+test('unreviewed events cannot be approved until the server AI check passes', async () => {
+    const p = page({ event: { ...event, contentReview: undefined } });
+    await p.ready();
+    assert.equal(p.get('btn-approve').disabled, true);
+    await p.get('btn-approve').click();
+    assert.equal(p.calls.some(call => call[0] === 'approve'), false);
+    await p.get('btn-ai-review').click();
+    assert.equal(p.get('btn-approve').disabled, false);
+    assert.match(p.get('ai-review-status').textContent, /Passed/);
+});
+
+test('AI rejection and provider failures never enable approval and reasons render as plain text', async () => {
+    const p = page({ event: { ...event, contentReview: undefined }, aiDecision: 'REJECT', aiReason: '<script>harmful</script>' });
+    await p.ready(); await p.get('btn-ai-review').click();
+    assert.equal(p.get('btn-approve').disabled, true);
+    assert.equal(p.get('btn-approve').hidden, true);
+    assert.equal(p.get('ai-review-reason').textContent, '<script>harmful</script>');
+    const failed = page({ event: { ...event, contentReview: undefined }, aiFailure: true });
+    await failed.ready(); await failed.get('btn-ai-review').click();
+    assert.equal(failed.get('btn-approve').disabled, true);
+    assert.equal(failed.get('review-error').hidden, false);
+    assert.match(failed.get('review-error').textContent, /AI unavailable/);
+});
 
 function page(options = {}) {
     let document;
@@ -47,6 +72,7 @@ function page(options = {}) {
     }
     const elements = new Map([...php.matchAll(/<[^>]*\bid="([^"]+)"[^>]*>/g)].map(match => {
         const element = new Element();
+        element.id = match[1];
         element.hidden = /\bhidden\b/.test(match[0]);
         return [match[1], element];
     }));
@@ -68,6 +94,13 @@ function page(options = {}) {
             return promptResult?.trim() ? { reason: promptResult.trim() } : null;
         },
         tsEvents: {
+            checkEventContent: async id => {
+                calls.push(['ai-check', id]);
+                if (options.aiFailure) throw Error('AI unavailable');
+                currentEvent.contentReview = { decision: options.aiDecision || 'PASS', reason: options.aiReason || 'Ordinary concert.' };
+                if (options.aiDecision === 'REJECT') currentEvent.status = 'REJECTED';
+                return {};
+            },
             getAdminEvent: async id => { calls.push(['get', id]); if (failEvent) throw new Error('Connection unavailable'); return structuredClone(currentEvent); },
             approveEvent: async id => {
                 calls.push(['approve', id]);

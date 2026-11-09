@@ -70,10 +70,11 @@ These private collections have no browser read/write access. The existing rules'
 
 ## API for your separate mobile app
 
-The mobile app has not been built here. A browser scanner is provided so you can test this backend now. All calls are JSON POST to `/ticksecure-ui/api/face.php` with `Authorization: Bearer <Firebase ID token>`. Do not put service-account credentials, template keys or stored descriptors in the app.
+A native Android USB demo is now available in `mobile/checkin`, with the installable APK at `downloads/ticksecure-entry-demo.apk`. Follow `mobile/checkin/README.md` to connect the phone to the PC and install it. It uses existing organizer/admin sign-in, QR scanning, three-image face comparison and real check-in against this same backend. A physical phone rehearsal is still required. All calls are JSON POST to `/ticksecure-ui/api/face.php` with `Authorization: Bearer <Firebase ID token>`. Do not put service-account credentials, template keys or stored descriptors in the app.
 
 | Action | Request fields | Response |
 |---|---|---|
+| `session` | none | Active staff only: `uid`, `role`, `name` |
 | `status` | `ticketId` | Owner only: `registered`, `eligible`, `qr` (only when entry eligible), `message` |
 | `enroll` | `ticketId`, `consent: true`, `frames` | Owner only: `registered: true` |
 | `remove` | `ticketId` | Owner only: deletes enrollment and revokes its QR |

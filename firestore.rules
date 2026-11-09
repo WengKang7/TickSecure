@@ -269,10 +269,14 @@ service cloud.firestore {
         && request.resource.data.createdAt is string
         && request.resource.data.updatedAt is string;
 
-      // Organizers may edit only their own draft and may submit it for review.
+      // Submission, AI assessments and publishing belong to the trusted server.
       // They cannot publish, suspend, cancel, reassign, or alter another
       // organizer's event. Admins perform all moderation transitions.
-      allow update: if isAdmin()
+      allow update: if (isAdmin()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'status', 'contentReview', 'name', 'description', 'eventCategory',
+            'venueName', 'venueLocation', 'categories'
+          ]))
         || (
           isEventOwner()
           && resource.data.status == 'REJECTED'
@@ -286,7 +290,7 @@ service cloud.firestore {
           isEventOwner()
           && resource.data.status == 'DRAFT'
           && request.resource.data.organizerUid == resource.data.organizerUid
-          && request.resource.data.status in ['DRAFT', 'PENDING_REVIEW']
+          && request.resource.data.status == 'DRAFT'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'name', 'description', 'eventCategory', 'date', 'time',
             'venueId', 'venueName', 'venueLocation', 'organizerName',
@@ -306,6 +310,14 @@ service cloud.firestore {
       // records. Administrators should cancel/suspend those events instead.
       allow delete: if resource.data.status == 'DRAFT'
         && (isAdmin() || isEventOwner());
+    }
+
+    // Private, server-owned verdicts and request limits cannot be forged by clients.
+    match /EventContentReviews/{eventId} {
+      allow read, write: if false;
+    }
+    match /EventReviewLimits/{userId} {
+      allow read, write: if false;
     }
 
     // -----------------------------------------------------------------------

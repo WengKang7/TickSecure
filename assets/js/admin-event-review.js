@@ -19,7 +19,7 @@
     const money = value => number(value) == null ? 'Not set' : 'RM' + Number(value).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const date = value => window.tsEventPolicy.date(value);
     const timestamp = value => window.tsEventPolicy.timestamp(value);
-    let initialized = false, busy = false, currentEventName = 'Selected event', currentEventStatus = null;
+    let initialized = false, busy = false, aiPassed = false, currentEventName = 'Selected event', currentEventStatus = null;
     const allowedActions = { approve: ['PENDING_REVIEW'], reject: ['PENDING_REVIEW'], suspend: ['PUBLISHED', 'APPROVED'], restore: ['SUSPENDED'] };
 
     function error(message) {
@@ -158,6 +158,17 @@
         el('venue-link').hidden = !venue;
         if (venue) el('venue-link').href = `venue-layout.php?id=${encodeURIComponent(event.venueId)}&step=3`;
         renderHistory(event, organizer);
+        const review = event.contentReview;
+        const aiLabels = { PASS: 'Passed — awaiting admin decision', REJECT: 'Automatically rejected', REVIEW: 'Clarification needed', ERROR: 'Check unavailable', CHECKING: 'Checking', STALE: 'Check again' };
+        const passed = review?.decision === 'PASS';
+        aiPassed = passed;
+        text('ai-review-status', aiLabels[review?.decision] || 'Not checked');
+        text('ai-review-reason', review?.reason || 'Run an AI content check before approving this event.');
+        text('ai-review-evidence', Array.isArray(review?.evidence) ? review.evidence.join(' · ') : '', '');
+        text('ai-review-time', review?.checkedAt ? `${review.provider || 'Gemini'} · ${date(review.checkedAt)}` : '', '');
+        el('btn-ai-review').hidden = !['PENDING_REVIEW', 'SUSPENDED'].includes(status);
+        el('btn-ai-review').textContent = passed ? 'Recheck content' : 'Run AI check';
+        el('btn-approve').disabled = el('btn-restore').disabled = !passed;
         el('action-buttons').hidden = !['PENDING_REVIEW', 'PUBLISHED', 'APPROVED', 'SUSPENDED'].includes(status);
         el('btn-approve').hidden = el('btn-reject').hidden = status !== 'PENDING_REVIEW';
         el('btn-suspend').hidden = !['PUBLISHED', 'APPROVED'].includes(status);
@@ -167,6 +178,7 @@
 
     async function loadEvent() {
         currentEventStatus = null;
+        aiPassed = false;
         el('action-buttons').hidden = true;
         el('review-error').hidden = el('review-retry').hidden = el('review-notice').hidden = el('event-availability-notice').hidden = true;
         try {
@@ -199,8 +211,9 @@
 
     async function moderate(action) {
         if (busy || !allowedActions[action]?.includes(currentEventStatus)) return;
+        if (['approve', 'restore'].includes(action) && el(action === 'approve' ? 'btn-approve' : 'btn-restore').disabled) return;
         busy = true;
-        const buttons = ['btn-approve', 'btn-reject', 'btn-suspend', 'btn-restore'].map(el);
+        const buttons = ['btn-approve', 'btn-reject', 'btn-suspend', 'btn-restore', 'btn-ai-review'].map(el);
         try {
             const decision = await window.tsAdminConfirm(action + 'Event', currentEventName);
             if (!decision) return;
@@ -221,7 +234,9 @@
             error(failure?.message || 'Unable to save the decision. Please try again.');
         } finally {
             busy = false;
-            buttons.forEach(button => { button.disabled = false; });
+            buttons.forEach(button => { if (!['btn-approve', 'btn-restore'].includes(button.id)) button.disabled = false; });
+            el('btn-approve').disabled = el('btn-restore').disabled = !aiPassed;
+            // Keep approval gated after reload or a failed request.
         }
     }
 
@@ -229,6 +244,21 @@
     el('btn-reject').addEventListener('click', () => moderate('reject'));
     el('btn-suspend').addEventListener('click', () => moderate('suspend'));
     el('btn-restore').addEventListener('click', () => moderate('restore'));
+    el('btn-ai-review').addEventListener('click', async () => {
+        if (busy || !['PENDING_REVIEW', 'SUSPENDED'].includes(currentEventStatus)) return;
+        busy = true;
+        ['btn-approve', 'btn-reject', 'btn-suspend', 'btn-restore', 'btn-ai-review'].forEach(id => { el(id).disabled = true; });
+        text('ai-review-reason', 'Checking submitted event text with Gemini…');
+        let message = '';
+        try { await window.tsEvents.checkEventContent(eventId); }
+        catch (failure) { message = failure.message || 'AI review could not finish. Try again later.'; }
+        finally {
+            await loadEvent();
+            busy = false;
+            ['btn-reject', 'btn-suspend', 'btn-ai-review'].forEach(id => { el(id).disabled = false; });
+            if (message) error(message);
+        }
+    });
     el('review-retry').addEventListener('click', loadEvent);
     function ready() {
         if (initialized || window.tsCurrentUser?.role !== 'admin' || window.tsCurrentUser.status !== 'active') return;

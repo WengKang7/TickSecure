@@ -62,6 +62,7 @@ class FirebaseFirestoreTransaction {
 }
 $source = file_get_contents(__DIR__ . '/../api/backend.php');
 require_once __DIR__ . '/../api/ticket-transfer-history.php';
+require_once __DIR__ . '/../api/event-content-review.php';
 $start = strpos($source, 'const BACKEND_SERVICE_CHARGE');
 $end = strpos($source, 'if (!backend_is_enabled()');
 eval(substr($source, $start, $end - $start));

@@ -21,6 +21,7 @@ require_once __DIR__ . '/seat-category-policy.php';
 require_once __DIR__ . '/ticket-transfer-history.php';
 require_once __DIR__ . '/blockchain.php';
 require_once __DIR__ . '/admin-accounts.php';
+require_once __DIR__ . '/event-content-review.php';
 
 const BACKEND_SERVICE_CHARGE = 20;
 const BACKEND_MAX_REQUEST_BYTES = 131072;
@@ -81,6 +82,11 @@ function backend_blockchain_is_enabled(): bool
 function backend_accounts_is_enabled(): bool
 {
     return getenv('TICKSECURE_PHP_ACCOUNTS') === '1' && backend_is_loopback_request();
+}
+
+function backend_event_review_is_enabled(): bool
+{
+    return getenv('TICKSECURE_PHP_EVENT_REVIEW') === '1' && backend_is_loopback_request();
 }
 
 function backend_fail(int $status, string $message, string $code): never
@@ -1588,6 +1594,12 @@ function backend_moderate_event(FirebaseAdminRest $firebase, string $uid, array 
         if (!in_array($previousStatus, $allowedTransitions[$status], true)) {
             backend_fail(412, 'This event cannot make that status transition.', 'failed-precondition');
         }
+        if ($status === 'PUBLISHED') {
+            $review = $transaction->get('EventContentReviews', $eventId);
+            if (!event_review_passes($event, $review)) {
+                backend_fail(412, 'Run AI content review and obtain a pass for the current event text before approving or making it available.', 'ai-review-required');
+            }
+        }
         $history = $event['statusHistory'] ?? [];
         $history = is_array($history) && array_is_list($history) ? $history : [];
         $timestamp = backend_now();
@@ -1657,7 +1669,7 @@ function backend_authorization_header(): string
     return '';
 }
 
-if (!backend_is_enabled() && !backend_password_reset_is_enabled() && !backend_checkout_is_enabled() && !backend_resale_is_enabled() && !backend_transfer_is_enabled() && !backend_blockchain_is_enabled() && !backend_accounts_is_enabled()) {
+if (!backend_is_enabled() && !backend_password_reset_is_enabled() && !backend_checkout_is_enabled() && !backend_resale_is_enabled() && !backend_transfer_is_enabled() && !backend_blockchain_is_enabled() && !backend_accounts_is_enabled() && !backend_event_review_is_enabled()) {
     backend_respond(410, [
         'error' => [
             'code' => 'php_backend_disabled',
@@ -1725,6 +1737,7 @@ try {
             'createResaleListing', 'updateResalePrice', 'cancelResaleListing', 'suspendResaleListing', 'purchaseResale'
         ], true))
         && !(backend_accounts_is_enabled() && $action === 'manageAdminAccount')
+        && !(backend_event_review_is_enabled() && in_array($action, ['submitEventForReview', 'checkEventContent', 'moderateEvent'], true))
         && !(backend_transfer_is_enabled() && in_array($action, ['transferTicket', 'getTicketTransfers'], true))
         && !(backend_blockchain_is_enabled() && in_array($action, ['getBlockchainSettings', 'configureBlockchain', 'prepareBlockchainOperation', 'verifyBlockchainOperation', 'getBuyerBlockchainOperations', 'getOrganizerBlockchainOperations', 'getDemoFundingSettings', 'getDemoFundingChallenge', 'claimDemoFunding', 'retryDemoFunding'], true))) {
         backend_fail(410, 'This action is not enabled for this local PHP endpoint.', 'php_backend_disabled');
@@ -1747,6 +1760,8 @@ try {
     }
 
     $handlers = [
+        'submitEventForReview' => static fn (): array => (new EventContentReview($firebase))->run($uid, backend_require_id($data['eventId'] ?? null, 'Event ID'), true),
+        'checkEventContent' => static fn (): array => (new EventContentReview($firebase))->run($uid, backend_require_id($data['eventId'] ?? null, 'Event ID'), false),
         'manageAdminAccount' => static fn (): array => (new TickSecureAdminAccounts(firebase_backend_config()['projectId']))->manage($uid, $data),
         'getDemoFundingSettings' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->fundingSettings($uid),
         'getDemoFundingChallenge' => static fn (): array => (new TickSecureBlockchain($firebase, firebase_backend_config()['projectId']))->fundingChallenge($uid, $data),

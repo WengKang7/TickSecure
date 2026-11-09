@@ -65,6 +65,13 @@ function denied(callable $work, string $code = 'failed-precondition'): void {
     throw new RuntimeException('Expected denial');
 }
 $tests = [];
+$tests['mobile staff session rejects buyers and inactive staff'] = function () {
+    [$db, $s] = fixture();
+    ensure($s->session(claims('organizer'))['role'] === 'organizer', 'organizer session');
+    denied(fn () => $s->session(claims('buyer')), 'permission-denied');
+    $db->rows['Users/organizer']['status'] = 'inactive';
+    denied(fn () => $s->session(claims('organizer')), 'permission-denied');
+};
 $tests['enroll encrypts samples and returns only status/QR to owner'] = function () {
     [$db, $s] = fixture(); $before = $s->status(claims(), 'ticket'); ensure(!$before['registered'] && !$before['qr'], 'locked before registration');
     $s->enroll(claims(), 'ticket', ['mock'], true); $record = $db->rows['TicketFaces/ticket'];

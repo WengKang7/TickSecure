@@ -1,0 +1,13 @@
+TickSecure Entry 1.0.0 - Android USB FYP demo
+Built: 2026-11-09
+Package: com.ticksecure.ticksecure_checkin
+Android: 7.0+ (API 24), target API 36
+Build: Flutter 3.41.5 / Dart 3.11.3 / JDK 17
+APK: release compilation, debug certificate for local sideload demonstration
+Checks: flutter analyze passed; 4 Flutter tests passed; 21 PHP face-verification tests passed; Android release build/lint passed; APK v2 signature verified.
+Final APK permissions checked: Camera and Internet/network; no microphone or shared-storage permission.
+Hardware: No Android phone connected during build. Camera/USB/Firebase end-to-end rehearsal remains required.
+Runtime: XAMPP Apache and existing face matcher on PC; USB ADB reverse; phone and PC internet for Firebase.
+Install: See mobile/checkin/README.md; run Connect-USB.ps1 -Install from project instructions.
+Successful entry consumes the real demo ticket. Use a fresh registered demo ticket.
+APK SHA256: FE1BDE437DEF1BE8D146BCD1160BA426E203D207A9728E49EC694AE7CBDD0D7C
