@@ -48,17 +48,17 @@ async function invokeLocalPhpBackend(request, config) {
             body: JSON.stringify({ action: config.name, data: request })
         });
     } catch (_) {
-        throw new Error('The local PHP backend could not be reached. Check that XAMPP Apache is running.');
+        throw new Error('The ticket service could not be reached. Please try again.');
     }
 
     let payload = null;
     try {
         payload = await response.json();
     } catch (_) {
-        throw new Error('The local PHP backend returned an invalid response.');
+        throw new Error('The ticket service returned an invalid response.');
     }
     if (!response.ok || payload?.error) {
-        throw backendError(payload, 'The local PHP backend rejected this request.', response.status);
+        throw backendError(payload, 'The ticket service rejected this request.', response.status);
     }
     return payload?.data || {};
 }
@@ -74,7 +74,10 @@ export async function invokeTrustedBackend(request, config) {
             'createResaleListing', 'updateResalePrice', 'cancelResaleListing', 'suspendResaleListing', 'purchaseResale', 'transferTicket', 'getTicketTransfers',
             'getBlockchainSettings', 'configureBlockchain', 'prepareBlockchainOperation', 'verifyBlockchainOperation',
             'getBuyerBlockchainOperations', 'getOrganizerBlockchainOperations', 'getDemoFundingSettings', 'getDemoFundingChallenge', 'claimDemoFunding', 'retryDemoFunding'].includes(config.name);
-    if (config.backend === 'php' || usingLocalPhpBackend() || localDemoCheckout) {
+    const hostedCheckout = window.location.hostname === 'ticksecure.onrender.com'
+        && window.tsFirebase?.emulator?.enabled !== true
+        && ['getEventAvailability', 'getSeatMap', 'holdSelectedSeats', 'reserveSeats', 'releaseSeatReservation', 'checkout'].includes(config.name);
+    if (config.backend === 'php' || usingLocalPhpBackend() || localDemoCheckout || hostedCheckout) {
         return invokeLocalPhpBackend(request, config);
     }
 

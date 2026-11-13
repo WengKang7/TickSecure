@@ -61,7 +61,8 @@ function backend_password_reset_is_enabled(): bool
 
 function backend_checkout_is_enabled(): bool
 {
-    return getenv('TICKSECURE_PHP_CHECKOUT') === '1' && backend_is_loopback_request();
+    return (getenv('TICKSECURE_PHP_CHECKOUT') === '1' && backend_is_loopback_request())
+        || getenv('TICKSECURE_HOSTED_CHECKOUT') === '1';
 }
 
 function backend_resale_is_enabled(): bool

@@ -42,16 +42,21 @@ function firebase_base64url_decode(string $value): string
 function firebase_backend_config(): array
 {
     $localConfig = __DIR__ . '/firebase-config.local.php';
-    if (!is_file($localConfig)) {
-        throw new FirebaseBackendException(
-            503,
-            'PHP Firebase mode is not configured. Copy api/firebase-config.example.php to api/firebase-config.local.php and set a private service-account path.',
-            'backend_not_configured'
-        );
+    if (is_file($localConfig)) {
+        $config = require $localConfig;
+    } else {
+        // Hosted credentials are mounted as a secret file, outside the web root.
+        $config = [
+            'projectId' => getenv('FIREBASE_PROJECT_ID') ?: '',
+            'serviceAccountPath' => getenv('FIREBASE_SERVICE_ACCOUNT_PATH') ?: '',
+        ];
+        if ($config['projectId'] === '' || $config['serviceAccountPath'] === '') {
+            throw new FirebaseBackendException(503,
+                'The server needs Firebase credentials. Configure FIREBASE_PROJECT_ID and FIREBASE_SERVICE_ACCOUNT_PATH with a private service-account secret file.',
+                'backend_not_configured');
+        }
     }
 
-    /** @var mixed $config */
-    $config = require $localConfig;
     if (!is_array($config)) {
         throw new FirebaseBackendException(503, 'The PHP Firebase configuration is invalid.', 'backend_not_configured');
     }
