@@ -15,6 +15,10 @@ ENV TICKSECURE_HOSTED_CHECKOUT=1 \
     FIREBASE_PROJECT_ID=tick-c12a1 \
     FIREBASE_SERVICE_ACCOUNT_PATH=/etc/secrets/firebase-service-account.json
 
-RUN chown -R www-data:www-data /var/www/html
+# Render mounts runtime Secret Files for group 1000. Apache workers must be
+# members of that group to read credentials outside the document root.
+RUN if ! getent group 1000 >/dev/null; then groupadd --gid 1000 render-secrets; fi \
+    && usermod --append --groups 1000 www-data \
+    && chown -R www-data:www-data /var/www/html
 
 EXPOSE 80

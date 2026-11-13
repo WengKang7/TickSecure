@@ -20,6 +20,7 @@ scripts
 **/.env.*
 **/*.local.php
 **/*service-account*.json
+firebase-service-account.json
 **/*serviceAccount*.json
 **/*firebase-adminsdk*.json
 **/*.pem
