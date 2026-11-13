@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'checkin_api.dart';
+import 'face_movements.dart';
 import 'public_config.dart';
 
 void main() => runApp(const CheckinApp());
@@ -77,11 +78,13 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
   final api = CheckinApi(apiKey: firebaseWebApiKey);
   final email = TextEditingController(),
       password = TextEditingController(),
-      qr = TextEditingController();
+      qr = TextEditingController(),
+      server = TextEditingController(text: 'http://192.168.100.104/ticksecure-ui');
   CameraController? camera;
   Map<String, dynamic>? staff, challenge, receipt;
   DateTime? expiry;
-  String status = 'Connect your phone to the PC by USB before signing in.',
+  String status =
+          'Connect your phone and PC to the same Wi-Fi before signing in.',
       error = '';
   bool busy = false, consent = false, foreground = true;
   int generation = 0;
@@ -130,6 +133,7 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
     email.dispose();
     password.dispose();
     qr.dispose();
+    server.dispose();
     super.dispose();
   }
 
@@ -142,6 +146,7 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
       status = 'Signing in and checking staff access…';
     });
     try {
+      api.setServer(server.text);
       final result = await api.signIn(email.text, password.text);
       if (!current(value)) {
         return;
@@ -330,11 +335,20 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
       busy = true;
       error = '';
       receipt = null;
-      status = 'Capturing three face images. Hold still…';
+      status = 'Follow the five face movement directions.';
     });
     final frames = <String>[];
     try {
-      for (var i = 0; i < 3; i++) {
+      final steps = faceMovements(challenge!['movements']);
+      for (var i = 0; i < steps.length; i++) {
+        for (var seconds = 3; seconds > 0; seconds--) {
+          if (!current(value)) return;
+          setState(() {
+            status =
+                'Step ${i + 1} of 5: ${faceInstruction(steps[i])}. Hold for $seconds…';
+          });
+          await Future<void>.delayed(const Duration(seconds: 1));
+        }
         if (!current(value)) return;
         final file = await controller.takePicture();
         try {
@@ -348,11 +362,8 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
         }
         if (!current(value)) return;
         setState(() {
-          status = 'Captured ${i + 1} of 3 images…';
+          status = 'Captured step ${i + 1} of 5';
         });
-        if (i < 2) {
-          await Future<void>.delayed(const Duration(milliseconds: 250));
-        }
       }
       await stopCamera();
       if (!current(value)) return;
@@ -502,7 +513,19 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
                 gap(),
                 if (staff == null) ...[
                   const Text(
-                    'Use your existing organizer or administrator account. Your PC performs face matching over USB.',
+                    'Use your existing organizer or administrator account. Your PC performs face matching over Wi-Fi.',
+                  ),
+                  gap(),
+                  TextField(
+                    controller: server,
+                    enabled: !busy,
+                    keyboardType: TextInputType.url,
+                    autocorrect: false,
+                    decoration: const InputDecoration(
+                      labelText: 'PC server address',
+                      helperText:
+                          'Connect to the same trusted Wi-Fi as the PC.',
+                    ),
                   ),
                   gap(),
                   TextField(
@@ -573,7 +596,7 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
                           ),
                           Text('Seat ${challenge!['seat']}'),
                           const Text(
-                            'Complete face verification within 90 seconds.',
+                            'Follow five head movement directions within 90 seconds. Staff should read the prompts to the attendee.',
                           ),
                         ],
                       ),
@@ -584,7 +607,30 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
                         borderRadius: BorderRadius.circular(10),
                         child: AspectRatio(
                           aspectRatio: camera!.value.aspectRatio,
-                          child: CameraPreview(camera!),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              CameraPreview(camera!),
+                              if (busy)
+                                Align(
+                                  alignment: Alignment.bottomCenter,
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(16),
+                                    color: Colors.black87,
+                                    child: Text(
+                                      status,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 19,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     gap(),
@@ -659,7 +705,7 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
                   ),
                 gap(),
                 const Text(
-                  'Local FYP demonstration. Staff must supervise the attendee. Keep USB and XAMPP running.',
+                  'Local FYP demonstration. Staff must supervise the attendee. Keep the PC, Wi-Fi and XAMPP running.',
                   style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),
               ],

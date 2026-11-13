@@ -96,3 +96,11 @@ test('the local poster endpoint retains server opt-in, loopback, HTTP-method, an
         assert.equal(JSON.parse(output).code, code);
     }
 });
+
+test('category artwork uploads use a separate purpose so the event poster stays unchanged', async () => {
+    const c = client();
+    await c.context.uploadLocalPoster('event-1', image(), () => {}, 'category-artwork');
+    assert.equal(c.requests[0].body.get('purpose'), 'category-artwork');
+    const server = fs.readFileSync(path.join(root, 'api/event-poster.php'), 'utf8');
+    assert.ok(server.includes("if (!$artworkOnly) $tx->update('Events'"));
+});

@@ -76,4 +76,10 @@ test('saving normalized event categories retains exact selections and colours', 
     const fn = source.slice(source.indexOf('export function normalizeEventCategories'), source.indexOf('// Read-time aliases')).replace('export ', '');
     const normalize = vm.runInNewContext(fn + '; normalizeEventCategories', { asAmount: value => Number(value) || 0 });
     assert.deepEqual(JSON.parse(JSON.stringify(normalize(categories))), categories);
+    const withArt = structuredClone(categories);
+    const key = Object.keys(withArt)[0];
+    withArt[key].nftArtwork = {imageUrl:'https://example.com/organizer.jpg', border:'gold'};
+    assert.deepEqual(JSON.parse(JSON.stringify(normalize(withArt))), withArt);
+    withArt[key].nftArtwork.border = 'invalid';
+    assert.equal(normalize(withArt)[key].nftArtwork.border, 'black');
 });

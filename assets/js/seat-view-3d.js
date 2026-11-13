@@ -6,7 +6,8 @@
     'use strict';
     const palette = { available: [61,137,115], selected: [54,147,226], unavailable: [149,162,169], context: [196,204,201],
         stage: [36,49,53], backdrop: [28,42,47], floor: [234,231,220], floorBase: [186,184,174], support: [55,68,68],
-        wood: [186,151,106], trim: [194,161,108], light: [253,222,154], screen: [24,63,66] };
+        wood: [48,53,61], trim: [103,127,142], light: [181,255,250], screen: [24,63,66],
+        truss: [111,124,137], speaker: [27,32,40], speakerGrille: [61,70,80], woofer: [26,32,41], dustCap: [85,92,105] };
     const shade = (color, light) => `rgb(${color.map(v => Math.min(255, Math.round(v * light))).join(',')})`;
     const polygon = (ctx, points) => { ctx.beginPath(); points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); };
     function roundedRect(ctx, x, y, w, h, radius) {
@@ -25,7 +26,7 @@
         return yes;
     };
 
-    function draw(ctx, scene, state, width, height) {
+    function draw(ctx, scene, state, width, height, audienceIndices = People?.seatIndices(scene, state) || []) {
         const selected = new Set(state.selected || []), firstPerson = !!state.viewSeatId;
         const camera = firstPerson ? Model.seatCamera(scene, state.viewSeatId, state.look) : Model.overviewCamera(scene, width / height, state.orbit);
         if (!camera) return [];
@@ -33,7 +34,9 @@
         if (state.whiteBackground) ctx.fillStyle = '#ffffff';
         else {
             const sky = ctx.createLinearGradient(0, 0, 0, height);
-            sky.addColorStop(0, firstPerson ? '#dae5e5' : '#fafaf7'); sky.addColorStop(.6, '#f0f2ed'); sky.addColorStop(1, '#e5eae4');
+            sky.addColorStop(0, firstPerson ? '#172239' : '#ffffff');
+            sky.addColorStop(.6, firstPerson ? '#526277' : '#fbfcfd');
+            sky.addColorStop(1, firstPerson ? '#95989f' : '#eff3f5');
             ctx.fillStyle = sky;
         }
         ctx.fillRect(0, 0, width, height);
@@ -49,7 +52,7 @@
             return size;
         });
         // Choose whole mesh groups before projecting, so large venues stay responsive.
-        const audience = new Set(People?.seatIndices(scene, state) || []);
+        const audience = new Set(audienceIndices);
         const groups = [scene.meshes.venueFaces, ...scene.seats.map((seat,i) =>
             !seatSizes[i] || seat.id && seat.id === state.viewSeatId ? [] : seatSizes[i] < 14 ? scene.meshes.distantFaces[i] : scene.meshes.chairFaces[i])];
         if (audience.size) groups.push(People.buildFaces(scene, [...audience], state.peopleTime || 0, seatSizes));
@@ -83,14 +86,17 @@
             polygon(ctx, points);
             if (face.kind === 'screen') {
                 const ys = points.map(p => p.y), glow = ctx.createLinearGradient(0, Math.min(...ys), 0, Math.max(...ys));
-                glow.addColorStop(0, '#285557'); glow.addColorStop(.55, '#183b40'); glow.addColorStop(1, '#112b32'); ctx.fillStyle = glow;
+                glow.addColorStop(0, '#10243b'); glow.addColorStop(.5, '#20555e'); glow.addColorStop(1, '#101e30'); ctx.fillStyle = glow;
             } else if (face.kind === 'floor') {
-                const surface = ctx.createLinearGradient(0, 0, width, height); surface.addColorStop(0, '#f1eee4'); surface.addColorStop(1, '#dddcd0'); ctx.fillStyle = surface;
+                const surface = ctx.createLinearGradient(0, 0, width, height); surface.addColorStop(0, firstPerson ? '#f1eee4' : '#f4f6f7'); surface.addColorStop(1, firstPerson ? '#dddcd0' : '#d6dee2'); ctx.fillStyle = surface;
             } else if (face.kind === 'chair' && face.points.length > 4 && seatSizes[face.seatIndex] >= 20) {
                 const ys = points.map(p => p.y), fabric = ctx.createLinearGradient(0, Math.min(...ys), 0, Math.max(...ys));
-                fabric.addColorStop(0, shade(color, light * 1.14)); fabric.addColorStop(.28, shade(color, light * 1.04)); fabric.addColorStop(1, shade(color, light * .91)); ctx.fillStyle = fabric;
-            } else ctx.fillStyle = shade(color, face.kind === 'light' ? 1 : light);
+                fabric.addColorStop(0, shade(color, light * 1.24)); fabric.addColorStop(.18, shade(color, light * 1.04)); fabric.addColorStop(1, shade(color, light * .79)); ctx.fillStyle = fabric;
+            } else ctx.fillStyle = shade(color, face.kind === 'light' || face.part === 'glow-stick' ? 1 : light);
+            const luminous = face.part === 'glow-stick' || face.kind === 'light';
+            if (luminous) { ctx.save(); ctx.shadowColor = '#83fff0'; ctx.shadowBlur = firstPerson ? 10 : 5; }
             ctx.fill();
+            if (luminous) ctx.restore();
             ctx.strokeStyle = shade(color, light * .97); ctx.lineWidth = .45; ctx.lineJoin = 'round'; ctx.stroke();
             if (face.kind === 'chair' && face.points.length > 4 && seatSizes[face.seatIndex] >= 35) {
                 const seam = projectPolygon(face.points.map(p => p.map((v,i) => face.center[i]+(v-face.center[i])*.88)));
@@ -133,7 +139,15 @@
                 const p = Model.project(scene.meshes.stageLabel, camera, width, height);
                 if (p) {
                     ctx.save(); polygon(ctx, points); ctx.clip();
-                    const size = Model.clamp(focal / p.depth * scene.stage.width / 11, 9, 30);
+                    for (const bar of scene.meshes.screenBars) {
+                        const visible = projectPolygon(bar);
+                        if (visible.length < 3) continue;
+                        polygon(ctx, visible);
+                        ctx.fillStyle = '#81e7d69c';
+                        ctx.fill();
+                    }
+                    const screenHeight = Math.max(...points.map(v => v.y)) - Math.min(...points.map(v => v.y));
+                    const size = Math.min(Model.clamp(focal / p.depth * scene.stage.width / 11, 9, 30), screenHeight * .66);
                     ctx.font = `600 ${size}px system-ui, sans-serif`; ctx.fillStyle = '#f4f2e7'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('STAGE', p.x, p.y);
                     if (size > 15) { ctx.fillStyle = '#d5b47c'; ctx.fillRect(p.x-size*.7,p.y+size*.8,size*1.4,1.5); }
                     ctx.restore();
@@ -155,7 +169,9 @@
                 if (size < 27 && !active) continue;
                 // A compact badge labels the chair without adding a DOM node per seat.
                 ctx.font = `${active ? 700 : 500} ${active ? 11 : 10}px system-ui, sans-serif`;
-                const checked = selected.has(seat.id), fullLabel = active ? seat.label : seat.number;
+                const checked = selected.has(seat.id);
+                const detectedNumber = /^DETECTED_SEATS[-_](\d+)$/i.exec(seat.label);
+                const fullLabel = active ? (detectedNumber ? 'Seat ' + detectedNumber[1] : seat.label) : seat.number;
                 // Full identifiers remain in the tooltip and seat list; badges fit mobile.
                 let label = fullLabel;
                 const maxLabelWidth = Math.min(180, width - 52);
@@ -163,14 +179,19 @@
                 const textWidth = ctx.measureText(label).width;
                 if (!active && textWidth + 10 > size) continue;
                 const badgeHeight = active ? 24 : 17, badgeWidth = textWidth + (active ? 16 : 10) + (checked ? 13 : 0);
-                const box = { x: Model.clamp(p.x - badgeWidth / 2, 6, width - badgeWidth - 6), y: p.y - badgeHeight / 2, w: badgeWidth, h: badgeHeight };
+                const box = { x: Model.clamp(p.x - badgeWidth / 2, 6, width - badgeWidth - 6), y: Model.clamp(p.y - badgeHeight / 2 - (active ? 15 : 0), 2, height - badgeHeight - 2), w: badgeWidth, h: badgeHeight };
                 if (occupied.some(other => box.x < other.x + other.w && box.x + box.w > other.x && box.y < other.y + other.h && box.y + box.h > other.y)) continue;
                 occupied.push(box);
+                const labelY = box.y + box.h / 2;
+                if (active && box.y + box.h < p.y) {
+                    ctx.beginPath(); ctx.moveTo(p.x, box.y + box.h); ctx.lineTo(p.x, p.y);
+                    ctx.strokeStyle = '#24535c'; ctx.lineWidth = 1.5; ctx.stroke();
+                }
                 roundedRect(ctx, box.x, box.y, box.w, box.h, active ? 7 : 4);
                 ctx.fillStyle = active ? selected.has(seat.id) ? '#246eaf' : '#263d36' : '#fffffff0'; ctx.fill();
                 ctx.strokeStyle = active ? '#ffffff' : '#c6d1c8'; ctx.lineWidth = active ? 1.4 : .6; ctx.stroke();
-                if (checked) { ctx.beginPath(); ctx.moveTo(box.x+8,p.y); ctx.lineTo(box.x+11,p.y+3); ctx.lineTo(box.x+16,p.y-3); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke(); }
-                ctx.fillStyle = active ? '#ffffff' : '#3e5950'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, box.x + box.w / 2 + (checked ? 6.5 : 0), p.y);
+                if (checked) { ctx.beginPath(); ctx.moveTo(box.x+8,labelY); ctx.lineTo(box.x+11,labelY+3); ctx.lineTo(box.x+16,labelY-3); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke(); }
+                ctx.fillStyle = active ? '#ffffff' : '#3e5950'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, box.x + box.w / 2 + (checked ? 6.5 : 0), labelY);
                 hits.push({ id: seat.id, points: [{x:box.x,y:box.y},{x:box.x+box.w,y:box.y},{x:box.x+box.w,y:box.y+box.h},{x:box.x,y:box.y+box.h}] });
             }
         }
@@ -200,7 +221,8 @@
         function paint(timestamp = 0) {
             frame = 0;
             if (disposed || !scene || container.hidden || document.hidden || !inViewport) { lastTime = null; return; }
-            const animate = !!People && state.showPeople && state.peopleMotion && !reducedMotion && scene.seats.some(s => !s.id || s.id !== state.viewSeatId && !state.selected.includes(s.id));
+            const audienceIndices = People?.seatIndices(scene, state) || [];
+            const animate = audienceIndices.length > 0 && state.peopleMotion && !reducedMotion;
             // Twelve frames per second is enough for breathing and gentle head turns.
             if (animate && !dirty && timestamp - lastPaint < 1000 / 12) { schedule(false); return; }
             const rect = canvas.getBoundingClientRect(); width = rect.width; height = rect.height;
@@ -210,7 +232,7 @@
             const ratio = Math.min(window.devicePixelRatio || 1, 2), w = Math.round(width * ratio), h = Math.round(height * ratio);
             if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
             ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-            hits = draw(ctx, scene, state, width, height);
+            hits = draw(ctx, scene, state, width, height, audienceIndices);
             if (animate) schedule(false);
         }
         function schedule(invalidate = true) { if (invalidate) dirty = true; if (!frame && !disposed) frame = window.requestAnimationFrame(paint); }
@@ -226,7 +248,7 @@
             if (!seat) return false;
             const seatPage = seat.position.page || 1;
             if (page !== seatPage) { page = seatPage; scene = Model.createScene(model, page); state.orbit = {}; }
-            state.viewSeatId = id; state.hoverId = null; state.look = {}; state.focusId = id; tooltip.hidden = true; options.onFocus?.(id); info(); schedule(); return true;
+            state.viewSeatId = id; state.showPeople = !!People; state.hoverId = null; state.look = {}; state.focusId = id; tooltip.hidden = true; options.onFocus?.(id); info(); schedule(); return true;
         }
         function zoom(factor) {
             if (state.viewSeatId) state.look.fov = Model.clamp((state.look.fov || 1.15) * factor, .65, 1.5);
@@ -248,7 +270,7 @@
                 if (drag.moved) {
                     const dx = (p.x - drag.last.x) * .008, dy = (p.y - drag.last.y) * .006;
                     if (state.viewSeatId) { state.look.yaw = Model.clamp((state.look.yaw || 0) - dx, -1.3, 1.3); state.look.pitch = Model.clamp((state.look.pitch || 0) + dy, -.6, .6); }
-                    else { state.orbit.yaw = (state.orbit.yaw || 0) - dx; state.orbit.elevation = Model.clamp((state.orbit.elevation ?? .78) + dy, .2, 1.35); }
+                    else { state.orbit.yaw = (state.orbit.yaw || 0) - dx; state.orbit.elevation = Model.clamp((state.orbit.elevation ?? 1.02) + dy, .2, 1.35); }
                     schedule();
                 }
                 drag.last = p; return;

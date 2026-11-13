@@ -23,7 +23,8 @@
     }
     el('face-start').addEventListener('click', async () => {
         busy = true; buttons(); el('face-error').hidden = true;
-        try { await camera.start(); cameraReady = true; } catch (e) { cameraReady = false; error(e); }
+        el('face-status').textContent = 'Starting camera…';
+        try { await camera.start(); cameraReady = true; el('face-status').textContent = 'Camera ready. Agree below, then select Register my face.'; } catch (e) { cameraReady = false; error(e); }
         finally { busy = false; buttons(); }
     });
     el('face-stop').addEventListener('click', () => { camera.stop(); cameraReady = false; buttons(); });
@@ -33,10 +34,13 @@
         const current = version;
         busy = true; buttons(); el('face-error').hidden = true; el('face-status').textContent = 'Capturing and checking your face…';
         try {
-            const frames = await camera.frames((count, total) => { el('face-status').textContent = `Capturing image ${count} of ${total}. Hold still…`; }); camera.stop(); cameraReady = false;
+            const challenge = await window.tsFace.request('beginEnrollment', { ticketId: id });
             if (current !== version) return;
-            el('face-status').textContent = 'Checking image quality and securely saving your face registration…';
-            await window.tsFace.request('enroll', { ticketId: id, frames, consent: el('face-consent').checked });
+            if (!challenge.movements) throw Error('Refresh the page to start a guided registration.');
+            const frames = await camera.frames((count, total, instruction) => { el('face-status').textContent = `Step ${count} of ${total}: ${instruction}`; }, challenge.movements); camera.stop(); cameraReady = false;
+            if (current !== version) return;
+            el('face-status').textContent = 'Saving your face registration…';
+            await window.tsFace.request('enroll', { ticketId: id, challengeId: challenge.challengeId, frames, consent: el('face-consent').checked });
             if (current !== version) return;
             await load();
         } catch (e) { if (current === version) { error(e); el('face-status').textContent = 'Registration was not completed. Start the camera to try again.'; } }

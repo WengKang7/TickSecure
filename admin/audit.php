@@ -2,96 +2,14 @@
 require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
+<?=ts_page_head('Audit Log', 'Search and review your records.', '<button type="button" id="list-export" class="ts-btn ts-btn-secondary" disabled>Export Audit CSV</button>')?>
+<div id="staff-list-page" data-kind="audit"></div>
 
-<?=ts_page_head('Audit Log', 'Administrator-only, read-only history of sensitive and security-relevant actions across TickSecure.', '<button class="ts-btn ts-btn-secondary">'.ts_icon('download').' Export Audit</button>')?>
-<div class="ts-alert ts-alert-info mb-24">
-    <?=ts_icon('shield')?>
-    <div><strong>Read-only governance record</strong>
-        <div class="small mt-8">Audit entries cannot be edited by ordinary users. Filters only change the visible view.
-        </div>
-    </div>
-</div>
-<div class="ts-card">
-    <div class="ts-filter-bar">
-        <div class="ts-input-wrap ts-search">
-            <?=ts_icon('search')?><input
-                class="ts-input" placeholder="User, activity or related entity"></div><select class="ts-select">
-            <option>All roles</option>
-            <option>Administrator</option>
-            <option>Organizer</option>
-            <option>Buyer</option>
-            <option>System</option>
-        </select><select class="ts-select">
-            <option>All activities</option>
-            <option>Login</option>
-            <option>Event</option>
-            <option>NFT</option>
-            <option>Resale</option>
-            <option>Complaint</option>
-        </select><input class="ts-input" type="date">
-    </div>
-    <div class="ts-table-wrap">
-        <table class="ts-table">
-            <thead>
-                <tr>
-                    <th>Date / Time</th>
-                    <th>User / System Actor</th>
-                    <th>Role</th>
-                    <th>Activity Type</th>
-                    <th>Related Entity</th>
-                    <th>Result</th>
-                    <th>Details</th>
-                </tr>
-            </thead>
-            <tbody id="audit-table-body">
-                <tr><td colspan="7" class="text-center secondary" style="padding:40px">Loading...</td></tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<script type="module">
-window.addEventListener('ts-auth-ready', async () => {
-    try {
-        const logs = await window.tsAudit.getLogs();
-        const tbody = document.getElementById('audit-table-body');
-        if (!tbody) return;
-        
-        if (logs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center secondary" style="padding:40px">No audit logs found.</td></tr>';
-            return;
-        }
-        
-        const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        
-        tbody.innerHTML = logs.map((l, index) => {
-            let tone = l.result === 'success' ? 'success' : 'error';
-            return `
-                <tr>
-                    <td>${l.timestamp ? esc(new Date(l.timestamp).toLocaleString()) : '—'}</td>
-                    <td>${esc(l.actorEmail || l.actorUid || 'System')}</td>
-                    <td>${esc(l.actorRole)}</td>
-                    <td>${esc(l.action)}</td>
-                    <td>${esc(l.entityId || '—')}</td>
-                    <td><span class="ts-chip ts-chip-${tone}">${esc(l.result)}</span></td>
-                    <td><button class="ts-btn ts-btn-tertiary ts-btn-sm audit-details" type="button" data-index="${index}">View</button></td>
-                </tr>
-            `;
-        }).join('');
-
-        tbody.querySelectorAll('.audit-details').forEach(button => {
-            button.addEventListener('click', () => {
-                const log = logs[Number(button.dataset.index)];
-                window.alert(`Raw Data:\n${JSON.stringify(log?.details || {}, null, 2)}`);
-            });
-        });
-    } catch (err) {
-        console.error('Load error:', err);
-    }
-});
-</script>
-
+<section class="ts-card"><div class="ts-filter-bar"><input id="list-search" class="ts-input" aria-label="User, activity or related entity" placeholder="User, activity or related entity"><select id="list-role" class="ts-select" aria-label="All roles"><option value="">All roles</option><option value="ADMIN">Administrator</option><option value="ORGANIZER">Organizer</option><option value="BUYER">Buyer</option><option value="SYSTEM">System</option></select><select id="list-activity" class="ts-select" aria-label="All activities"><option value="">All activities</option></select><input type="date" id="list-date" class="ts-input" aria-label="Audit date (Malaysia time)"></div>
+<div class="ts-table-wrap"><table class="ts-table"><thead><tr><th>Date / Time</th><th>Actor</th><th>Role</th><th>Activity</th><th>Related entity</th><th>Result</th><th>Details</th></tr></thead><tbody id="staff-list-body"><tr><td colspan="7">Loading...</td></tr></tbody></table></div></section>
+<script src="<?=ts_asset_url('assets/js/staff-page-tools.js', '..')?>"></script>
+<script src="<?=ts_asset_url('assets/js/staff-lists.js', '..')?>"></script>
 <?php
 $content = ob_get_clean();
-render_dashboard_page('admin', 'Audit Logs', 'audit', $content, '..', '');
+render_dashboard_page('admin', 'Audit Log', 'audit', $content, '..', '');
 ?>

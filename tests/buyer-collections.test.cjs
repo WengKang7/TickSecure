@@ -5,13 +5,17 @@ const vm = require('node:vm');
 const art = require('../assets/js/collectible-art.js');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-test('ticket artwork stays consistent on refresh and transfer without modifying ticket data', () => {
-    const ticket = Object.freeze({ id: 'ticket-42', ownerUid: 'buyer-1', status: 'VALID' });
-    const image = art.artwork(ticket);
-    assert.deepEqual(art.artwork(ticket), image);
-    assert.deepEqual(art.artwork({ ...ticket, ownerUid: 'buyer-2', status: 'USED' }), image);
-    assert.equal(new Set(Array.from({ length: 40 }, (_, i) => art.artwork({ id: 'ticket-' + i }).file)).size, 3);
-    for (const item of art.artworks) assert.equal(fs.existsSync('assets/images/collectibles/' + item.file), true);
+test('category artwork uses the organizer image and border and survives owner changes', () => {
+    const event = {categories: {VIP: {name:'VIP', nftArtwork: {imageUrl:'https://example.com/vip.jpg', border:'gold'}},
+        CAT1: {name:'CAT1', nftArtwork: {imageUrl:'https://example.com/vip.jpg', border:'silver'}}}};
+    const ticket = {id:'ticket-42', sectionId:'VIP', categoryName:'VIP', _event:event};
+    assert.equal(art.artwork(ticket).src, 'https://example.com/vip.jpg');
+    assert.equal(art.artwork(ticket).key, 'gold');
+    assert.deepEqual(art.artwork({...ticket, ownerUid:'new-owner'}), art.artwork(ticket));
+    assert.equal(art.artwork({...ticket, sectionId:'CAT1'}).key, 'silver');
+    assert.equal(art.artwork({id:'legacy'}).src, '');
+    assert.equal(art.artwork({categoryName:'VIP', _event:event}).src, 'https://example.com/vip.jpg');
+    assert.equal(art.artwork({sectionId:'VIP', _event:{categories:{VIP:{nftArtwork:{imageUrl:'javascript:alert(1)',border:'gold'}}}}}).src, '');
 });
 test('collectible artwork never implies that an unconfirmed NFT is minted', () => {
     assert.equal(art.mintState({ mintingStatus: 'MINTED', transactionHash: '0x' + 'a'.repeat(64) }).minted, true);
@@ -62,7 +66,7 @@ test('the collection includes every owned ticket status, safely labels real tick
     assert.equal(p.elements.get('collection-events').textContent, '02');
     assert.equal(cards[0].href, 'ticket-detail.php?id=ticket-0');
     assert.equal(cards[0].children[0].children[2].children[2].textContent, '<img src=x onerror=alert(1)>');
-    assert.equal(cards[0].children[0].children[0].src, art.artwork(p.records[0]).src);
+    assert.equal(cards[0].children[0].children[0].hidden, true);
 });
 test('mint-status filters and search never hide the true total or rewrite ownership', async () => {
     const p = page(); await p.auth(buyer);

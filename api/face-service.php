@@ -55,27 +55,54 @@ final class TicketFaceService {
                     : ($eligible ? 'Register your face to unlock the entry QR.' : 'A valid ticket and confirmed current-owner NFT are required before registration.')];
         });
     }
-    public function enroll(array $claims, string $id, array $frames, bool $consent): array {
-        if (!$consent) face_fail('Confirm your consent before face registration.', 'invalid-argument', 400);
-        $before = $this->db->transaction(function ($tx) use ($claims, $id) {
+    private function movements(): array {
+        $turns = random_int(0, 1) ? ['left', 'right'] : ['right', 'left'];
+        return ['center', $turns[0], 'center', $turns[1], 'center'];
+    }
+    public function beginEnrollment(array $claims, string $id): array {
+        return $this->db->transaction(function ($tx) use ($claims, $id) {
             [$ticket, $event, $record] = $this->context($tx, $claims, $id);
             face_entry_eligible($ticket, $event);
             if (face_registered($record, $ticket)) face_fail('This ticket already has a face registration.');
             $this->rate($tx, (string)$claims['sub']);
-            return face_revision($ticket);
+            $challengeId = bin2hex(random_bytes(24));
+            $movements = $this->movements();
+            $tx->create('FaceChallenges', $challengeId, ['kind' => 'enrollment', 'scannerUid' => $claims['sub'],
+                'ticketId' => $id, 'revision' => face_revision($ticket), 'movements' => $movements,
+                'expiresAt' => time() + 90, 'used' => false]);
+            return ['challengeId' => $challengeId, 'movements' => $movements, 'expiresIn' => 90];
         });
-        $vectors = face_vectors(($this->recognize)($frames));
+    }
+    public function enroll(array $claims, string $id, array $frames, bool $consent, string $challengeId = ''): array {
+        if (!$consent) face_fail('Confirm your consent before face registration.', 'invalid-argument', 400);
+        $captureRequest = $this->db->transaction(function ($tx) use ($claims, $id, $challengeId) {
+            [$ticket, $event, $record] = $this->context($tx, $claims, $id);
+            face_entry_eligible($ticket, $event);
+            if (face_registered($record, $ticket)) face_fail('This ticket already has a face registration.');
+            $challenge = $challengeId !== '' ? $tx->get('FaceChallenges', $challengeId) : null;
+            if (!$challenge || ($challenge['kind'] ?? '') !== 'enrollment' || $challenge['scannerUid'] !== $claims['sub']
+                || $challenge['ticketId'] !== $id || $challenge['revision'] !== face_revision($ticket)
+                || ($challenge['used'] ?? true) || $challenge['expiresAt'] < time()) {
+                face_fail('Start a new guided face registration. This request is missing, expired or already used.');
+            }
+            face_movements($challenge['movements'] ?? null);
+            $tx->update('FaceChallenges', $challengeId, ['used' => true]);
+            return $challenge;
+        });
+        $before = $captureRequest['revision'];
+        $vectors = face_vectors(($this->recognize)($frames, $captureRequest['movements']));
         $version = bin2hex(random_bytes(16));
         $record = ['ownerUid' => $claims['sub'], 'revision' => $before, 'version' => $version,
-            'model' => FACE_MODEL, 'consentVersion' => 'fyp-face-v1', 'registeredAt' => gmdate('c')];
+            'model' => FACE_MODEL, 'consentVersion' => 'fyp-face-v1', 'movementCheck' => 'head-turn-v1', 'registeredAt' => gmdate('c')];
         $record += face_encrypt($vectors, $this->key, $this->binding($id, $record));
-        return $this->db->transaction(function ($tx) use ($claims, $id, $record, $before) {
+        return $this->db->transaction(function ($tx) use ($claims, $id, $record, $before, $captureRequest, $challengeId) {
             [$ticket, $event, $existing] = $this->context($tx, $claims, $id);
             face_entry_eligible($ticket, $event);
-            if (face_revision($ticket) !== $before || face_registered($existing, $ticket)) face_fail('The ticket changed. Reload before registering.');
+            if ($captureRequest['expiresAt'] < time() || face_revision($ticket) !== $before || face_registered($existing, $ticket)) face_fail('The ticket or request changed. Reload before registering.');
             if ($existing === null) $tx->create('TicketFaces', $id, $record);
             else $tx->update('TicketFaces', $id, $record);
             $tx->update('NFTTickets', $id, ['faceRegistrationStatus' => 'REGISTERED']);
+            $tx->delete('FaceChallenges', $challengeId);
             return ['registered' => true];
         });
     }
@@ -98,9 +125,10 @@ final class TicketFaceService {
             }
             $this->rate($tx, (string)$claims['sub']);
             $challenge = bin2hex(random_bytes(24));
-            $tx->create('FaceChallenges', $challenge, ['scannerUid' => $claims['sub'], 'ticketId' => $id,
+            $movements = $this->movements();
+            $tx->create('FaceChallenges', $challenge, ['kind' => 'checkin', 'movements' => $movements, 'scannerUid' => $claims['sub'], 'ticketId' => $id,
                 'revision' => face_revision($ticket), 'version' => $record['version'], 'expiresAt' => time() + 90, 'used' => false]);
-            return ['challengeId' => $challenge, 'expiresIn' => 90, 'eventName' => $event['name'] ?? 'Event',
+            return ['challengeId' => $challenge, 'movements' => $movements, 'expiresIn' => 90, 'eventName' => $event['name'] ?? 'Event',
                 'seat' => $ticket['seatId'] ?? '', 'ticketId' => $id, 'message' => 'QR accepted. Face verification is still required.'];
         });
     }
@@ -108,19 +136,20 @@ final class TicketFaceService {
         // Claim once BEFORE costly inference. A failed match consumes the challenge too.
         $snapshot = $this->db->transaction(function ($tx) use ($claims, $challengeId) {
             $challenge = $tx->get('FaceChallenges', $challengeId);
-            if (!$challenge || ($challenge['scannerUid'] ?? '') !== $claims['sub'] || ($challenge['used'] ?? true)
+            if (!$challenge || ($challenge['kind'] ?? '') !== 'checkin' || ($challenge['scannerUid'] ?? '') !== $claims['sub'] || ($challenge['used'] ?? true)
                 || ($challenge['expiresAt'] ?? 0) < time()) face_fail('This check-in request expired or was already used. Scan the QR again.');
             [$ticket, $event, $record] = $this->context($tx, $claims, $challenge['ticketId'], true);
             face_entry_eligible($ticket, $event);
             if (!face_registered($record, $ticket) || $challenge['revision'] !== face_revision($ticket) || $challenge['version'] !== $record['version']) {
                 face_fail('Ticket ownership or face registration changed. Scan the current QR again.');
             }
+            face_movements($challenge['movements'] ?? null);
             $tx->update('FaceChallenges', $challengeId, ['used' => true]);
             return [$challenge, $record];
         });
         [$challenge, $record] = $snapshot;
         $reference = face_decrypt($record, $this->key, $this->binding($challenge['ticketId'], $record));
-        $capture = face_vectors(($this->recognize)($frames));
+        $capture = face_vectors(($this->recognize)($frames, $challenge['movements']));
         if (!face_matches($reference, $capture)) return ['valid' => false, 'reason' => 'Face does not match the registered ticket owner. Entry denied.'];
         return $this->db->transaction(function ($tx) use ($claims, $challenge, $challengeId, $record, $admit) {
             [$ticket, $event, $current] = $this->context($tx, $claims, $challenge['ticketId'], true);

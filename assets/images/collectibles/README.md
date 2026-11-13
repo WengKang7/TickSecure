@@ -8,7 +8,7 @@ Created with the built-in image-generation tool for TickSecure's website collect
 - `tropical-frequency-v1.png` — tropical garden, golden disco ball, flowers and an open-air stage.
 - `electric-horizons-v1.png` — chrome speakers and headphones, flowing sound waves and a floating concert platform.
 
-`assets/js/collectible-art.js` assigns one of these images using the ticket ID. The assignment stays consistent on refresh and follows the same ticket after transfer. All event, category, seat, ticket-status and mint-status labels come from the buyer's existing records. Imagery may repeat; the ticket details remain distinct.
+Organizers can choose these images from the free gallery in Ticket Configuration, or upload their own. Each category stores its selected image URL and border in the event's category settings. The collection and ticket flip card display that selection. Categories without assigned artwork use a plain cover. Gallery selection makes no external AI API request.
 
 ## Final prompt set
 

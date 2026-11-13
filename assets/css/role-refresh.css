@@ -1,0 +1,172 @@
+/* Presentation only: shared typography, restrained role accents and brief motion. */
+@font-face {
+  font-family: 'Manrope'; font-style: normal; font-weight: 200 800; font-display: swap;
+  src: url('../fonts/manrope/Manrope-Variable.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Space Grotesk'; font-style: normal; font-weight: 300 700; font-display: swap;
+  src: url('../fonts/space-grotesk/SpaceGrotesk-Variable.ttf') format('truetype');
+}
+:root {
+  --display: 'Space Grotesk', 'Segoe UI', sans-serif;
+  --body: 'Manrope', 'Segoe UI', sans-serif;
+  --ui-accent: #6d28d9;
+  --ui-accent-hover: #5b21b6;
+  --ui-soft: #f5f3ff;
+  --ui-line: #ddd6fe;
+  --ui-ink: #111;
+  --ui-muted: #666;
+  --ui-motion: cubic-bezier(.2,.7,.3,1);
+}
+body[data-ui-role="admin"] {
+  --ui-accent: #111;
+  --ui-accent-hover: #000;
+  --ui-soft: #f6f6f6;
+  --ui-line: #dedede;
+}
+body[data-ui-role="organizer"] {
+  --ui-accent: #0f766e;
+  --ui-accent-hover: #115e59;
+  --ui-soft: #f0fdfa;
+  --ui-line: #99e1d7;
+}
+body:is(.ts-body-public,.ts-body-dashboard,.ts-body-auth) {
+  color: var(--ui-ink);
+  background: #fff;
+  font-family: var(--body);
+  --brand-600: var(--ui-accent);
+  --brand-100: var(--ui-soft);
+  --text-primary: var(--ui-ink);
+  --text-secondary: var(--ui-muted);
+  --border-default: #e4e8ef;
+}
+body :is(h1,h2,h3,.ts-page-title,.ts-section-title,.ts-auth-title) {
+  font-weight: 500;
+  letter-spacing: -.055em;
+}
+body :is(.ts-card-title,.ts-kpi-value) { letter-spacing: -.025em; }
+body :is(.ts-page-subtitle,.ts-card-sub,.ts-kpi-label) { line-height: 1.7; }
+body .ts-label, body .ts-field>label { font-size: 13px; font-weight: 600; }
+body .ts-table td { font-size: 13px; }
+body .ts-table th { color: #536176; font-weight: 600; background: #f8fafc; }
+body .ts-table tbody tr:hover td { background: var(--ui-soft); }
+body :is(.ts-page-head,.ts-admin-dashboard-hero,.ts-organizer-hero,.ts-organizer-event-hero) h1 { color: var(--ui-ink); }
+body :is(.ts-section-eyebrow,.ts-admin-dashboard-kicker,.ts-organizer-kicker,.ts-organizer-event-kicker) { color: var(--ui-accent); }
+body ::selection { background: var(--ui-line); color: var(--ui-ink); }
+body :is(a,button,input,select,textarea,summary):focus-visible { outline-color: var(--ui-accent); }
+
+/* All action buttons use black; disabled controls remain visibly unavailable. */
+body:is(.ts-body-public,.ts-body-dashboard,.ts-body-auth) .ts-btn {
+  background: #000 !important;
+  border-color: #000 !important;
+  color: #fff !important;
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color 180ms, border-color 180ms, box-shadow 180ms, transform 180ms var(--ui-motion);
+}
+body:is(.ts-body-public,.ts-body-dashboard,.ts-body-auth) .ts-btn:hover:not(:disabled):not(.disabled):not([aria-disabled="true"]) {
+  background: #111 !important;
+  border-color: #111 !important;
+  box-shadow: 0 5px 14px #18203214 !important;
+}
+body:is(.ts-body-public,.ts-body-dashboard,.ts-body-auth) .ts-btn-secondary {
+  background: #000 !important;
+  color: #fff !important;
+  border-color: #000 !important;
+}
+body:is(.ts-body-public,.ts-body-dashboard,.ts-body-auth) .ts-btn-secondary:hover:not(:disabled):not(.disabled):not([aria-disabled="true"]) {
+  background: #111 !important;
+  color: #fff !important;
+  border-color: #111 !important;
+}
+body:is(.ts-body-public,.ts-body-dashboard,.ts-body-auth) .ts-btn-tertiary {
+  background: #000 !important;
+  border-color: #000 !important;
+  color: #fff !important;
+}
+body:is(.ts-body-public,.ts-body-dashboard,.ts-body-auth) .ts-btn-tertiary:hover:not(:disabled):not(.disabled):not([aria-disabled="true"]) {
+  background: #111 !important;
+  border-color: #111 !important;
+  color: #fff !important;
+}
+body:is(.ts-body-public,.ts-body-dashboard,.ts-body-auth) .ts-btn-danger { background: #000 !important; border-color: #000 !important; }
+body:is(.ts-body-public,.ts-body-dashboard,.ts-body-auth) .ts-btn-danger:hover:not(:disabled):not(.disabled):not([aria-disabled="true"]) { background: #111 !important; border-color: #111 !important; }
+body:is(.ts-body-public,.ts-body-dashboard,.ts-body-auth) .ts-btn:is(:disabled,.disabled,[aria-disabled="true"]) {
+  background: #f8fafc !important; color: #697586 !important; border-color: #dce2eb !important;
+  transform: none; box-shadow: none !important;
+}
+body :is(.ts-input,.ts-select,.ts-textarea,.ts-decision-input):focus {
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 3px var(--ui-soft);
+}
+body input:is([type="checkbox"],[type="radio"]) { accent-color: var(--ui-accent); }
+body .ts-btn[aria-pressed="true"] { outline-color: var(--ui-accent); }
+
+/* A little identity in the navigation, without a tinted page background. */
+body .ts-brand .ts-brand-mark { color: var(--ui-accent); }
+body .ts-public-nav a:is(.active,:hover) { color: var(--ui-accent); }
+body .ts-public-nav a.active::after { background: var(--ui-accent); }
+body #public-user-link,
+body #public-user-link:is(:hover,:focus-visible,[aria-expanded="true"]) { background: #000; border-color: #000; color: #fff; }
+body #public-user-link:hover { background: #111; }
+body .ts-account-menu :is(a,button):hover { background: var(--ui-soft); color: var(--ui-accent); }
+body .ts-sidebar .ts-side-link.active { background: var(--ui-soft); color: var(--ui-accent); box-shadow: inset 3px 0 var(--ui-accent); font-weight: 600; }
+body .ts-sidebar .ts-side-link:hover { background: var(--ui-soft); color: var(--ui-accent); }
+body .ts-sidebar .ts-brand { color: var(--ui-ink); }
+body .ts-sidebar .ts-profile-role { color: var(--ui-accent); }
+body .ts-sidebar-tools .ts-attention-toggle:hover,
+body .ts-sidebar-public:hover { background: var(--ui-soft); color: var(--ui-accent); }
+body .ts-sidebar-logout:hover { background: #fff1f2; color: #b42318; }
+body .ts-attention-item:is(:hover,:focus-visible) { background: var(--ui-soft); }
+body :is(.ts-tab.active,.ts-organizer-event-tabs .ts-tab.active) { background: var(--ui-soft); color: var(--ui-accent); }
+body .ts-organizer-event-tabs .ts-tab.active { box-shadow: inset 0 -2px var(--ui-accent); }
+body .ts-tab.active::after { background: var(--ui-accent); }
+body :is(.ts-avatar,.ts-role-pill) { background: var(--ui-soft); color: var(--ui-accent); border-color: var(--ui-line); }
+
+/* Quiet pastel accents on metrics and workspace shortcuts. Values remain dark. */
+body .ts-kpi-grid { border-color: #e2e7ef; }
+body .ts-kpi-grid .ts-kpi { border-top: 3px solid var(--ui-accent); }
+body .ts-kpi-grid .ts-kpi:nth-child(2) { border-top-color: #0f766e; }
+body .ts-kpi-grid .ts-kpi:nth-child(3) { border-top-color: #7c3aed; }
+body .ts-kpi-grid .ts-kpi:nth-child(4) { border-top-color: #b45309; }
+body .ts-kpi-icon { width: 32px; height: 32px; color: var(--ui-accent); background: var(--ui-soft); border-radius: 10px; }
+body .ts-kpi-grid .ts-kpi:nth-child(2) .ts-kpi-icon { background: #ecfdf5; color: #0f766e; }
+body .ts-kpi-grid .ts-kpi:nth-child(3) .ts-kpi-icon { background: #f5f3ff; color: #7c3aed; }
+body .ts-kpi-grid .ts-kpi:nth-child(4) .ts-kpi-icon { background: #fffbeb; color: #b45309; }
+body :is(.ts-admin-shortcut-icon,.ts-organizer-shortcut-icon) { background: var(--ui-soft); color: var(--ui-accent); border-radius: 10px; }
+body :is(.ts-admin-shortcut,.ts-organizer-shortcut):hover { border-color: var(--ui-line); }
+body :is(.ts-admin-review-count,.ts-organizer-event-sales-summary) { background: var(--ui-soft); color: var(--ui-accent); border-color: var(--ui-line); }
+body :is(.ts-trust-icon,.ts-success-icon) { color: var(--ui-accent); background: var(--ui-soft); border-color: var(--ui-line); }
+body .ts-chip-neutral { background: #f1f5f9; color: #475569; }
+body .ts-chip-success { background: #ecfdf3; color: #067647; }
+body .ts-chip-warning { background: #fffaeb; color: #93370d; }
+body .ts-chip-error { background: #fef3f2; color: #b42318; }
+body .ts-chip-info { background: #eff6ff; color: #1d4ed8; }
+body .ts-chip-purple { background: #f5f3ff; color: #6d28d9; }
+body .ts-alert-info { background: #f5f9ff; color: #1e429f; border-color: #cfdef9; }
+body .ts-alert-success { background: #f2fcf7; color: #067647; border-color: #b7ebd0; }
+body .ts-alert-warning { background: #fffcf1; color: #93370d; border-color: #f5dfa3; }
+body .ts-alert-error { background: #fff5f4; color: #b42318; border-color: #f5c7c2; }
+
+/* Existing buyer entrances remain; staff get equivalent, bounded effects. */
+@media (prefers-reduced-motion: no-preference) {
+  body.ts-body-dashboard :is(.ts-page-head,.ts-admin-dashboard-hero,.ts-organizer-hero,.ts-organizer-event-hero) {
+    animation: ts-workspace-enter 380ms var(--ui-motion) backwards;
+  }
+  body.ts-body-dashboard .ts-kpi-grid>.ts-kpi { animation: ts-workspace-enter 420ms var(--ui-motion) backwards; }
+  body.ts-body-dashboard .ts-kpi-grid>.ts-kpi:nth-child(2) { animation-delay: 35ms; }
+  body.ts-body-dashboard .ts-kpi-grid>.ts-kpi:nth-child(3) { animation-delay: 70ms; }
+  body.ts-body-dashboard .ts-kpi-grid>.ts-kpi:nth-child(4) { animation-delay: 105ms; }
+  body :is(.ts-alert,.ts-attention-panel):not([hidden]) { animation: ts-feedback-enter 180ms ease-out; }
+  body :is(.ts-side-link,.ts-admin-shortcut,.ts-organizer-shortcut,.ts-tab,.ts-icon-btn,.ts-public-user) {
+    transition: color 180ms, background-color 180ms, border-color 180ms, box-shadow 180ms;
+  }
+  body .ts-btn:active:not(:disabled):not(.disabled):not([aria-disabled="true"]) { transform: translateY(0) scale(.98); }
+}
+@keyframes ts-workspace-enter { from { opacity: .35; translate: 0 7px; } to { opacity: 1; translate: 0 0; } }
+@keyframes ts-feedback-enter { from { opacity: .4; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  body *, body *::before, body *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  body .ts-btn:hover { transform: none; }
+}

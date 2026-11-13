@@ -134,6 +134,7 @@ test('local and callable routes share the trusted service and local account acti
     assert.match(read('functions/admin-accounts-php-bridge.js'), /createAdminAccountService\(db, getAuth\(\), \{ fail \}\)\.manage/);
     assert.match(read('api/backend.php'), /backend_accounts_is_enabled\(\) && \$action === 'manageAdminAccount'/);
     assert.match(read('.htaccess'), /SetEnv TICKSECURE_PHP_ACCOUNTS 1/);
-    assert.match(read('assets/js/backend-client.js'), /\['manageAdminAccount', 'getEventAvailability'/);
+    const routedActions = read('assets/js/backend-client.js').match(/&&\s*\[([\s\S]*?)\]\.includes\(config\.name\)/)?.[1] || '';
+    for (const action of ['manageAdminAccount', 'getEventAvailability']) assert.ok(routedActions.includes(`'${action}'`), action + ' uses the local trusted route');
     assert.match(read('firestore.rules'), /request\.auth\.token\.email == resource\.data\.email/);
 });

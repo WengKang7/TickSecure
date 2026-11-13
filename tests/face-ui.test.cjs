@@ -18,7 +18,7 @@ function page(kind,request){
     const events={},calls=[],camera={start:async()=>{},stop(){},frames:async()=>['a','b','c']};
     const window={tsCurrentUser:{uid:kind==='registration'?'buyer':'organizer',role:kind==='registration'?'buyer':'organizer',status:'active'},
         addEventListener:(name,fn)=>events[name]=fn,
-        tsFace:{camera:()=>camera,request:async(action,data)=>{calls.push([action,data]);return request(action,data);}}};
+        tsFace:{camera:()=>camera,request:async(action,data)=>{calls.push([action,data]);const result = await request(action,data); return action==='beginEnrollment' ? {challengeId:'enrollment',movements:['center','left','center','right','center'],...result} : action==='beginCheckIn' ? {movements:['center','left','center','right','center'],...result} : result;}}};
     const context=vm.createContext({window,document:{getElementById:id=>els[id],addEventListener(){},hidden:false},
         location:{search:'?ticketId=ticket'},URLSearchParams,confirm:()=>true,setTimeout,console});
     vm.runInContext(fs.readFileSync(path.join(root,'assets/js/face-'+(kind==='registration'?'registration':'checkin')+'.js'),'utf8'),context);
@@ -44,7 +44,7 @@ test('sign-out during capture prevents enrollment under another account',async()
     const p=page('registration',()=>({registered:false,eligible:true}));await p.tick();
     let finish;p.camera.frames=()=>new Promise(resolve=>finish=resolve);
     await p.els['face-start'].click();p.els['face-consent'].checked=true;p.els['face-consent'].listeners.change();
-    const pending=p.els['face-save'].click();p.window.tsCurrentUser=null;await p.events['ts-auth-ready']();finish(['a','b','c']);await pending;
+    const pending=p.els['face-save'].click();await p.tick();p.window.tsCurrentUser=null;await p.events['ts-auth-ready']();finish(['a','b','c']);await pending;
     assert.equal(p.calls.some(([a])=>a==='enroll'),false);
 });
 async function prepare(p){

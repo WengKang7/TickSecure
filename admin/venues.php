@@ -8,11 +8,11 @@ ob_start();
     <div class="ts-filter-bar">
         <div class="ts-input-wrap ts-search">
             <?=ts_icon('search')?><input
-                class="ts-input" placeholder="Search venue or address"></div><select class="ts-select">
-            <option>All layout status</option>
-            <option>Active</option>
-            <option>Processing</option>
-            <option>Draft</option>
+                id="venue-search" aria-label="Search venues" class="ts-input" placeholder="Search venue or address"></div><select id="venue-status" aria-label="Layout status" class="ts-select">
+            <option value="">All layout status</option>
+            <option value="ACTIVE">Active</option>
+            <option value="PROCESSING">Processing</option>
+            <option value="DRAFT">Draft</option>
         </select>
     </div>
     <div class="ts-table-wrap">
@@ -37,9 +37,14 @@ ob_start();
 
 <script type="module">
 window.addEventListener('ts-auth-ready', async () => {
-    const loadVenues = async () => {
+    let cachedVenues = [];
+    const loadVenues = async (useCache = false) => {
         try {
-            const venues = await window.tsVenues.getVenues();
+            if (!useCache) cachedVenues = await window.tsVenues.getVenues();
+            const search = String(document.getElementById('venue-search').value || '').trim().toLowerCase();
+            const status = document.getElementById('venue-status').value;
+            const venues = cachedVenues.filter(v => (!status || (v.layoutStatus || 'DRAFT').toUpperCase() === status)
+                && [v.name, v.address].join(' ').toLowerCase().includes(search));
             const tbody = document.getElementById('venue-table-body');
             if (!tbody) return;
             if (venues.length === 0) {
@@ -47,7 +52,7 @@ window.addEventListener('ts-auth-ready', async () => {
                 return;
             }
             
-            const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
             
             tbody.innerHTML = venues.map(v => {
                 const layoutStatus = (v.layoutStatus || 'DRAFT').toUpperCase();
@@ -64,8 +69,8 @@ window.addEventListener('ts-auth-ready', async () => {
                         <td>${Array.isArray(v.sections) ? v.sections.length : 0}</td>
                         <td>${new Date(v.updatedAt || v.createdAt).toLocaleDateString()}</td>
                         <td>
-                            <a class="ts-btn ts-btn-secondary ts-btn-sm" href="venue-detail.php?id=${v.id}">Manage</a>
-                            <button class="ts-btn ts-btn-secondary ts-btn-sm text-error delete-btn" data-id="${v.id}">Delete</button>
+                            <a class="ts-btn ts-btn-secondary ts-btn-sm" href="venue-detail.php?id=${encodeURIComponent(v.id)}">Manage</a>
+                            <button type="button" class="ts-btn ts-btn-secondary ts-btn-sm text-error delete-btn" data-id="${esc(v.id)}">Delete</button>
                         </td>
                     </tr>
                 `;
@@ -93,9 +98,12 @@ window.addEventListener('ts-auth-ready', async () => {
             
         } catch (err) {
             console.error('Load error:', err);
+            document.getElementById('venue-table-body').innerHTML = '<tr><td colspan="7">Unable to load venues. Refresh the page to retry.</td></tr>';
         }
     };
     
+    document.getElementById('venue-search').addEventListener('input', () => loadVenues(true));
+    document.getElementById('venue-status').addEventListener('change', () => loadVenues(true));
     await loadVenues();
 });
 </script>

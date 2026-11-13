@@ -1,13 +1,16 @@
-TickSecure Entry 1.0.0 - Android USB FYP demo
-Built: 2026-11-09
+TickSecure Entry 1.2.1 (build 4) - Android Wi-Fi FYP demo
+Built: 2026-11-12
 Package: com.ticksecure.ticksecure_checkin
 Android: 7.0+ (API 24), target API 36
 Build: Flutter 3.41.5 / Dart 3.11.3 / JDK 17
 APK: release compilation, debug certificate for local sideload demonstration
-Checks: flutter analyze passed; 4 Flutter tests passed; 21 PHP face-verification tests passed; Android release build/lint passed; APK v2 signature verified.
-Final APK permissions checked: Camera and Internet/network; no microphone or shared-storage permission.
-Hardware: No Android phone connected during build. Camera/USB/Firebase end-to-end rehearsal remains required.
-Runtime: XAMPP Apache and existing face matcher on PC; USB ADB reverse; phone and PC internet for Firebase.
-Install: See mobile/checkin/README.md; run Connect-USB.ps1 -Install from project instructions.
+Checks: Flutter analyze passed; 6 Flutter tests passed; Android release build passed.
+Runtime: XAMPP Apache and face matcher on PC. Both devices use the same trusted Wi-Fi and need internet for Firebase.
+Configured PC: http://192.168.100.104/ticksecure-ui
+Android permits HTTP only for configured PC and loopback. HTTP images/tokens are unencrypted. Reserve this IP or rebuild if it changes.
+LAN API checked: unauthenticated POST correctly returns 401.
+Windows Wi-Fi profile currently Public. Private-profile Apache firewall setup needs an Administrator PowerShell window. No existing TickSecure Wi-Fi firewall rule was found during this build.
+Hardware: No physical phone/camera Wi-Fi end-to-end rehearsal performed.
+Setup: mobile/checkin/README.md and Connect-WiFi.ps1. USB fallback remains available.
 Successful entry consumes the real demo ticket. Use a fresh registered demo ticket.
-APK SHA256: FE1BDE437DEF1BE8D146BCD1160BA426E203D207A9728E49EC694AE7CBDD0D7C
+APK SHA256: 0F771388A07E864651FE23369B6E40A94294025472AF9157DD0B212D1D46FA8B

@@ -5,7 +5,7 @@ export function useLocalPosterUpload() {
         && window.tsFirebase?.emulator?.enabled !== true;
 }
 
-export async function uploadLocalPoster(eventId, file, onStatus = () => {}) {
+export async function uploadLocalPoster(eventId, file, onStatus = () => {}, purpose = 'poster') {
     if (!auth.currentUser) throw new Error('Sign in before uploading a poster.');
     const root = window.tsFirebase?.backend?.projectUrl;
     if (!root || new URL(root).origin !== window.location.origin) throw new Error('The local poster service is not configured for this site.');
@@ -23,6 +23,7 @@ export async function uploadLocalPoster(eventId, file, onStatus = () => {}) {
         if (controller.signal.aborted) return;
         const body = new FormData();
         body.append('eventId', eventId);
+        body.append('purpose', purpose);
         body.append('file', file, file.name);
         onStatus('Uploading the event poster...');
         const response = await fetch(new URL('api/event-poster.php', root).href, {

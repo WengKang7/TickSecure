@@ -57,11 +57,18 @@
                 await freshFrame();
                 // Let auto-exposure settle before enabling capture.
                 await new Promise(resolve => setTimeout(resolve, 350));
+                if (window.tsFaceMovement && facingMode === 'user') await deadline(window.tsFaceMovement.prepare(), 20000, 'Face tracking took too long to load. Restart the camera.');
                 if (current !== generation) throw Error('Camera was closed.');
             } catch (error) { if (current === generation) stop(); throw error; }
         }
-        async function frames(onProgress = () => {}) {
+        async function frames(onProgress = () => {}, movements = null) {
             const current = generation;
+            if (movements !== null) {
+                if (!window.tsFaceMovement) throw Error('Refresh the page to load guided face scanning.');
+                return window.tsFaceMovement.capture(video, movements,
+                    () => !!stream && current === generation && video.readyState >= 2,
+                    freshFrame, onProgress);
+            }
             const frames = [];
             const canvas = document.createElement('canvas');
             try { for (let i = 0; i < 3; i++) {

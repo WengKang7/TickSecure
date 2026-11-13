@@ -10,11 +10,12 @@ class CheckinException implements Exception {
 }
 
 /// Tokens stay in memory. Face templates and service-account credentials never
-/// enter the app. USB forwarding keeps the existing PHP loopback guard intact.
+/// enter the app. The selected server must use a private IPv4 or loopback address.
 class CheckinApi {
-  static final endpoint = Uri.parse(
+  static final defaultEndpoint = Uri.parse(
     'http://127.0.0.1:8080/ticksecure-ui/api/face.php',
   );
+  Uri endpoint = defaultEndpoint;
   final String apiKey;
   final http.Client client;
   String? _idToken, _refreshToken;
@@ -23,6 +24,40 @@ class CheckinApi {
   CheckinApi({required this.apiKey, http.Client? client})
     : client = client ?? http.Client();
 
+  void setServer(String address) {
+    final uri = Uri.tryParse(address.trim());
+    final parts = uri?.host.split('.').map(int.tryParse).toList();
+    final ipv4 =
+        parts != null &&
+        parts.length == 4 &&
+        parts.every((n) => n != null && n >= 0 && n <= 255);
+    final private =
+        ipv4 &&
+        (parts[0] == 10 ||
+            parts[0] == 127 ||
+            (parts[0] == 192 && parts[1] == 168) ||
+            (parts[0] == 172 && parts[1]! >= 16 && parts[1]! <= 31));
+    if (uri == null ||
+        !private ||
+        !['http', 'https'].contains(uri.scheme) ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasQuery ||
+        uri.hasFragment) {
+      throw const CheckinException(
+        'Enter your PC address, for example http://192.168.100.104/ticksecure-ui',
+      );
+    }
+    if (uri.scheme == 'http' &&
+        !['192.168.100.104', '127.0.0.1'].contains(uri.host)) {
+      throw const CheckinException(
+        'This demo APK allows HTTP only for PC 192.168.100.104 or USB 127.0.0.1. Use the configured PC address or rebuild for its new IP.',
+      );
+    }
+    signOut();
+    final path = uri.path.replaceFirst(RegExp(r'/+$'), '');
+    endpoint = uri.replace(path: '$path/api/face.php');
+  }
+
   Future<Map<String, dynamic>> _post(
     Uri uri,
     Map<String, dynamic> body, {
@@ -30,19 +65,23 @@ class CheckinApi {
     bool form = false,
   }) async {
     try {
+      final request = http.Request('POST', uri)..followRedirects = false;
+      request.headers.addAll({
+        'Content-Type': form
+            ? 'application/x-www-form-urlencoded'
+            : 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      });
+      if (form) {
+        request.bodyFields = body.map(
+          (key, value) => MapEntry(key, value.toString()),
+        );
+      } else {
+        request.body = jsonEncode(body);
+      }
       final response = await client
-          .post(
-            uri,
-            headers: {
-              'Content-Type': form
-                  ? 'application/x-www-form-urlencoded'
-                  : 'application/json',
-              if (token != null) 'Authorization': 'Bearer $token',
-            },
-            body: form
-                ? body.map((key, value) => MapEntry(key, value.toString()))
-                : jsonEncode(body),
-          )
+          .send(request)
+          .then(http.Response.fromStream)
           .timeout(const Duration(seconds: 45));
       final decoded = jsonDecode(response.body);
       if (decoded is! Map<String, dynamic>) throw const FormatException();
@@ -62,7 +101,7 @@ class CheckinApi {
       );
     } on http.ClientException {
       throw const CheckinException(
-        'Cannot reach the PC. Keep USB connected, start XAMPP Apache and run the USB connection script.',
+        'Cannot reach the PC. Connect the phone and PC to the same Wi-Fi, start XAMPP Apache, and check the PC address and firewall.',
       );
     } on FormatException {
       throw const CheckinException(

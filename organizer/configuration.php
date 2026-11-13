@@ -54,7 +54,20 @@ ob_start();
                 <div class="ts-field"><label class="ts-label" for="catQuantity">Seats to sell</label><input class="ts-input" type="number" id="catQuantity" name="catQuantity" min="1" step="1" value=""><div id="catQuantity-error" class="ts-field-error small mt-8" hidden></div>
                     <div class="ts-help" id="legacy-category-note">Choose any quantity from 1 up to the section's capacity. For example, you may sell 25 tickets in a 250-seat section.</div>
                 </div>
-            </div><button class="ts-btn ts-btn-secondary" id="add-cat-btn" disabled>Add Category</button>
+            </div>
+        <div id="category-artwork-editor" class="ts-nft-category-editor mt-20">
+            <h3>NFT collection artwork</h3>
+            <label class="ts-label" for="nft-photo">Category photo</label>
+            <input class="ts-input" type="file" id="nft-photo" accept="image/jpeg,image/png">
+            <p class="small secondary">JPG or PNG, up to 5 MB. Use the same photo for matching category editions.</p>
+            <div class="ts-nft-photo-actions"><button type="button" class="ts-btn ts-btn-secondary ts-btn-sm" id="nft-use-poster">Use event photo</button><button type="button" class="ts-btn ts-btn-secondary ts-btn-sm" id="nft-clear">Clear photo</button></div>
+            <label class="ts-label mt-16" for="nft-border">Collection finish</label>
+            <select class="ts-select" id="nft-border"><option value="gold">Gold</option><option value="silver">Silver</option><option value="bronze">Bronze</option><option value="black">Black</option></select>
+            <div id="nft-preview" class="ts-nft-category-preview" data-border="gold"><img id="nft-preview-image" alt="Category artwork preview" hidden><span class="ts-nft-preview-brand">ticksecure®</span><strong id="nft-preview-name">Ticket category</strong><div class="ts-nft-preview-panel"><span id="nft-preview-event"></span></div></div>
+            <button type="button" class="ts-btn ts-btn-secondary w-full" id="nft-suggest">Choose AI artwork</button>
+            <p id="nft-art-status" class="small secondary" role="status" aria-live="polite"></p>
+        </div>
+            <button class="ts-btn ts-btn-secondary" id="add-cat-btn" disabled>Add Category</button>
             <button class="ts-btn ts-btn-ghost" id="clear-cat-btn" type="button">Clear Category Fields</button>
             <div class="ts-help">Add this category to colour its seats on the plan. Save Draft keeps your work.</div>
         </div>
@@ -130,7 +143,16 @@ ob_start();
     <p class="small secondary mt-16">Submitted event text is sent to Google Gemini for a content-safety check. Harmful submissions are automatically rejected with a reason; passed submissions await administrator approval. It stays private until approved. Save Draft if you want to continue editing later.</p>
     <button class="ts-btn ts-btn-primary mt-20" id="submit-config-btn">Submit for Administrator Approval</button>
 </section>
+<dialog id="nft-gallery-dialog" class="ts-nft-gallery-dialog" aria-labelledby="nft-gallery-title">
+    <div class="ts-nft-gallery-heading">
+        <h2 id="nft-gallery-title">Choose AI artwork</h2>
+        <button type="button" class="ts-icon-btn" id="nft-gallery-close" aria-label="Close artwork gallery" autofocus><?=ts_icon('x')?></button>
+    </div>
+    <div id="nft-suggestions"></div>
+</dialog>
 <script src="<?=ts_asset_url('assets/js/event-policy.js', '..')?>"></script>
+<script src="<?=ts_asset_url('assets/js/collectible-art.js', '..')?>"></script>
+<script src="<?=ts_asset_url('assets/js/nft-category-editor.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/organizer-configuration.js', '..')?>"></script>
 
 <?php

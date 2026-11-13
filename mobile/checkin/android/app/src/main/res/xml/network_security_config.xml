@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
-    <!-- USB adb reverse only. Firebase sign-in still uses HTTPS. -->
+    <!-- Local demo PC and USB only. Firebase sign-in uses HTTPS. -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">127.0.0.1</domain>
         <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">192.168.100.104</domain>
     </domain-config>
 </network-security-config>

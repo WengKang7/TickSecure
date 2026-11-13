@@ -108,19 +108,54 @@
         box(stage.x, stage.z, stage.angle, 0, 2.35, -stage.depth / 2, stage.width, 3.1, .2, 'backdrop');
         const stagePoint = (x,y,z) => transform(x,y,z,stage.x,stage.z,stage.angle);
         const screenZ = -stage.depth / 2 + .105;
+        // Concert rig and speaker stacks remain within the stage footprint.
+        for (const side of [-1, 1]) {
+            const x = side * stage.width * .47;
+            for (const offset of [-.08,.08]) box(stage.x,stage.z,stage.angle,x+offset,2.35,screenZ+.16,.045,3.05,.045,'truss');
+            for (let y=1; y<3.8; y+=.35) box(stage.x,stage.z,stage.angle,x,y,screenZ+.16,.2,.035,.045,'truss');
+            for (let i=0;i<3;i++) {
+                box(stage.x,stage.z,stage.angle,side*stage.width*.4,1.12+i*.49,stage.depth*.18,.48,.44,.4,'speaker');
+                box(stage.x,stage.z,stage.angle,side*stage.width*.4,1.12+i*.49,stage.depth*.18+.205,.38,.32,.015,'speakerGrille');
+                for (const radius of [.137, .063]) {
+                    const rim = Array.from({length:12}, (_, segment) => {
+                        const angle = segment * Math.PI / 6;
+                        return stagePoint(side * stage.width * .4 + radius * Math.cos(angle),
+                            1.12 + i * .49 + radius * Math.sin(angle), stage.depth * .18 + (radius > .1 ? .216 : .22));
+                    });
+                    face(rim, radius > .1 ? 'woofer' : 'dustCap');
+                }
+            }
+        }
+        box(stage.x,stage.z,stage.angle,0,3.85,screenZ+.16,stage.width,.09,.13,'truss');
+        for (let i=0;i<8;i++) {
+            const x=(i/7-.5)*stage.width*.85;
+            box(stage.x,stage.z,stage.angle,x,3.7,screenZ+.24,.18,.16,.2,'speaker');
+            box(stage.x,stage.z,stage.angle,x,3.67,screenZ+.35,.12,.075,.015,'light');
+        }
         face([stagePoint(-stage.width*.41,1.25,screenZ),stagePoint(stage.width*.41,1.25,screenZ),stagePoint(stage.width*.41,3.48,screenZ),stagePoint(-stage.width*.41,3.48,screenZ)], 'screen');
         // Decorative panel strips sit on the existing backdrop, never in the aisles.
         for (const side of [-1,1]) for (let i = 0; i < 3; i++) box(stage.x,stage.z,stage.angle,side * stage.width * (.435 + i * .022),2.35,screenZ+.02,stage.width*.008,2.7,.025,'trim');
         const title = stagePoint(0, 2.4, screenZ + .015);
+        // Mirrored LED meter banks leave the centre of the video wall clear.
+        const screenBars = [];
+        for (const side of [-1, 1]) for (let i = 0; i < 15; i++) {
+            const x = side * stage.width * (.125 + i * .018);
+            const halfWidth = stage.width * .005;
+            const height = .22 + .58 * Math.sin(i * .34) ** 2 + .19 * Math.cos(i * .82);
+            screenBars.push([
+                stagePoint(x-halfWidth, 2.4-height, screenZ), stagePoint(x+halfWidth, 2.4-height, screenZ),
+                stagePoint(x+halfWidth, 2.4+height, screenZ), stagePoint(x-halfWidth, 2.4+height, screenZ)
+            ]);
+        }
         const stagePlanks = Array.from({length:Math.min(24,Math.ceil(stage.width/.7))},(_,i) => {
             const x = -stage.width/2 + (i+1)*stage.width/(Math.min(24,Math.ceil(stage.width/.7))+1);
             return [stagePoint(x,stage.height+.051,-stage.depth/2),stagePoint(x,stage.height+.051,stage.depth/2)];
         });
-        return { faces, chairFaces, distantFaces, venueFaces: faces.filter(f => f.seatIndex < 0), labels, shadows, stagePlanks, stageLabel: title };
+        return { faces, chairFaces, distantFaces, venueFaces: faces.filter(f => f.seatIndex < 0), labels, shadows, stagePlanks, screenBars, stageLabel: title };
     }
 
     function overviewCamera(scene, aspect = 1, orbit = {}) {
-        const yaw = (orbit.yaw || 0) + scene.stage.angle + .18, elevation = clamp(orbit.elevation ?? .78, .2, 1.35);
+        const yaw = (orbit.yaw || 0) + scene.stage.angle, elevation = clamp(orbit.elevation ?? 1.02, .2, 1.35);
         const fov = .75;
         const atDistance = distance => camera([scene.center[0] + Math.sin(yaw) * Math.cos(elevation) * distance, Math.sin(elevation) * distance, scene.center[2] + Math.cos(yaw) * Math.cos(elevation) * distance], scene.center, fov);
         // Fit the projected venue, not its bounding sphere, so wide plans fill the panel.

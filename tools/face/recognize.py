@@ -86,7 +86,7 @@ def jpeg_size(raw):
     raise ValueError("The camera image is incomplete or unsupported.")
 
 
-def extract(encoded, detector, recognizer):
+def extract(encoded, detector, recognizer, movement=None, poses=None):
     if not isinstance(encoded, str) or len(encoded) > 1000000:
         raise ValueError("The camera image is too large.")
     raw = base64.b64decode(encoded, validate=True)
@@ -101,6 +101,11 @@ def extract(encoded, detector, recognizer):
         raise CaptureError("More than one face was detected. Only the ticket owner should be in the camera view.")
     face = faces[0]
     check_quality(frame, face)
+    if movement is not None:
+        try:
+            poses.append(movement.measure(frame))
+        except ValueError as error:
+            raise CaptureError(str(error)) from error
     vector = recognizer.feature(recognizer.alignCrop(frame, face)).flatten().astype(float)
     norm = np.linalg.norm(vector)
     if len(vector) != 128 or not np.isfinite(vector).all() or norm < 1e-8:
@@ -112,19 +117,36 @@ def main():
     cv2.setNumThreads(1)
     detector = cv2.FaceDetectorYN.create(str(ROOT / "models/yunet.onnx"), "", (640, 480), 0.9, 0.3, 5000)
     recognizer = cv2.FaceRecognizerSF.create(str(ROOT / "models/sface.onnx"), "")
-    raw = sys.stdin.buffer.read(3100001)
-    if len(raw) > 3100000:
+    raw = sys.stdin.buffer.read(5100001)
+    if len(raw) > 5100000:
         raise ValueError("Too many camera images.")
     request = json.loads(raw)
+    from movement import MovementDetector, valid_sequence, verify_sequence
     if request.get("action") == "health":
-        return {"ready": True, "model": MODEL}
+        movement = MovementDetector()
+        movement.close()
+        return {"ready": True, "model": MODEL, "movementCheck": "head-turn-v1"}
     frames = request.get("frames")
-    if not isinstance(frames, list) or len(frames) != 3:
-        raise ValueError("Capture three clear face images.")
-    vectors = [extract(frame, detector, recognizer) for frame in frames]
+    steps = request.get("movements")
+    if not isinstance(frames, list) or len(frames) != 5 or not valid_sequence(steps):
+        raise CaptureError("Complete all five guided face movements. Refresh the page or update the mobile app.")
+    if len(set(frames)) != 5:
+        raise CaptureError("Repeated camera images detected. Start a new scan with a live camera.")
+    poses = []
+    movement = MovementDetector()
+    try:
+        vectors = [extract(frame, detector, recognizer, movement, poses) for frame in frames]
+        verify_sequence(poses, steps)
+    except ValueError as error:
+        if isinstance(error, CaptureError):
+            raise
+        raise CaptureError(str(error)) from error
+    finally:
+        movement.close()
     if min(float(np.dot(a, b)) for a in vectors for b in vectors) < 0.5:
-        raise CaptureError("The captures are inconsistent. Keep the same face visible and hold still while capturing.")
-    return {"vectors": vectors, "model": MODEL}
+        raise CaptureError("The captures are inconsistent. Keep the same face visible throughout the guided scan.")
+    # Preserve existing encrypted three-vector enrollment format and thresholds.
+    return {"vectors": [vectors[0], vectors[2], vectors[4]], "model": MODEL, "movementCheck": "head-turn-v1"}
 
 
 if __name__ == "__main__":

@@ -41,7 +41,7 @@ ob_start();
           <div class="ts-ticket-art-heading"><span>Your ticket collectible</span><span id="ticket-art-mint"></span></div>
           <div class="ts-collectible-poster" id="ticket-art-poster">
             <img class="ts-collectible-image" id="ticket-art-image" alt="" width="1122" height="1402" decoding="async">
-            <div class="ts-collectible-top"><span class="ts-collectible-brand">ticksecure®</span><span class="ts-collectible-series">TICKET COLLECTION</span></div>
+            <div class="ts-collectible-top"><span class="ts-collectible-brand">ticksecure®</span><span class="ts-collectible-series" id="ticket-art-ribbon"></span></div>
             <div class="ts-collectible-caption"><span class="ts-collectible-edition" id="ticket-art-edition"></span><strong class="ts-collectible-category" id="ticket-art-category"></strong><h2 class="ts-collectible-event" id="ticket-art-event"></h2><span class="ts-collectible-date" id="ticket-art-date"></span></div>
             <div class="ts-collectible-footer"><span>KEEP THE MOMENT</span><span id="ticket-art-number"></span></div>
           </div>

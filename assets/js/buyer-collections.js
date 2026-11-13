@@ -16,13 +16,13 @@
         const imageArt = art.artwork(ticket), mint = art.mintState(ticket);
         const link = node('a', 'ts-collectible-card');
         link.href = 'ticket-detail.php?id=' + encodeURIComponent(ticket.id);
-        link.setAttribute('aria-label', `${ticket.eventName || 'Event ticket'}, ${ticket.categoryName || 'Ticket'}, seat ${ticket.seatId || 'not assigned'}. ${mint.label}. View ticket.`);
+        link.setAttribute('aria-label', `${ticket.eventName || 'Event ticket'}, ${ticket.categoryName || 'Ticket'}, seat ${window.tsTicketDisplay.seatLabel(ticket)}. ${mint.label}. View ticket.`);
         const poster = node('div', 'ts-collectible-poster ts-collectible-' + imageArt.key);
         const image = node('img', 'ts-collectible-image');
-        image.src = imageArt.src; image.alt = imageArt.name + ' collectible artwork'; image.width = 1122; image.height = 1402; image.loading = 'lazy'; image.decoding = 'async';
+        if (imageArt.src) image.src = imageArt.src; else image.hidden = true; image.alt = imageArt.name + ' collectible artwork'; image.width = 1122; image.height = 1402; image.loading = 'lazy'; image.decoding = 'async';
         image.addEventListener('error', () => { image.hidden = true; });
         const top = node('div', 'ts-collectible-top');
-        top.append(node('span', 'ts-collectible-brand', 'ticksecure®'), node('span', 'ts-collectible-series', 'TICKET COLLECTION'));
+        top.append(node('span', 'ts-collectible-brand', 'ticksecure®'), node('span', 'ts-collectible-series', ticket.categoryName || 'Event pass'));
         const caption = node('div', 'ts-collectible-caption');
         caption.append(node('span', 'ts-collectible-edition', imageArt.name), node('strong', 'ts-collectible-category', ticket.categoryName || 'Event pass'),
             node('h2', 'ts-collectible-event', ticket.eventName || 'Event ticket'), node('span', 'ts-collectible-date', display.eventDate(ticket, ticket._event)));
@@ -34,7 +34,7 @@
         const [label, tone] = display.ticketStatus(ticket.status);
         meta.append(mintLabel, node('span', 'ts-chip ts-chip-' + tone, label));
         const bottom = node('div', 'ts-collectible-bottom');
-        bottom.append(node('span', '', 'Seat ' + (ticket.seatId || 'not assigned')), node('span', 'ts-collectible-open', 'View ticket ↗'));
+        bottom.append(node('span', '', 'Seat ' + window.tsTicketDisplay.seatLabel(ticket)), node('span', 'ts-collectible-open', 'View ticket ↗'));
         link.append(poster, meta, bottom);
         return link;
     }
@@ -43,7 +43,7 @@
         const filtered = tickets.filter(ticket => {
             const minted = art.mintState(ticket).minted;
             return (filter === 'all' || (filter === 'minted' ? minted : !minted))
-                && (!search || [ticket.eventName, ticket.categoryName, ticket.seatId, ticket.id].some(value => String(value || '').toLowerCase().includes(search)));
+                && (!search || [ticket.eventName, ticket.categoryName, ticket.seatId, window.tsTicketDisplay.seatLabel(ticket), ticket.id].some(value => String(value || '').toLowerCase().includes(search)));
         });
         grid.replaceChildren(...filtered.map(card));
         el('collection-total').textContent = String(tickets.length).padStart(2, '0');
@@ -63,7 +63,7 @@
             const records = await window.tsTickets.getUserTickets();
             if (!current(v, uid)) return;
             const owned = [...new Map(records.filter(ticket => ticket.ownerUid === uid && ticket.id).map(ticket => [ticket.id, ticket])).values()];
-            const eventIds = [...new Set(owned.filter(ticket => ticket.eventId && (!ticket.eventName || !ticket.eventDate)).map(ticket => ticket.eventId))];
+            const eventIds = [...new Set(owned.filter(ticket => ticket.eventId).map(ticket => ticket.eventId))];
             const events = new Map(await Promise.all(eventIds.map(async id => {
                 try { return [id, await window.tsEvents.getEvent(id)]; } catch (_) { return [id, null]; }
             })));

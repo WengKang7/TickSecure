@@ -79,7 +79,8 @@ export function normalizeEventCategories(categories, resolveSectionId = null) {
             price: asAmount(value.price ?? value.unitPrice),
             quantity: Math.max(0, Math.floor(asAmount(value.quantity ?? value.available))),
             ...(Object.hasOwn(value, 'seatLabels') ? { seatLabels: Array.isArray(value.seatLabels) ? [...value.seatLabels] : [] } : {}),
-            ...(/^#[0-9a-f]{6}$/i.test(value.color || '') ? { color: value.color } : {})
+            ...(/^#[0-9a-f]{6}$/i.test(value.color || '') ? { color: value.color } : {}),
+            ...(value.nftArtwork && typeof value.nftArtwork === 'object' ? { nftArtwork: { imageUrl: String(value.nftArtwork.imageUrl || ''), border: ['gold','silver','bronze','black'].includes(value.nftArtwork.border) ? value.nftArtwork.border : 'black' } } : {})
         };
     };
 

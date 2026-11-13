@@ -39,7 +39,7 @@ ob_start();
         <div class="ts-seat-people-controls mt-12" id="picker-people-controls" hidden>
           <label class="ts-seat-people-toggle" for="picker-people">
             <input type="checkbox" role="switch" id="picker-people" aria-describedby="picker-people-note">
-            <span><strong>Show people</strong><small id="picker-people-note">Sample seated people. Seat colours show actual availability.</small></span>
+            <span><strong>Show people</strong><small id="picker-people-note">Sample audience with glow sticks. Seat colours show actual availability.</small></span>
           </label>
           <button class="ts-btn ts-btn-secondary" type="button" id="picker-people-motion" aria-pressed="false" disabled>Pause animation</button>
         </div>

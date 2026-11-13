@@ -24,8 +24,8 @@ test('audience is optional, excludes selected/viewing seats, and never changes i
     assert.deepEqual(People.seatIndices(scene),[]);
     const indices=People.seatIndices(scene,{showPeople:true,viewSeatId:'s7',selected:['s8']});
     assert.ok(indices.includes(6) && indices.includes(1),'neighbouring seats are represented');
-    assert.ok(!indices.includes(7) && !indices.includes(8));
-    assert.ok(indices.includes(3),'sample placement is independent of bookings');
+    assert.ok(!indices.includes(7) && !indices.includes(8),'selected seats and the camera seat stay empty');
+    assert.ok(!indices.includes(3),'distant seats stay empty');
     const faces=People.buildFaces(scene,indices,0);
     assert.ok(faces.length>0);
     assert.equal(scene.seats.at(-1).id,null);
@@ -35,23 +35,40 @@ test('audience is optional, excludes selected/viewing seats, and never changes i
     assert.deepEqual(People.seatIndices({...scene,seats:scene.seats.filter(s=>s.id)},{showPeople:true,selected:allSelected}),[]);
 });
 
-test('nearby audience is bounded for 5,000 seats and never creates extra chair locations',()=>{
+test('audience follows the chosen seat and leaves distant seats empty',()=>{
     const scene={seats:Array.from({length:5000},(_,i)=>({id:'s'+i,label:String(i),x:i%100,z:Math.floor(i/100),angle:0}))};
-    assert.equal(People.seatIndices(scene,{showPeople:true}).length,72);
+    assert.equal(People.seatIndices(scene,{showPeople:true}).length,0);
     const seated=People.seatIndices(scene,{showPeople:true,viewSeatId:'s2500'});
-    assert.equal(seated.length,32); assert.ok(seated.includes(2501)); assert.ok(seated.includes(2400));
+    assert.equal(seated.length,12); assert.ok(!seated.includes(2499));
+    assert.deepEqual(People.seatIndices(scene,{showPeople:true,selected:['s2500']}),seated); assert.ok(seated.includes(2501)); assert.ok(seated.includes(2400));
     assert.ok(!seated.includes(2500)); assert.equal(new Set(seated).size,seated.length);
+});
+
+test('entering a seat automatically shows the audience and still allows hiding it',()=>{
+    const p=mounted();p.step(0);
+    assert.equal(p.infos.at(-1).showPeople,false);
+    p.view.viewFrom('s7');p.step(100);
+    assert.equal(p.infos.at(-1).showPeople,true);
+    assert.equal(p.infos.at(-1).viewSeatId,'s7');
+    p.view.setPeople(false);p.step(200);
+    assert.equal(p.infos.at(-1).showPeople,false);
+    assert.equal(p.frames.size,0);p.view.dispose();
 });
 
 test('animated poses move gently and deterministically, with finite seated geometry',()=>{
     const scene=Model.createScene(fixture()),a=People.buildFaces(scene,[0],0),b=People.buildFaces(scene,[0],1.5);
     assert.deepEqual(a,People.buildFaces(scene,[0],0)); assert.notDeepEqual(a,b);
     for(const face of b) for(const p of face.points) {
-        assert.ok(p.every(Number.isFinite)); assert.ok(p[1]>=0 && p[1]<2.1);
+        assert.ok(p.every(Number.isFinite)); assert.ok(p[1]>=0 && p[1]<2.7);
         assert.ok(Math.hypot(p[0]-scene.seats[0].x,p[2]-scene.seats[0].z)<1.1);
     }
     const small=People.buildFaces(scene,[0],1.5,scene.seats.map(()=>12));
     assert.ok(small.length<a.length,'distant people omit small body details');
+    assert.ok(small.some(f=>f.part==='glow-stick'),'light sticks remain visible at distant detail');
+    const sticks=a.filter(f=>f.part==='glow-stick');
+    assert.ok(sticks.length>0);
+    assert.ok(Math.min(...sticks.flatMap(f=>f.points.map(p=>p[1])))>1.8,'stick is held above the shoulder');
+    assert.notDeepEqual(sticks,b.filter(f=>f.part==='glow-stick'),'stick follows the animated hand');
     assert.deepEqual(People.buildFaces(scene,[0],0,scene.seats.map(()=>0)),[]);
 });
 
@@ -87,7 +104,7 @@ function mounted(reduced=false) {
 
 test('animation runs only when enabled, can pause without hiding people, and releases all work on disposal',()=>{
     const p=mounted();p.step(0);assert.equal(p.frames.size,0);assert.equal(p.times.length,0);
-    p.view.setPeople(true);p.step(100);assert.equal(p.frames.size,1);
+    p.view.viewFrom('s7');p.step(100);assert.equal(p.frames.size,1);
     p.step(110);assert.equal(p.times.length,1,'frame rate is capped');
     p.step(200);assert.ok(p.times.at(-1)>p.times[0]);
     p.view.setPeopleMotion(false);p.step(300);const paused=p.times.at(-1);
@@ -101,7 +118,7 @@ test('animation runs only when enabled, can pause without hiding people, and rel
 });
 
 test('reduced motion, hidden tabs, off-screen and 2D views suspend the loop and resume without jumping',()=>{
-    const p=mounted(true);p.step(0);p.view.setPeople(true);p.step(100);
+    const p=mounted(true);p.step(0);p.view.viewFrom('s7');p.step(100);
     assert.equal(p.frames.size,0);assert.equal(p.infos.at(-1).reducedMotion,true);assert.equal(p.times.at(-1),0);
     p.preference.fire('change',{matches:false});p.step(200);p.step(300);assert.equal(p.frames.size,1);
     const before=p.times.at(-1);p.document.hidden=true;p.document.fire('visibilitychange');assert.equal(p.frames.size,0);

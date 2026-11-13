@@ -42,7 +42,8 @@ for (const [name, inventory, expected] of [
         for (const result of [js, php]) {
             assert.deepEqual(result.categories.map(category => category.remaining), expected);
             assert.equal(result.remaining, expected.reduce((sum, value) => sum + value, 0));
-            assert.deepEqual(Object.keys(result).sort(), ['categories', 'checkedAt', 'eventId', 'remaining']);
+            assert.deepEqual(Object.keys(result).sort(), ['categories', 'checkedAt', 'eventId', 'remaining', 'reserved']);
+            assert.equal(result.reserved, inventory.some(s=>s.status==='RESERVED' && Date.parse(s.reservationExpiry)>currentTime && s.sectionId==='A') ? 1 : 0);
             assert.equal(JSON.stringify(result).includes('private-'), false, 'no seat IDs or buyer identities');
         }
         assert.deepEqual(php.categories, js.categories);

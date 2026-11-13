@@ -2,86 +2,13 @@
 require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
-
-<?=ts_page_head('Complaint Management', 'Investigate complaints using related booking, payment, NFT ownership, wallet, resale and blockchain records.', '')?>
-<div class="ts-tabs mb-24"><button class="ts-tab active">Open</button><button class="ts-tab">Under
-        Investigation</button><button class="ts-tab">Awaiting Information</button><button
-        class="ts-tab">Resolved</button><button class="ts-tab">Rejected</button></div>
-<div class="ts-card">
-    <div class="ts-filter-bar">
-        <div class="ts-input-wrap ts-search">
-            <?=ts_icon('search')?><input
-                class="ts-input" placeholder="Reference, complainant or category"></div><select class="ts-select">
-            <option>All priorities</option>
-            <option>High</option>
-            <option>Normal</option>
-        </select>
-    </div>
-    <div class="ts-table-wrap">
-        <table class="ts-table">
-            <thead>
-                <tr>
-                    <th>Reference</th>
-                    <th>Complainant</th>
-                    <th>Role</th>
-                    <th>Category</th>
-                    <th>Priority</th>
-                    <th>Status</th>
-                    <th>Submitted</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="complaints-table-body">
-                <tr><td colspan="8" class="text-center secondary" style="padding:40px">Loading...</td></tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<script type="module">
-window.addEventListener('ts-auth-ready', async () => {
-    try {
-        const complaints = await window.tsComplaints.getComplaints();
-        const tbody = document.getElementById('complaints-table-body');
-        if (!tbody) return;
-        
-        if (complaints.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center secondary" style="padding:40px">No complaints found.</td></tr>';
-            return;
-        }
-        
-        const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        
-        tbody.innerHTML = complaints.map(c => {
-            let statusTone = 'neutral';
-            const complaintStatus = (c.status || 'OPEN').toUpperCase();
-            if (complaintStatus === 'OPEN') statusTone = 'info';
-            else if (complaintStatus === 'UNDER_INVESTIGATION' || complaintStatus === 'AWAITING_INFORMATION') statusTone = 'warning';
-            else if (complaintStatus === 'RESOLVED') statusTone = 'success';
-            else if (complaintStatus === 'REJECTED') statusTone = 'error';
-
-            let priorityTone = 'neutral';
-            if ((c.priority || '').toUpperCase() === 'HIGH') priorityTone = 'error';
-            
-            return `
-                <tr>
-                    <td class="cell-title">${esc(c.referenceNumber || c.id)}</td>
-                    <td>${esc(c.complainantName || c.complainantUid)}</td>
-                    <td>${esc(c.complainantRole || 'Unknown')}</td>
-                    <td>${esc(c.category)}</td>
-                    <td><span class="ts-chip ts-chip-${priorityTone}">${esc(c.priority || 'MEDIUM')}</span></td>
-                    <td><span class="ts-chip ts-chip-${statusTone}">${esc(complaintStatus.replaceAll('_', ' '))}</span></td>
-                    <td>${new Date(c.createdAt).toLocaleDateString()}</td>
-                    <td><a class="ts-btn ts-btn-primary ts-btn-sm" href="complaint-detail.php?id=${c.id}">Investigate</a></td>
-                </tr>
-            `;
-        }).join('');
-    } catch (err) {
-        console.error('Load error:', err);
-    }
-});
-</script>
-
+<?=ts_page_head('Complaint Management', 'Search and review your records.', '')?>
+<div id="staff-list-page" data-kind="complaints"></div>
+<div class="ts-tabs mb-24" role="group" aria-label="Complaint status"><button type="button" class="ts-tab active" data-complaint-status="OPEN" aria-pressed="true">Open</button><button type="button" class="ts-tab" data-complaint-status="UNDER_INVESTIGATION" aria-pressed="false">Under Investigation</button><button type="button" class="ts-tab" data-complaint-status="AWAITING_INFORMATION" aria-pressed="false">Awaiting Information</button><button type="button" class="ts-tab" data-complaint-status="RESOLVED" aria-pressed="false">Resolved</button><button type="button" class="ts-tab" data-complaint-status="REJECTED" aria-pressed="false">Rejected</button></div>
+<section class="ts-card"><div class="ts-filter-bar"><input id="list-search" class="ts-input" aria-label="Reference, complainant or category" placeholder="Reference, complainant or category"><select id="list-priority" class="ts-select" aria-label="All priorities"><option value="">All priorities</option><option value="HIGH">High</option><option value="NORMAL">Normal</option><option value="LOW">Low</option></select></div>
+<div class="ts-table-wrap"><table class="ts-table"><thead><tr><th>Reference</th><th>Complainant</th><th>Role</th><th>Category</th><th>Priority</th><th>Status</th><th>Submitted</th><th>Action</th></tr></thead><tbody id="staff-list-body"><tr><td colspan="8">Loading...</td></tr></tbody></table></div></section>
+<script src="<?=ts_asset_url('assets/js/staff-page-tools.js', '..')?>"></script>
+<script src="<?=ts_asset_url('assets/js/staff-lists.js', '..')?>"></script>
 <?php
 $content = ob_get_clean();
 render_dashboard_page('admin', 'Complaint Management', 'complaints', $content, '..', '');

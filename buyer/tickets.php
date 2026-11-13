@@ -33,6 +33,7 @@ ob_start();
     </div>
 </main>
 
+<script src="<?=ts_asset_url('assets/js/ticket-display.js', '..')?>"></script>
 <script type="module">
 window.addEventListener('ts-auth-ready', async (authEvent) => {
     if (!authEvent.detail) return;
@@ -51,9 +52,9 @@ window.addEventListener('ts-auth-ready', async (authEvent) => {
         return [date, time].filter(Boolean).join(' · ') || 'Date to be announced';
     };
 
-    const withEventDates = async (items) => {
+    const withEventDetails = async (items) => {
         const eventIds = [...new Set(items
-            .filter(ticket => ticket.eventId && (!ticket.eventDate || !ticket.eventName))
+            .filter(ticket => ticket.eventId)
             .map(ticket => ticket.eventId))];
         const eventPairs = await Promise.all(eventIds.map(async (eventId) => {
             try {
@@ -70,7 +71,8 @@ window.addEventListener('ts-auth-ready', async (authEvent) => {
             return {
                 ...ticket,
                 eventName: ticket.eventName || event?.name || 'Untitled event',
-                eventDate: ticket.eventDate || eventDateLabel(event)
+                eventDate: ticket.eventDate || eventDateLabel(event),
+                eventPoster: event?.posterUrl || ''
             };
         });
     };
@@ -101,24 +103,34 @@ window.addEventListener('ts-auth-ready', async (authEvent) => {
                 EXPIRED: { tone: 'error', label: 'Expired' }
             }[ticketStatus] || { tone: 'neutral', label: ticketStatus.replace(/_/g, ' ') || 'Unknown' };
             
+            let poster = '';
+            try {
+                const url = new URL(t.eventPoster, window.location.href);
+                if (t.eventPoster && ['http:', 'https:'].includes(url.protocol)) {
+                    poster = `<img class="ts-ticket-event-poster" src="${escapeHtml(url.href)}" alt="" loading="lazy" decoding="async">`;
+                }
+            } catch (_) { /* Keep the event title cover when a poster is unavailable. */ }
             return `
             <a class="ts-ticket-card" href="ticket-detail.php?id=${encodeURIComponent(t.id)}">
-                <div class="ts-ticket-thumb">${escapeHtml(t.eventName)}</div>
+                <div class="ts-ticket-thumb ts-ticket-event-thumb">${poster}<span>${escapeHtml(t.eventName)}</span></div>
                 <div class="ts-ticket-card-body">
                     <div class="flex justify-between">
                         <div class="ts-card-title">${escapeHtml(t.eventName)}</div>
                         <span class="ts-chip ts-chip-${status.tone}">${escapeHtml(status.label)}</span>
                     </div>
                     <div class="small secondary mt-8">${escapeHtml(t.eventDate)}</div>
-                    <div class="small mt-16"><strong>${escapeHtml(t.categoryName || 'N/A')} &middot; Seat ${escapeHtml(t.seatId || 'N/A')}</strong></div>
+                    <div class="small mt-16"><strong>${escapeHtml(t.categoryName || 'N/A')} &middot; Seat ${escapeHtml(window.tsTicketDisplay.seatLabel(t))}</strong></div>
                 </div>
             </a>
             `;
         }).join('');
+        container.querySelectorAll('.ts-ticket-event-poster').forEach(image => {
+            image.addEventListener('error', () => { image.hidden = true; });
+        });
     };
     
     try {
-        allTickets = await withEventDates(await window.tsTickets.getUserTickets());
+        allTickets = await withEventDetails(await window.tsTickets.getUserTickets());
         
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {

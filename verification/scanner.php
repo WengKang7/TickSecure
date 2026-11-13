@@ -27,7 +27,7 @@
       <div class="ts-face-actions"><button class="ts-btn ts-btn-primary" id="checkin-qr" disabled>Scan QR with camera</button><button class="ts-btn ts-btn-secondary" id="checkin-face" hidden>Start face camera</button><button class="ts-btn ts-btn-secondary" id="checkin-reset">Next attendee / reset</button></div>
       <details class="mt-24"><summary>Enter QR text manually</summary><label for="qr-input">Ticket QR payload</label><textarea class="ts-input mt-12" id="qr-input" maxlength="512" placeholder="Paste the complete TKSECURE2 QR payload"></textarea><button class="ts-btn ts-btn-secondary mt-12" id="verify-btn" disabled>Check QR</button></details>
     </section>
-    <aside class="ts-card ts-face-card"><h2>How to check in</h2><ol><li>The buyer completes NFT setup and registers their face from My Tickets.</li><li>As the event organizer or administrator, scan the buyer’s ticket QR or paste its full QR text.</li><li>Start the face camera and confirm the attendee’s presence and consent. Verification starts automatically once both are ready.</li><li>A successful match marks the ticket used and prevents duplicate entry. Select Next attendee for the next ticket.</li></ol><p><strong>Successful:</strong> the face matches the current registered ticket owner and check-in is complete.<br><strong>Failed:</strong> check-in was not confirmed. Read the message and scan the ticket again before retrying.</p>
+    <aside class="ts-card ts-face-card"><h2>How to check in</h2><ol><li>The buyer completes NFT setup and registers their face from My Tickets.</li><li>As the event organizer or administrator, scan the buyer’s ticket QR or paste its full QR text.</li><li>Start the face camera and confirm the attendee’s presence and consent. Follow the five head movement directions; green face points indicate the correct angle. Each step is captured automatically.</li><li>A successful match marks the ticket used and prevents duplicate entry. Select Next attendee for the next ticket.</li></ol><p><strong>Successful:</strong> the face matches the current registered ticket owner and check-in is complete.<br><strong>Failed:</strong> check-in was not confirmed. Read the message and scan the ticket again before retrying.</p>
       <p>A QR check alone does not admit anyone. Failed face checks do not mark tickets used.</p>
       <p class="secondary">Supervised local FYP demonstration. This face matcher does not provide certified liveness or legal identity verification. Do not admit someone using a photograph or video.</p>
       <a class="ts-btn ts-btn-secondary" href="../index.php">Back to TickSecure</a>
@@ -37,6 +37,8 @@
 <script type="module" src="../assets/js/firebase-init.js"></script>
 <script type="module" src="<?=ts_asset_url('assets/js/auth-guard.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/vendor/jsQR-1.4.0.js', '..')?>"></script>
+<link rel="stylesheet" href="<?=ts_asset_url('assets/css/face-movement.css', '..')?>">
+<script src="<?=ts_asset_url('assets/js/face-movement.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/face-client.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/face-checkin.js', '..')?>"></script>
 </body></html>

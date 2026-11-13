@@ -8,7 +8,7 @@
     };
     const categoryFields = { name: 'catName', sectionId: 'catSection', price: 'catPrice', quantity: 'catQuantity' };
     const eventId = new URLSearchParams(window.location.search).get('id');
-    let seatEditor = null;
+    let seatEditor = null, artEditor = null;
     let event, venue, categories = [], editing = -1, initialized = false, busy = false, dirty = false;
     const invalid = (fieldId, message) => ({ fieldId, message });
     function clearFieldError(id) {
@@ -31,6 +31,7 @@
             clearFieldError(id);
             el(id).value = categories[editing][key];
         });
+        artEditor?.edit(categories[index].nftArtwork);
         el('add-cat-btn').textContent = 'Update Category';
         seatEditor?.edit(categories[editing]);
     }
@@ -59,7 +60,7 @@
     const rules = () => ({ ...Object.fromEntries(Object.entries(ruleFields).map(([key, id]) => [key, el(id).value])),
         transferEnabled: el('transferEnabled').checked, resaleEnabled: el('resaleEnabled').checked });
     const category = () => ({ ...Object.fromEntries(Object.entries(categoryFields).map(([key, id]) => [key, el(id).value])),
-        editingSectionId: editing >= 0 ? categories[editing]?.sectionId || '' : '', ...(seatEditor?.value() || {}) });
+        editingSectionId: editing >= 0 ? categories[editing]?.sectionId || '' : '', ...(seatEditor?.value() || {}), nftArtwork: artEditor?.value() || {} });
     const capacity = sectionId => Number((venue?.sections || []).find(section => String(section.sectionId) === sectionId)?.seatCount || 0);
     function changed(e) {
         if (e?.target?.id) clearFieldError(e.target.id);
@@ -74,11 +75,13 @@
             ...Object.values(ruleFields), ...Object.values(categoryFields), 'transferEnabled', 'resaleEnabled'].forEach(id => { el(id).disabled = value; });
         if (!value && !el('resaleEnabled').checked) ['maxResaleMarkup', 'maxResalePrice', 'resaleStart', 'resaleEnd'].forEach(id => { el(id).disabled = true; });
         el('categories-tbody').querySelectorAll('button').forEach(button => { button.disabled = value; });
+        el('category-artwork-editor')?.querySelectorAll('input,select,button').forEach(control => { control.disabled = value; });
     }
     function clearCategory() {
         Object.values(categoryFields).forEach(id => { el(id).value = ''; clearFieldError(id); });
         editing = -1;
         seatEditor?.clear();
+        artEditor?.edit();
         el('add-cat-btn').textContent = 'Add Category';
     }
     function renderCategories() {
@@ -129,7 +132,8 @@
             && Number(item.price) === Number(value.price)
             && Number(item.quantity) === Number(value.quantity)
             && JSON.stringify(item.seatLabels || null) === JSON.stringify(value.seatLabels || null)
-            && (item.color || '') === (value.color || ''));
+            && (item.color || '') === (value.color || '')
+            && JSON.stringify(item.nftArtwork || {}) === JSON.stringify(value.nftArtwork || {}));
         if (unchanged) {
             clearCategory();
             changed();
@@ -137,7 +141,7 @@
         }
         const problem = validateCategory(value, editing);
         if (problem) return problem;
-        const item = { name: value.name.trim(), sectionId: value.sectionId, price: Number(value.price), quantity: Number(value.quantity), ...(Array.isArray(value.seatLabels) ? { seatLabels: value.seatLabels, color: value.color } : {}) };
+        const item = { name: value.name.trim(), sectionId: value.sectionId, price: Number(value.price), quantity: Number(value.quantity), nftArtwork: value.nftArtwork, ...(Array.isArray(value.seatLabels) ? { seatLabels: value.seatLabels, color: value.color } : {}) };
         if (editing >= 0) categories[editing] = item;
         else categories.push(item);
         clearCategory();
@@ -216,6 +220,7 @@
             el('catSection').innerHTML = '<option value="">Select section...</option>' + (venue?.sections || []).map(section => `<option value="${esc(section.sectionId)}">${esc(section.name)} · ${Number(section.seatCount)} seats</option>`).join('');
             categories = Array.isArray(event.categories) ? event.categories.map(item => ({ ...item, sectionId: item.sectionId || item.section || item.id || '' }))
                 : Object.entries(event.categories || {}).map(([sectionId, item]) => ({ ...item, sectionId }));
+            artEditor = window.tsNftCategoryEditor({ event: { ...event, id: eventId }, categories: () => categories, isBusy: () => busy, lock, changed });
             const savedRules = event.configurationDraft?.rules || event;
             Object.entries(ruleFields).forEach(([key, id]) => {
                 let value = savedRules[key] ?? (key === 'maxTicketsPerBuyer' ? 4 : key === 'maxResaleMarkup' ? 0 : '');
@@ -241,6 +246,7 @@
             }
             seatEditor = window.tsOrganizerSeatCategories?.({ venue: venue || { sections: [] }, categories: () => categories, editing: () => editing, changed, isBusy: () => busy }) || null;
             if (seatEditor && pending) seatEditor.edit(pending);
+            if (pending) artEditor.edit(pending.nftArtwork);
             renderCategories();
             window.tsEventPolicy.render(el('buyer-rules-preview'), { ...event, ...rules(), categories });
             initialized = true;
@@ -265,7 +271,7 @@
             clearErrors();
             const value = category(), problem = validateCategory(value, editing);
             if (problem) { error(problem); return; }
-            const item = { name: value.name.trim(), sectionId: value.sectionId, price: Number(value.price), quantity: Number(value.quantity), ...(Array.isArray(value.seatLabels) ? { seatLabels: value.seatLabels, color: value.color } : {}) };
+            const item = { name: value.name.trim(), sectionId: value.sectionId, price: Number(value.price), quantity: Number(value.quantity), nftArtwork: value.nftArtwork, ...(Array.isArray(value.seatLabels) ? { seatLabels: value.seatLabels, color: value.color } : {}) };
             if (editing >= 0) categories[editing] = item;
             else categories.push(item);
             clearCategory();

@@ -15,21 +15,26 @@
 
     function seatIndices(scene, state = {}) {
         if (!state.showPeople) return [];
-        const excluded = new Set(state.selected || []);
-        if (state.viewSeatId) excluded.add(state.viewSeatId);
-        const candidates = scene.seats.map((seat,index) => ({seat,index})).filter(({seat}) => !seat.id || !excluded.has(seat.id));
-        const anchor = scene.seats.find(s => s.id && s.id === (state.viewSeatId || state.focusId));
-        // Neighbours are always included; larger overviews use a bounded sample.
-        if (anchor) candidates.sort((a,b) => Math.hypot(a.seat.x-anchor.x,a.seat.z-anchor.z)-Math.hypot(b.seat.x-anchor.x,b.seat.z-anchor.z));
-        const limit = state.viewSeatId ? 32 : 72;
-        if (anchor || candidates.length <= limit) return candidates.slice(0,limit).map(s=>s.index);
-        return Array.from({length:limit},(_,i) => candidates[Math.floor(i*candidates.length/limit)].index);
+        const selected = new Set(state.selected || []);
+        const anchorId = state.viewSeatId || (selected.has(state.focusId) ? state.focusId : state.selected?.at(-1));
+        if (!anchorId) return [];
+        const anchor = scene.seats.find(seat => seat.id === anchorId);
+        if (!anchor) return [];
+
+        // Scene coordinates are normalized to chair widths.
+        const nearby = [];
+        scene.seats.forEach((seat, index) => {
+            if (seat === anchor || selected.has(seat.id)) return;
+            const distance = Math.hypot(seat.x - anchor.x, seat.z - anchor.z);
+            if (distance <= 4) nearby.push({index, distance});
+        });
+        return nearby.sort((a, b) => a.distance - b.distance).slice(0, 12).map(item => item.index);
     }
 
     function buildFaces(scene, indices, time = 0, sizes = []) {
         const faces = [];
         for (const seatIndex of indices) {
-            if (sizes.length && sizes[seatIndex] < 4) continue;
+            if (sizes.length && sizes[seatIndex] <= 0) continue;
             const seat=scene.seats[seatIndex], key=seed(seat.label), phase=(key%628)/100;
             const t=Number.isFinite(time)?time:0, sway=Math.sin(t*1.3+phase)*.018, breath=Math.sin(t*1.8+phase)*.009;
             const turn=Math.sin(t*.8+phase)*.09, nod=Math.sin(t*1.1+phase)*.012;
@@ -65,10 +70,38 @@
                 for(let i=0;i<6;i++){const next=(i+1)%6;face([points[0][i],points[0][next],points[1][next],points[1][i]],color,part);}
                 face([...points[0]].reverse(),color,part); face(points[1],color,part);
             }
-            // Seated proportions, with feet below knees and hands resting on the lap.
+            // Distant fans use a few double-sided silhouettes instead of full meshes.
+            if (sizes.length && sizes[seatIndex] < 22) {
+                const wave=Math.sin(t*1.15+phase)*.09, side=key%2?1:-1;
+                function silhouette(points,color,part) { face(points,color,part); face([...points].reverse(),color,part); }
+                silhouette([[-.22,.75,0],[.22,.75,0],[.24,1.4,0],[-.24,1.4,0]],shirt,'torso');
+                silhouette([[-.16,1.51,0],[.16,1.51,0],[.16,1.91,0],[-.16,1.91,0]],skin,'head');
+                const hand=side*.31+wave;
+                silhouette([[side*.23,1.3,.06],[side*.23+.06,1.3,.06],[hand+.04,1.98,.06],[hand-.04,1.98,.06]],skin,'forearm');
+                silhouette([[hand-.027,1.96,.07],[hand+.027,1.96,.07],[hand+wave*.8+.027,2.51,.03],[hand+wave*.8-.027,2.51,.03]],[181,255,250],'glow-stick');
+                continue;
+            }
+            // Seated fans face the stage. One hand grips a gently waving light stick.
             ellipsoid([sway,1.13+breath,-.015],[.265,.41,.165],shirt,'torso');
             ellipsoid([sway*.65,1.72+breath,.015+nod],[.175,.215,.18],skin,'head',turn);
             ellipsoid([sway*.65,1.825+breath,-.025+nod],[.177,.125,.17],hair[(key>>>7)%hair.length],'hair',turn);
+            const wavingSide = key % 2 ? 1 : -1;
+            for (const side of [-1, 1]) {
+                const raised = side === wavingSide;
+                const wave = Math.sin(t * 1.15 + phase) * .09;
+                const shoulder = [side*.225+sway,1.32+breath,-.005];
+                const elbow = raised ? [side*.36+sway,1.58+breath,.12] : [side*.29+sway*.4,.99,.08];
+                const hand = raised ? [side*.31+wave,1.96+breath,.16] : [side*.18,.86+breath,scene.depth*.31];
+                limb(shoulder,elbow,.075,shirt,'sleeve');
+                limb(elbow,hand,.055,skin,'forearm');
+                ellipsoid(hand,[.065,.065,.065],skin,'hand');
+                if (raised) {
+                    const tip = [hand[0]+wave*.8,hand[1]+.55,hand[2]-.04];
+                    const grip = [hand[0]-wave*.15,hand[1]-.09,hand[2]+.007];
+                    limb(grip,hand,.033,[48,54,62],'stick-handle');
+                    limb(hand,tip,.027,[181,255,250],'glow-stick');
+                }
+            }
             if (low) continue;
             limb([sway*.8,1.43+breath,0],[sway*.7,1.55+breath,.01],.075,skin,'neck');
             // A small nose makes the direction of the seated head readable when looking sideways.
@@ -78,10 +111,6 @@
                 limb([x,.78,.025],knee,.105,pants,'thigh');
                 limb(knee,[x,.15,scene.depth*.57],.075,pants,'shin');
                 ellipsoid([x,.095,scene.depth*.66],[.095,.075,.17],[48,51,54],'shoe');
-                const shoulder=[side*.225+sway,1.32+breath,-.005], elbow=[side*.29+sway*.4,.99,.08];
-                limb(shoulder,elbow,.075,shirt,'sleeve');
-                limb(elbow,[side*.18,.86+breath,scene.depth*.31],.055,skin,'forearm');
-                ellipsoid([side*.18,.855+breath,scene.depth*.34],[.065,.045,.09],skin,'hand');
             }
         }
         return faces;

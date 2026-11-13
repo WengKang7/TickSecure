@@ -12,7 +12,7 @@
         el('checkin-hint').textContent = busy ? 'Please wait while the camera or verification finishes.'
             : !faceReady ? 'Step 1: Click Start face camera.'
             : !el('checkin-present').checked ? 'Step 2: Confirm consent above. This starts face verification and checks in the attendee if matched.'
-            : 'Face verification starts automatically. Hold still and look at the camera.';
+            : 'Follow the five face movement directions. Each step is captured automatically.';
     }
     function error(e) { el('checkin-error').textContent = e.message || 'Check-in could not complete.'; el('checkin-error').hidden = false; }
     function reveal(id) {
@@ -69,6 +69,7 @@
         if (busy || !challenge || !authorized()) return;
         const current = session;
         busy = true; faceReady = false; buttons(); el('checkin-error').hidden = true;
+        el('checkin-status').textContent = 'Starting camera and loading local face tracking…';
         try {
             await camera.start('user');
             if (current !== session) return;
@@ -83,9 +84,10 @@
         if (busy || !faceReady || !el('checkin-present').checked || !authorized() || !challenge || document.hidden) return;
         const current = session, challengeId = challenge.challengeId;
         busy = true; buttons(); el('checkin-error').hidden = el('checkin-success').hidden = true;
-        el('checkin-status').textContent = 'Scanning three camera images and comparing your face. Please wait…';
+        el('checkin-status').textContent = 'Follow the on-screen directions. Your face movements will be checked before entry.';
         try {
-            const frames = await camera.frames((count, total) => { el('checkin-status').textContent = `Capturing image ${count} of ${total}. Hold still…`; }); camera.stop(); faceReady = false;
+            if (!challenge.movements) throw Error('Start a new QR scan to get the face movement instructions.');
+            const frames = await camera.frames((count, total, instruction) => { el('checkin-status').textContent = `Step ${count} of ${total}: ${instruction}`; }, challenge.movements); camera.stop(); faceReady = false;
             if (current !== session) return;
             el('checkin-status').textContent = 'Checking image quality and matching the registered ticket owner…';
             const result = await window.tsFace.request('completeCheckIn', { challengeId, frames });

@@ -1,5 +1,13 @@
 // Shared presentation helpers for the buyer's booking and ticket records.
 window.tsTicketDisplay = {
+    seatLabel(ticket, fallback = 'Not assigned') {
+        const seat = String(ticket?.seatId || ticket?.seatLabel || '').trim();
+        if (!seat) return fallback;
+        const category = String(ticket?.categoryName || ticket?.category || '').trim().toUpperCase().replace(/\s+/g, '');
+        const number = seat.match(/(?:^|[-_])(\d+)$/)?.[1];
+        // Format the physical number only; never rename the stored seat or QR payload.
+        return category && number ? `${category}_${number}` : seat;
+    },
     date(value, includeTime = true) {
         if (!value) return 'Not available';
         let date;

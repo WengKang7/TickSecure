@@ -8,6 +8,54 @@ import 'package:ticksecure_checkin/main.dart';
 
 void main() {
   test(
+    'Wi-Fi routes only the staff API to the PC and blocks redirects',
+    () async {
+      final api = CheckinApi(
+        apiKey: 'key',
+        client: MockClient((request) async {
+          expect(request.followRedirects, isFalse);
+          if (request.url.host == 'identitytoolkit.googleapis.com') {
+            return http.Response(
+              jsonEncode({
+                'idToken': 'token',
+                'refreshToken': 'refresh',
+                'expiresIn': '3600',
+              }),
+              200,
+            );
+          }
+          expect(
+            request.url.toString(),
+            'http://192.168.100.104/ticksecure-ui/api/face.php',
+          );
+          expect(request.headers['Authorization'], 'Bearer token');
+          return http.Response(
+            jsonEncode({
+              'data': {'role': 'organizer'},
+            }),
+            200,
+          );
+        }),
+      );
+      api.setServer('http://192.168.100.104/ticksecure-ui/');
+      await api.signIn('staff@example.test', 'password');
+      api.setServer('http://127.0.0.1:8080/ticksecure-ui');
+      await expectLater(api.call('session'), throwsA(isA<CheckinException>()));
+      for (final address in [
+        'http://8.8.8.8',
+        'http://192.168.100.104.evil.test',
+        'http://user:pass@192.168.100.104',
+        'http://192.168.100.104/?secret=x',
+        'ftp://192.168.100.104',
+        'http://192.168.0.13',
+      ]) {
+        expect(() => api.setServer(address), throwsA(isA<CheckinException>()));
+      }
+      api.dispose();
+    },
+  );
+
+  test(
     'staff session uses Firebase identity and then the protected loopback endpoint',
     () async {
       final requests = <http.Request>[];
@@ -25,7 +73,7 @@ void main() {
               200,
             );
           }
-          expect(request.url, CheckinApi.endpoint);
+          expect(request.url, CheckinApi.defaultEndpoint);
           expect(request.headers['Authorization'], 'Bearer staff-token');
           return http.Response(
             jsonEncode({

@@ -41,6 +41,12 @@ function face_registered(?array $record, array $ticket): bool {
         && ($record['revision'] ?? '') === face_revision($ticket) && ($record['model'] ?? '') === FACE_MODEL
         && !empty($record['ciphertext']) && !empty($record['version']);
 }
+function face_movements(mixed $steps): array {
+    if ($steps !== ['center', 'left', 'center', 'right', 'center'] && $steps !== ['center', 'right', 'center', 'left', 'center']) {
+        face_fail('Start a new guided face scan. This camera request is outdated.');
+    }
+    return $steps;
+}
 function face_vectors(mixed $vectors): array {
     if (!is_array($vectors) || count($vectors) !== 3) face_fail('Face data is invalid. Capture again.');
     foreach ($vectors as $vector) {

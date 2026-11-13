@@ -74,7 +74,7 @@ function ts_asset_url(string $path, string $base = '.'): string
 // DESIGN2 presentation only; the original page controls and scripts stay intact.
 function ts_design2_theme_head(string $base = '.'): string
 {
-    return '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="'.ts_asset_url('assets/css/design2-theme.css', $base).'">';
+    return '<link rel="preload" href="'.$base.'/assets/fonts/manrope/Manrope-Variable.ttf" as="font" type="font/ttf" crossorigin><link rel="preload" href="'.$base.'/assets/fonts/space-grotesk/SpaceGrotesk-Variable.ttf" as="font" type="font/ttf" crossorigin><link rel="stylesheet" href="'.ts_asset_url('assets/css/design2-theme.css', $base).'"><link rel="stylesheet" href="'.ts_asset_url('assets/css/role-refresh.css', $base).'">';
 }
 
 function ts_design2_footer(string $base = '.'): string
@@ -229,8 +229,11 @@ function ts_sidebar_links(string $role, string $active, string $base): string
         $groups = [
           'Overview' => [['dashboard','Dashboard','home','dashboard.php']],
           'Event Management' => [['events','My Events','calendar','events.php'],['create','Create Event','plus','event-new.php']],
-          'Sales' => [['sales','Sales & Revenue','chart','sales.php'],['nft','NFT Tickets','ticket','nft.php'],['blockchain','Blockchain Transactions','activity','blockchain.php'],['attendees','Attendees','users','attendees.php'],['secondary','Resale Monitoring','ticket','secondary-market.php']],
-          'Support' => [['complaints','Complaints','message','complaints.php'],['notifications','Notifications','bell','notifications.php']],
+          'Sales' => [['sales','Sales & Revenue','chart','sales.php'],['blockchain','Blockchain History','activity','blockchain.php'],['attendees','Attendees','users','attendees.php'],['secondary','Resale Monitoring','ticket','secondary-market.php']],
+          'Support' => [
+            // ['complaints','Complaints','message','complaints.php'],
+            ['notifications','Notifications','bell','notifications.php']
+          ],
           'Account' => [['profile','Organization Profile','building','profile.php']]
         ];
     } elseif ($role === 'admin') {
@@ -294,7 +297,7 @@ function render_dashboard_page(string $role, string $title, string $active, stri
     $roleName = $role === 'admin' ? 'Administrator' : 'Event Organizer';
     $initial = $role === 'admin' ? 'AD' : 'NS';
     $person = $role === 'admin' ? 'Admin Account' : 'Nova Stage';
-    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'.htmlspecialchars($title).' · TickSecure</title><link rel="stylesheet" href="'.ts_asset_url('assets/css/ticksecure.css', $base).'">'.ts_access_head($base).ts_decision_head($base).ts_design2_theme_head($base).'</head><body class="ts-body-dashboard d2-staff-workspace"><div class="ts-shell dashboard-shell">';
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'.htmlspecialchars($title).' · TickSecure</title><link rel="stylesheet" href="'.ts_asset_url('assets/css/ticksecure.css', $base).'">'.ts_access_head($base).ts_decision_head($base).ts_design2_theme_head($base).'</head><body class="ts-body-dashboard d2-staff-workspace" data-ui-role="'.htmlspecialchars($role, ENT_QUOTES).'"><div class="ts-shell dashboard-shell">';
     echo '<aside class="ts-sidebar sidebar"><div class="ts-sidebar-head d2-sidebar-brand">'.ts_brand($base).'<button type="button" class="ts-btn ts-btn-sm ts-sidebar-toggle" aria-label="Toggle workspace menu">Menu</button></div><nav class="ts-sidebar-nav" aria-label="'.$roleName.' navigation"><div class="sidebar-label">'.$roleName.'</div>'.ts_sidebar_links($role, $active, $base).'</nav><div class="ts-sidebar-foot sidebar-bottom"><div class="ts-profile-card"><div class="ts-avatar" id="sidebar-avatar">'.$initial.'</div><div class="ts-profile-meta"><div class="ts-profile-name" id="sidebar-name">'.$person.'</div><div class="ts-profile-role">'.$roleName.'</div></div></div><div class="ts-sidebar-tools"><button type="button" class="ts-icon-btn" aria-label="Search">'.ts_icon('search').'</button>'.ts_dashboard_notifications($role, $base).'<div class="ts-avatar" id="header-avatar">'.$initial.'</div></div><a class="ts-sidebar-public" href="'.$base.'/public/events.php">'.ts_icon('arrow-right').'Visit public website</a><button type="button" class="ts-logout-btn ts-sidebar-logout" title="Log out">'.ts_icon('logout').'Logout</button></div></aside>';
     echo '<main class="ts-main dashboard-main" aria-label="'.htmlspecialchars($title).'"><div class="ts-page">'.$content.'</div></main></div>'.ts_modal_and_toast().ts_decision_dialog($base).$notificationScript.'<script type="module" src="'.$base.'/assets/js/firebase-init.js"></script><script type="module" src="'.ts_asset_url('assets/js/firebase-services.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/firestore-crud.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/validation.js', $base).'"></script><script type="module" src="'.ts_asset_url('assets/js/auth-guard.js', $base).'"></script><script src="'.$base.'/assets/js/ui.js"></script><script src="'.ts_asset_url('assets/js/dashboard-logout.js', $base).'"></script></body></html>';
 }

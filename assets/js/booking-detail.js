@@ -27,7 +27,7 @@ window.addEventListener('ts-auth-ready', async () => {
         display.chip(el('val-status-head'), ...status);
         el('val-cat').textContent = booking.categoryName || 'Not available';
         el('val-section').textContent = booking.sectionId || 'Not available';
-        el('val-seat').textContent = (booking.seats || []).join(', ') || 'Not assigned';
+        el('val-seat').textContent = (booking.seats || []).map(seatId => display.seatLabel({...booking, seatId})).join(', ') || 'Not assigned';
         const quantity = Number(booking.quantity) || booking.seats?.length || 1;
         el('val-qty').textContent = `${quantity} ticket${quantity === 1 ? '' : 's'}`;
         el('val-event-date').textContent = display.eventDate(booking, null);
@@ -69,7 +69,7 @@ window.addEventListener('ts-auth-ready', async () => {
                     link.href = `ticket-detail.php?id=${encodeURIComponent(ticket.id)}`;
                     const info = document.createElement('span');
                     const seat = document.createElement('strong');
-                    seat.textContent = `Seat ${ticket.seatId || 'Not assigned'}`;
+                    seat.textContent = `Seat ${display.seatLabel({...ticket, categoryName:ticket.categoryName || booking.categoryName})}`;
                     const category = document.createElement('span');
                     category.className = 'small secondary';
                     category.textContent = `${ticket.categoryName || booking.categoryName || 'Ticket'} / Section ${ticket.sectionId || booking.sectionId || '-'}`;

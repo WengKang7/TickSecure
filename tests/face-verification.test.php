@@ -56,8 +56,12 @@ function fixture(?callable $infer = null): array {
     $key = str_repeat('k', 32);
     return [$db, new TicketFaceService($db, $key, $infer ?? fn () => vectors()), $key];
 }
+function enroll_test(TicketFaceService $s, array $claims, string $id, array $frames, bool $consent): array {
+    $challenge = $consent ? $s->beginEnrollment($claims, $id) : null;
+    return $s->enroll($claims, $id, $frames, $consent, $challenge['challengeId'] ?? '');
+}
 function enrolled(): array {
-    [$db, $service, $key] = fixture(); $service->enroll(claims(), 'ticket', ['mock'], true);
+    [$db, $service, $key] = fixture(); enroll_test($service, claims(), 'ticket', ['mock'], true);
     return [$db, $service, $key, $service->status(claims(), 'ticket')['qr']];
 }
 function denied(callable $work, string $code = 'failed-precondition'): void {
@@ -74,16 +78,16 @@ $tests['mobile staff session rejects buyers and inactive staff'] = function () {
 };
 $tests['enroll encrypts samples and returns only status/QR to owner'] = function () {
     [$db, $s] = fixture(); $before = $s->status(claims(), 'ticket'); ensure(!$before['registered'] && !$before['qr'], 'locked before registration');
-    $s->enroll(claims(), 'ticket', ['mock'], true); $record = $db->rows['TicketFaces/ticket'];
+    enroll_test($s, claims(), 'ticket', ['mock'], true); $record = $db->rows['TicketFaces/ticket'];
     ensure(isset($record['ciphertext']) && !isset($record['vectors']) && !str_contains($record['ciphertext'], '[1'), 'encrypted');
     $status = $s->status(claims(), 'ticket'); ensure($status['registered'] && str_starts_with($status['qr'], 'TKSECURE2:'), 'new QR');
     ensure(!str_contains(json_encode($status), 'ciphertext'), 'no biometric data returned');
 };
 $tests['registration requires consent, owner, active and verified buyer'] = function () {
     [$db, $s] = fixture();
-    denied(fn () => $s->enroll(claims(), 'ticket', [], false), 'invalid-argument');
-    denied(fn () => $s->enroll(claims('other'), 'ticket', [], true), 'permission-denied');
-    denied(fn () => $s->enroll(array_replace(claims(), ['email_verified' => false]), 'ticket', [], true), 'permission-denied');
+    denied(fn () => enroll_test($s, claims(), 'ticket', [], false), 'invalid-argument');
+    denied(fn () => enroll_test($s, claims('other'), 'ticket', [], true), 'permission-denied');
+    denied(fn () => enroll_test($s, array_replace(claims(), ['email_verified' => false]), 'ticket', [], true), 'permission-denied');
     $db->rows['Users/buyer']['status'] = 'inactive'; denied(fn () => $s->status(claims(), 'ticket'), 'permission-denied');
     ensure(!isset($db->rows['TicketFaces/ticket']), 'no enrollment');
 };
@@ -94,10 +98,10 @@ $tests['NFT mint, receipt verification and every ownership operation must confir
         if ($mode === 'wallet') $db->rows['NFTTickets/ticket']['blockchainWalletAddress'] = '0x' . str_repeat('b', 40);
         if ($mode === 'pending') $db->rows['BlockchainTransactions/transfer'] = ['ticketId' => 'ticket', 'status' => 'PENDING'];
         if ($mode === 'missing') unset($db->rows['BlockchainTransactions/mint']);
-        denied(fn () => $s->enroll(claims(), 'ticket', [], true));
+        denied(fn () => enroll_test($s, claims(), 'ticket', [], true));
     }
 };
-$tests['duplicate registration cannot overwrite identity'] = function () { [$db, $s] = enrolled(); $before = $db->rows['TicketFaces/ticket']; denied(fn () => $s->enroll(claims(), 'ticket', [], true)); ensure($before === $db->rows['TicketFaces/ticket'], 'unchanged'); };
+$tests['duplicate registration cannot overwrite identity'] = function () { [$db, $s] = enrolled(); $before = $db->rows['TicketFaces/ticket']; denied(fn () => enroll_test($s, claims(), 'ticket', [], true)); ensure($before === $db->rows['TicketFaces/ticket'], 'unchanged'); };
 $tests['deleting registration revokes saved QR'] = function () { [$db, $s, , $qr] = enrolled(); $s->remove(claims(), 'ticket'); ensure(!isset($db->rows['TicketFaces/ticket']), 'deleted'); denied(fn () => $s->begin(claims('organizer'), $qr)); };
 $tests['old QR format, forged signature and wrong event reject'] = function () {
     [$db, $s, , $qr] = enrolled(); denied(fn () => $s->begin(claims('organizer'), 'TKSECURE:ticket:event:A1'), 'invalid-argument');
@@ -166,7 +170,7 @@ $tests['rate limit blocks excessive attempts'] = function () { [$db, $s, , $qr] 
 $tests['nonfinite malformed and short feature arrays fail closed'] = function () { denied(fn () => face_vectors([[1]])); $v = vectors(); $v[0][0] = INF; denied(fn () => face_vectors($v)); };
 $tests['ticket changed during enrollment cannot retain old owners data'] = function () {
     [$db, , $key] = fixture(); $s = new TicketFaceService($db, $key, function () use ($db) { $db->rows['NFTTickets/ticket']['ownerUid'] = 'other'; return vectors(); });
-    denied(fn () => $s->enroll(claims(), 'ticket', [], true), 'permission-denied'); ensure(!isset($db->rows['TicketFaces/ticket']), 'no stale template');
+    denied(fn () => enroll_test($s, claims(), 'ticket', [], true), 'permission-denied'); ensure(!isset($db->rows['TicketFaces/ticket']), 'no stale template');
 };
 $tests['machine face test preserves ticket and registration, consumes request, and can retry'] = function () {
     [$db, $s, , $qr] = enrolled();
@@ -186,6 +190,40 @@ $tests['machine test rejects wrong face and changed ownership'] = function () {
     $c = $s->begin(claims('organizer'), $qr);
     $raced = new TicketFaceService($db, $key, function () use ($db) { $db->rows['NFTTickets/ticket']['ownerUid'] = 'other'; return vectors(); });
     denied(fn () => $raced->complete(claims('organizer'), $c['challengeId'], [], false));
+};
+$tests['enrollment movement challenge is required, single use, owner bound and expiring'] = function () {
+    [$db, $s] = fixture();
+    denied(fn () => $s->enroll(claims(), 'ticket', [], true));
+    $c = $s->beginEnrollment(claims(), 'ticket');
+    ensure(count($c['movements']) === 5, 'five steps');
+    denied(fn () => $s->complete(claims('organizer'), $c['challengeId'], []));
+    $db->rows['FaceChallenges/'.$c['challengeId']]['expiresAt'] = time()-1;
+    denied(fn () => $s->enroll(claims(), 'ticket', [], true, $c['challengeId']));
+    $c = $s->beginEnrollment(claims(), 'ticket');
+    $db->rows['FaceChallenges/'.$c['challengeId']]['scannerUid'] = 'other';
+    denied(fn () => $s->enroll(claims(), 'ticket', [], true, $c['challengeId']));
+    ensure(!isset($db->rows['TicketFaces/ticket']), 'no rejected enrollment');
+};
+$tests['server chosen movement order reaches inference and movement failure never admits'] = function () {
+    [$db, $s, $key, $qr] = enrolled(); $c = $s->begin(claims('organizer'), $qr);
+    $check = new TicketFaceService($db, $key, function ($frames, $steps) use ($c) {
+        ensure($steps === $c['movements'], 'stored order passed to inference');
+        face_fail('Movement check failed.');
+    });
+    denied(fn () => $check->complete(claims('organizer'), $c['challengeId'], ['fake']));
+    ensure($db->rows['NFTTickets/ticket']['status'] === 'VALID', 'ticket not used');
+    ensure(isset($db->rows['TicketFaces/ticket']), 'template retained on failure');
+    denied(fn () => $s->complete(claims('organizer'), $c['challengeId'], []));
+};
+$tests['failed enrollment movement cannot be replayed and old checkin challenge fails closed'] = function () {
+    [$db, $s, $key] = fixture(); $c = $s->beginEnrollment(claims(), 'ticket');
+    $fail = new TicketFaceService($db, $key, function () { face_fail('Movement failed.'); });
+    denied(fn () => $fail->enroll(claims(), 'ticket', [], true, $c['challengeId']));
+    denied(fn () => $s->enroll(claims(), 'ticket', [], true, $c['challengeId']));
+    ensure(!isset($db->rows['TicketFaces/ticket']), 'no failed template');
+    [$db, $s, , $qr] = enrolled(); $c = $s->begin(claims('organizer'), $qr);
+    unset($db->rows['FaceChallenges/'.$c['challengeId']]['movements']);
+    denied(fn () => $s->complete(claims('organizer'), $c['challengeId'], []));
 };
 foreach ($tests as $name => $run) { $run(); echo "PASS $name\n"; }
 echo count($tests) . " face security checks passed.\n";
