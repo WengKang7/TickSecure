@@ -87,7 +87,8 @@ function backend_accounts_is_enabled(): bool
 
 function backend_event_review_is_enabled(): bool
 {
-    return getenv('TICKSECURE_PHP_EVENT_REVIEW') === '1' && backend_is_loopback_request();
+    return (getenv('TICKSECURE_PHP_EVENT_REVIEW') === '1' && backend_is_loopback_request())
+        || getenv('TICKSECURE_HOSTED_EVENT_REVIEW') === '1';
 }
 
 function backend_fail(int $status, string $message, string $code): never

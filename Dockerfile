@@ -14,6 +14,8 @@ COPY . /var/www/html/
 
 # Render secret files are mounted at runtime and never included in the image.
 ENV TICKSECURE_HOSTED_CHECKOUT=1 \
+    TICKSECURE_HOSTED_EVENT_REVIEW=1 \
+    TICKSECURE_GEMINI_ENV=/etc/secrets/gemini.env \
     FIREBASE_PROJECT_ID=tick-c12a1 \
     FIREBASE_SERVICE_ACCOUNT_PATH=/etc/secrets/firebase-service-account.json
 

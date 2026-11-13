@@ -4,7 +4,7 @@
  * Exposed globally as window.ts<ServiceName> for use by page scripts.
  */
 import { db, auth, storage } from './firebase-init.js';
-import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261113-render-checkout-v2';
+import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261113-render-review-v3';
 import {
     collection, doc, addDoc, setDoc, getDoc, getDocs,
     updateDoc, deleteDoc, deleteField, query, where, orderBy, limit,
