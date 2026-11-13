@@ -1,7 +1,7 @@
 import { auth } from './firebase-init.js';
 
 export function useLocalPosterUpload() {
-    return ['localhost', '127.0.0.1', '[::1]', '::1'].includes(window.location.hostname)
+    return ['localhost', '127.0.0.1', '[::1]', '::1', 'ticksecure.onrender.com'].includes(window.location.hostname)
         && window.tsFirebase?.emulator?.enabled !== true;
 }
 
@@ -14,7 +14,7 @@ export async function uploadLocalPoster(eventId, file, onStatus = () => {}, purp
     const timeout = new Promise((_, reject) => {
         timer = setTimeout(() => {
             controller.abort();
-            reject(new Error('The local poster upload timed out. Check XAMPP and your Firebase connection, then retry.'));
+            reject(new Error('The image upload timed out. Check your connection, then retry.'));
         }, 60000);
     });
     const upload = async () => {
@@ -25,15 +25,20 @@ export async function uploadLocalPoster(eventId, file, onStatus = () => {}, purp
         body.append('eventId', eventId);
         body.append('purpose', purpose);
         body.append('file', file, file.name);
-        onStatus('Uploading the event poster...');
+        onStatus('Saving your image...');
         const response = await fetch(new URL('api/event-poster.php', root).href, {
             method: 'POST', credentials: 'same-origin', headers: { Authorization: `Bearer ${token}` },
             body, signal: controller.signal
         });
         let payload;
         try { payload = await response.json(); }
-        catch (_) { throw new Error('The local poster service returned an invalid response. Check the XAMPP PHP error log.'); }
+        catch (_) { throw new Error('The image upload service returned an invalid response.'); }
         if (!response.ok || !payload?.ok) throw new Error(payload?.error || 'The event poster could not be saved.');
+        if (payload.url) {
+            const url = new URL(payload.url);
+            if (url.protocol !== 'https:' || url.hostname !== 'res.cloudinary.com' || !/^\/[^/]+\/image\/upload\//.test(url.pathname) || url.username || url.password || url.port) throw new Error('The image service returned an invalid image address.');
+            return url.href;
+        }
         if (!/^uploads\/posters\/[a-f0-9]{40}\.(jpg|png)$/.test(String(payload.path || ''))) throw new Error('The poster service returned an invalid file path.');
         return new URL(payload.path, root).href;
     };

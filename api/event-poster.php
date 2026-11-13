@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/event-poster-policy.php';
+require_once __DIR__ . '/cloudinary-images.php';
 
 /** @param array<string,mixed> $body */
 function poster_respond(int $status, array $body): never
@@ -14,7 +15,8 @@ function poster_respond(int $status, array $body): never
     exit;
 }
 
-if (getenv('TICKSECURE_PHP_POSTER_UPLOAD') !== '1' || !poster_is_loopback((string)($_SERVER['REMOTE_ADDR'] ?? ''))) {
+$hosted = getenv('TICKSECURE_HOSTED_CHECKOUT') === '1';
+if (!$hosted && (getenv('TICKSECURE_PHP_POSTER_UPLOAD') !== '1' || !poster_is_loopback((string)($_SERVER['REMOTE_ADDR'] ?? '')))) {
     poster_respond(410, ['error' => 'Local event poster uploads are disabled.', 'code' => 'poster_upload_disabled']);
 }
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
@@ -53,23 +55,27 @@ try {
         throw new FirebaseBackendException(400, 'The uploaded image is invalid.', 'invalid-file');
     }
     $image = poster_inspect_image($temporaryPath, (int)($file['size'] ?? 0));
-    $filename = bin2hex(random_bytes(20)) . '.' . $image['extension'];
-    $savedPath = poster_file_path($filename);
-    if (!move_uploaded_file($temporaryPath, $savedPath)) {
-        throw new FirebaseBackendException(500, 'The poster could not be saved locally.', 'upload-save-failed');
+    $useCloud = $hosted || is_file(cloudinary_config_path());
+    $relativePath = null;
+    if ($useCloud) {
+        $url = cloudinary_store_image($temporaryPath, $eventId, $image);
+    } else {
+        $filename = bin2hex(random_bytes(20)) . '.' . $image['extension'];
+        $savedPath = poster_file_path($filename);
+        if (!move_uploaded_file($temporaryPath, $savedPath)) {
+            throw new FirebaseBackendException(500, 'The poster could not be saved locally.', 'upload-save-failed');
+        }
+        chmod($savedPath, 0644);
+        $relativePath = 'uploads/posters/' . $filename;
+        $basePath = rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? ''), 2)), '/.');
+        $url = $basePath . '/' . $relativePath;
     }
-    chmod($savedPath, 0644);
-    $relativePath = 'uploads/posters/' . $filename;
-    // Root-relative URLs work in both public event pages and organizer pages,
-    // including projects installed under an XAMPP subdirectory.
-    $basePath = rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? ''), 2)), '/.');
-    $url = $basePath . '/' . $relativePath;
     $firebase->transaction(static function (FirebaseFirestoreTransaction $tx) use ($claims, $uid, $eventId, $url, $artworkOnly): void {
         poster_require_editor($claims, $tx->get('Users', $uid), $tx->get('Events', $eventId));
         if (!$artworkOnly) $tx->update('Events', $eventId, ['posterUrl' => $url, 'updatedAt' => gmdate('Y-m-d\TH:i:s\Z')]);
     });
     $savedPath = null;
-    poster_respond(201, ['ok' => true, 'path' => $relativePath]);
+    poster_respond(201, ['ok' => true, 'path' => $relativePath, 'url' => $useCloud ? $url : null]);
 } catch (FirebaseBackendException $error) {
     if ($savedPath !== null && is_file($savedPath)) unlink($savedPath);
     poster_respond($error->httpStatus, ['error' => $error->getMessage(), 'code' => $error->errorCode]);

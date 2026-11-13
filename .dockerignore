@@ -28,3 +28,6 @@ firebase-service-account.json
 **/*.jks
 **/*.keystore
 **/*.log
+
+cloudinary.env
+**/*.env

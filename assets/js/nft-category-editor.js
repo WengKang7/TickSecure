@@ -40,7 +40,7 @@
             if (!file) return;
             if (!['image/jpeg','image/png'].includes(file.type) || file.size > 5 * 1024 * 1024) throw Error('Choose a JPG or PNG up to 5 MB.');
             const current = revision;
-            const { uploadLocalPoster } = await import('./poster-upload.js');
+            const { uploadLocalPoster } = await import('./poster-upload.js?v=20261113-cloudinary');
             const uploaded = await uploadLocalPoster(options.event.id, file, status, 'category-artwork');
             if (current !== revision) return;
             imageUrl = uploaded; preview(); options.changed(); status('Photo uploaded. Add or update this category, then save.');

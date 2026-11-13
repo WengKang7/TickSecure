@@ -16,7 +16,7 @@ function client(options = {}) {
         setTimeout: callback => { timers.set(++next, callback); return next; }, clearTimeout: id => timers.delete(id),
         fetch: async (url, request) => {
             requests.push({ url, ...request });
-            return { ok: !options.error, json: async () => options.error ? { error: options.error } : { ok: true, path: options.path || 'uploads/posters/' + 'a'.repeat(40) + '.jpg' } };
+            return { ok: !options.error, json: async () => options.error ? { error: options.error } : { ok: true, path: options.path || 'uploads/posters/' + 'a'.repeat(40) + '.jpg', url: options.url } };
         }
     });
     const source = fs.readFileSync(path.join(root, 'assets/js/poster-upload.js'), 'utf8').replace(/^import .*\r?\n/, '').replaceAll('export ', '');
@@ -103,4 +103,23 @@ test('category artwork uploads use a separate purpose so the event poster stays 
     assert.equal(c.requests[0].body.get('purpose'), 'category-artwork');
     const server = fs.readFileSync(path.join(root, 'api/event-poster.php'), 'utf8');
     assert.ok(server.includes("if (!$artworkOnly) $tx->update('Events'"));
+});
+
+test('Render uploads use the authenticated server and return permanent Cloudinary URLs', async () => {
+    const c = client({hostname:'ticksecure.onrender.com', url:'https://res.cloudinary.com/my-cloud/image/upload/v1/ticksecure/art.jpg'});
+    assert.equal(c.context.useLocalPosterUpload(),true);
+    assert.equal(await c.context.uploadLocalPoster('event-1',image()),'https://res.cloudinary.com/my-cloud/image/upload/v1/ticksecure/art.jpg');
+    assert.equal(c.requests[0].headers.Authorization,'Bearer signed-in-token');
+});
+test('cloud image responses reject unrelated hosts and non-HTTPS addresses', async () => {
+    for(const url of ['http://res.cloudinary.com/cloud/image/upload/art.jpg','https://evil.test/cloud/image/upload/art.jpg']) {
+        await assert.rejects(client({url}).context.uploadLocalPoster('event-1',image()), /invalid image address/);
+    }
+});
+test('PHP validates cloud delivery addresses before saving them in Firebase', () => {
+    const result=execFileSync(php,['-r', `require $argv[1]; $out=[];
+      foreach(['https://res.cloudinary.com/demo/image/upload/v1/art.jpg','http://res.cloudinary.com/demo/image/upload/v1/art.jpg','https://res.cloudinary.com/other/image/upload/v1/art.jpg','https://evil.test/demo/image/upload/art.jpg'] as $url) {
+        try {cloudinary_image_url($url,'demo');$out[]=200;} catch(FirebaseBackendException $e){$out[]=$e->httpStatus;}
+      } echo json_encode($out);`,path.join(root,'api/cloudinary-images.php')],{encoding:'utf8'});
+    assert.deepEqual(JSON.parse(result),[200,502,502,502]);
 });

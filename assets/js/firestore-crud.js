@@ -15,7 +15,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js";
 import { uploadToStorage } from './storage-upload.js';
 import { useLocalBlueprintUpload, uploadLocalBlueprint } from './blueprint-upload.js';
-import { useLocalPosterUpload, uploadLocalPoster } from './poster-upload.js';
+import { useLocalPosterUpload, uploadLocalPoster } from './poster-upload.js?v=20261113-cloudinary';
 
 // ============================================================
 // HELPERS

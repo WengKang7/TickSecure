@@ -8,6 +8,8 @@ RUN apt-get update \
     && a2enmod rewrite \
     && rm -rf /var/lib/apt/lists/*
 
+RUN printf 'upload_max_filesize=6M\npost_max_size=8M\n' > /usr/local/etc/php/conf.d/ticksecure-uploads.ini
+
 COPY . /var/www/html/
 
 # Render secret files are mounted at runtime and never included in the image.
