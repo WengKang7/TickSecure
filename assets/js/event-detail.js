@@ -187,7 +187,7 @@ function renderCategories(event) {
         ...category, sectionId: String(category.sectionId || category.id || category.section || sectionId), name: category.name || category.categoryName || 'Section ' + sectionId,
         price: Number(String(category.price ?? category.unitPrice ?? '').replace(/[^\d.-]/g, '')),
         quantity: Math.max(0, Math.floor(Number(category.quantity ?? category.available) || 0))
-    }));
+    })).sort((a, b) => (Number.isFinite(b.price) ? b.price : 0) - (Number.isFinite(a.price) ? a.price : 0));
     categoryAvailabilityLabels.clear();
     const cards = categories.map(category => {
         const card = document.createElement('button');
