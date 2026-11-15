@@ -5,6 +5,8 @@
 .aws
 **/node_modules
 **/vendor
+!assets/js/vendor/
+!assets/js/vendor/**
 **/__pycache__
 **/.dart_tool
 **/.gradle
