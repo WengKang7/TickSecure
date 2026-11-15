@@ -1,4 +1,10 @@
+FROM node:22-bookworm-slim AS blockchain-node
+
 FROM php:8.3-apache
+
+COPY --from=blockchain-node /usr/local/bin/node /usr/local/bin/node
+COPY --from=blockchain-node /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
 
 WORKDIR /var/www/html
 
@@ -11,9 +17,14 @@ RUN apt-get update \
 RUN printf 'upload_max_filesize=11M\npost_max_size=12M\n' > /usr/local/etc/php/conf.d/ticksecure-uploads.ini
 
 COPY . /var/www/html/
+RUN cd functions && npm ci --omit=dev --no-audit --no-fund
 
 # Render secret files are mounted at runtime and never included in the image.
 ENV TICKSECURE_HOSTED_CHECKOUT=1 \
+    TICKSECURE_HOSTED_BLOCKCHAIN=1 \
+    TICKSECURE_BLOCKCHAIN_SIGNER_KEY_FILE=/etc/secrets/ticksecure-blockchain-authorizer.json \
+    TICKSECURE_DEMO_FUNDING_KEY_FILE=/etc/secrets/ticksecure-demo-funding.json \
+    TICKSECURE_DEMO_FUNDING=1 \
     TICKSECURE_HOSTED_BLUEPRINT_UPLOAD=1 \
     TICKSECURE_HOSTED_EVENT_REVIEW=1 \
     TICKSECURE_GEMINI_ENV=/etc/secrets/gemini.env \

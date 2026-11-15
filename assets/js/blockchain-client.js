@@ -1,4 +1,4 @@
-import { invokeTrustedBackend } from './backend-client.js?v=20261030-buyer-chain-v2';
+import { invokeTrustedBackend } from './backend-client.js?v=20261115-hosted-chain';
 export const sepolia = {
     listBuyer: filters => invokeTrustedBackend(filters || {}, { name:'getBuyerBlockchainOperations',region:'asia-southeast1' }),
     listOrganizer: filters => invokeTrustedBackend(filters || {}, { name:'getOrganizerBlockchainOperations',region:'asia-southeast1' }),

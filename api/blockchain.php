@@ -14,7 +14,7 @@ final class TickSecureBlockchain
         // Apache SetEnv values are request-local and may not be inherited by
         // child processes. Forward only server-configured funding overrides.
         $environment=getenv();if(!is_array($environment))$environment=[];
-        foreach(['TICKSECURE_DEMO_FUNDING','TICKSECURE_DEMO_FUNDING_KEY_FILE','TICKSECURE_SEPOLIA_RPC_URL'] as $name){
+        foreach(['TICKSECURE_DEMO_FUNDING','TICKSECURE_DEMO_FUNDING_KEY_FILE','TICKSECURE_SEPOLIA_RPC_URL','TICKSECURE_BLOCKCHAIN_SIGNER_KEY_FILE'] as $name){
             $value=getenv($name);if($value!==false)$environment[$name]=$value;
         }
         $pipes=[];$process=proc_open($command,[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,__DIR__.'/../functions',$environment,['bypass_shell'=>true,'create_no_window'=>true]);

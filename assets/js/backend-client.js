@@ -77,7 +77,10 @@ export async function invokeTrustedBackend(request, config) {
     const hostedCheckout = window.location.hostname === 'ticksecure.onrender.com'
         && window.tsFirebase?.emulator?.enabled !== true
         && ['getEventAvailability', 'getSeatMap', 'holdSelectedSeats', 'reserveSeats', 'releaseSeatReservation', 'checkout',
-            'submitEventForReview', 'checkEventContent', 'moderateEvent'].includes(config.name);
+            'submitEventForReview', 'checkEventContent', 'moderateEvent',
+            'getBlockchainSettings', 'configureBlockchain', 'prepareBlockchainOperation', 'verifyBlockchainOperation',
+            'getBuyerBlockchainOperations', 'getOrganizerBlockchainOperations', 'getDemoFundingSettings',
+            'getDemoFundingChallenge', 'claimDemoFunding', 'retryDemoFunding'].includes(config.name);
     if (config.backend === 'php' || usingLocalPhpBackend() || localDemoCheckout || hostedCheckout) {
         return invokeLocalPhpBackend(request, config);
     }

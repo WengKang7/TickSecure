@@ -1,4 +1,4 @@
-import { invokeTrustedBackend } from './backend-client.js?v=20261101-demo-funding';
+import { invokeTrustedBackend } from './backend-client.js?v=20261115-hosted-chain';
 
 // Funding is offered for the selected ticket operation; personal_sign proves control of the
 // destination wallet without sharing a key or approving token spending.
