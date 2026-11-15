@@ -13,6 +13,17 @@ ob_start();
   <?php if ($value !== 5): ?><span class="ts-step-line"></span><?php endif ?>
 <?php endforeach ?>
 </div>
+<?php if ($activated): ?>
+<style>
+.ts-venue-ready { width:100%; max-width:820px; margin:32px auto 0; box-sizing:border-box; text-align:center; }
+.ts-venue-ready .ts-upload-symbol { margin-inline:auto; }
+.ts-venue-ready h2 { margin:20px 0 0; }
+.ts-venue-ready p { max-width:600px; margin:12px auto 0; line-height:1.7; }
+.ts-venue-ready-actions { display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:12px; margin-top:24px; }
+.ts-venue-ready-actions .ts-btn { margin:0; min-width:120px; }
+@media(max-width:600px) { .ts-venue-ready { padding:32px 20px; } }
+</style>
+<?php endif ?>
 <?php if ($step === 1): ?>
 <section class="ts-card ts-upload-simple">
   <div class="ts-upload-symbol"><?= ts_icon('upload', 32) ?></div>
@@ -76,7 +87,7 @@ ob_start();
   </aside>
 </div>
 <?php elseif ($activated): ?>
-<section class="ts-card ts-upload-simple"><div class="ts-upload-symbol"><?= ts_icon('check', 32) ?></div><h2>Venue is ready</h2><p id="activation-success-msg" class="secondary mt-12"></p><div class="flex justify-center gap-12 mt-24"><a class="ts-btn ts-btn-secondary" href="venues.php">All venues</a><a class="ts-btn ts-btn-primary" href="venue-detail.php" id="success-view-venue-btn">View venue</a></div></section>
+<section class="ts-card ts-upload-simple ts-venue-ready"><div class="ts-upload-symbol"><?= ts_icon('check', 32) ?></div><h2>Venue is ready</h2><p id="activation-success-msg" class="secondary mt-12"></p><div class="ts-venue-ready-actions"><a class="ts-btn ts-btn-secondary" href="venues.php">All venues</a><a class="ts-btn ts-btn-primary" href="venue-detail.php" id="success-view-venue-btn">View venue</a></div></section>
 <?php endif ?>
 <script src="<?= ts_asset_url('assets/js/venue-renderer.js', '..') ?>"></script>
 <script src="<?= ts_asset_url('assets/lib/tesseract/tesseract.min.js', '..') ?>"></script>
