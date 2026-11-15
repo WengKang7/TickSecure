@@ -5,14 +5,21 @@ require_once __DIR__ . '/face-service.php';
 
 function face_runtime_config(): array {
     $path = __DIR__ . '/face-config.local.php';
-    if (!is_file($path)) face_fail('Local face verification needs its one-time setup. Ask the organizer to run tools/face/setup.php.', 'unavailable', 503);
-    $config = require $path;
+    if (getenv('TICKSECURE_HOSTED_FACE') === '1') {
+        $encoded = is_file('/etc/secrets/ticksecure-face-template.b64');
+        $config = ['python' => '/usr/local/bin/python3.12', 'keyPath' => $encoded
+            ? '/etc/secrets/ticksecure-face-template.b64' : '/etc/secrets/ticksecure-face-template.key'];
+    } else {
+        if (!is_file($path)) face_fail('Local face verification needs its one-time setup. Ask the organizer to run tools/face/setup.php.', 'unavailable', 503);
+        $config = require $path;
+    }
     $keyPath = realpath((string)($config['keyPath'] ?? ''));
     $webRoot = realpath(dirname(__DIR__, 2)); // htdocs, not just this project.
     if (!$keyPath || !$webRoot || str_starts_with(strtolower(str_replace('\\', '/', $keyPath)), strtolower(str_replace('\\', '/', $webRoot)) . '/')) {
         face_fail('Face encryption key must be outside htdocs.', 'unavailable', 503);
     }
     $key = file_get_contents($keyPath);
+    if (!empty($encoded) && is_string($key)) $key = base64_decode(trim($key), true);
     if (!is_string($key) || strlen($key) !== 32) face_fail('Face encryption key is unavailable.', 'unavailable', 503);
     return ['key' => $key, 'python' => (string)($config['python'] ?? 'python')];
 }
