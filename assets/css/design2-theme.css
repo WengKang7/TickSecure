@@ -475,16 +475,16 @@ body .ts-clean-venue-board .ts-map-stage{fill:#111;stroke:none}
 body .ts-clean-venue-board .ts-map-stage-label{fill:#fff;font-family:var(--body)}
 body .ts-clean-venue-board .ts-ocr-seat:is(:hover,:focus-visible):not([aria-disabled=true]) .ts-seat-frame{fill:#eee;stroke:#111;stroke-width:1.5px}
 body .ts-clean-venue-board .ts-seat-selection-ring{stroke:#111;stroke-width:1px;vector-effect:non-scaling-stroke}
+body #ven-board .ts-ocr-seat[data-category-id]:not([data-category-id=""]) .ts-seat-frame{fill:var(--ts-seat-color,#fff);stroke:#555}
+body #ven-board .ts-ocr-seat.is-category-selected .ts-seat-frame{stroke:#111;stroke-width:1.5px}
 body .ts-clean-venue-board .ts-ocr-seat[aria-pressed=true]:not([aria-disabled=true]) .ts-seat-frame{fill:#111;stroke:#111;stroke-width:1px}
 body .ts-clean-venue-board .ts-ocr-seat[aria-pressed=true] text{fill:#fff}
 body .ts-clean-venue-board .ts-ocr-seat:is([aria-pressed=true],:focus-visible) .ts-seat-selection-ring{visibility:visible}
 body .ts-clean-venue-board .ts-seat-context{cursor:default}
 body .ts-clean-venue-board .ts-seat-context .ts-seat-frame,
-body #ven-board .ts-ocr-seat[data-category-id=""][aria-disabled=true] .ts-seat-frame,
-body #ven-board:has(.is-category-selected) .ts-ocr-seat:not(.is-category-selected) .ts-seat-frame{fill:#fafafa;stroke:#c0c0c0}
+body #ven-board .ts-ocr-seat[data-category-id=""][aria-disabled=true] .ts-seat-frame{fill:#fafafa;stroke:#c0c0c0}
 body .ts-clean-venue-board .ts-seat-context text,
-body #ven-board .ts-ocr-seat[data-category-id=""][aria-disabled=true] text,
-body #ven-board:has(.is-category-selected) .ts-ocr-seat:not(.is-category-selected) text{fill:#777}
+body #ven-board .ts-ocr-seat[data-category-id=""][aria-disabled=true] text{fill:#777}
 body .ts-clean-venue-board .ts-ocr-seat:is(.ts-seat-sold,.ts-seat-held,.ts-seat-blocked) .ts-seat-frame{fill:#d9d9d9;stroke:#c7c7c7;opacity:1}
 body .ts-clean-venue-board .ts-ocr-seat:is(.ts-seat-sold,.ts-seat-held,.ts-seat-blocked) text{fill:#666}
 body .ts-clean-venue-board .ts-map-section>polygon{stroke:#bcbcbc;stroke-width:1px;vector-effect:non-scaling-stroke}
