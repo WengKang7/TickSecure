@@ -38,16 +38,86 @@
   }));
   // role selection
   $$('.ts-role-card').forEach(card => card.addEventListener('click', () => { $$('.ts-role-card').forEach(x => x.classList.remove('active')); card.classList.add('active'); const hidden = $('[name="role"]'); if (hidden) hidden.value = card.dataset.role || ''; }));
-  // toasts are shown after successful actions, or by explicitly informational controls.
-  let toastTimer;
-  window.tsShowToast = message => {
-    const t = $('.ts-toast');
-    if (!t) return;
-    t.querySelector('span').textContent = message || 'Saved';
-    t.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  const region = document.createElement('div');
+  region.className = 'ts-feedback-region';
+  region.setAttribute('aria-label', 'Notifications');
+  document.body.appendChild(region);
+  const notices = new Map();
+  function dismiss(key) {
+    const notice = notices.get(key);
+    if (!notice) return;
+    clearTimeout(notice.timer);
+    notice.node.remove();
+    notices.delete(key);
+  }
+  window.tsShowToast = (message, kind = 'success', key = Symbol()) => {
+    dismiss(key);
+    if (!String(message || '').trim()) return;
+    const notice = document.createElement('div');
+    notice.className = 'ts-feedback-toast';
+    notice.dataset.kind = kind;
+    notice.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+    const icon = document.createElement('span');
+    icon.className = 'ts-feedback-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = kind === 'processing' ? '' : kind === 'error' ? '!' : kind === 'success' ? '✓' : 'i';
+    const text = document.createElement('span');
+    text.textContent = String(message);
+    const close = document.createElement('button');
+    close.type = 'button'; close.className = 'ts-feedback-close';
+    close.setAttribute('aria-label', 'Dismiss notification'); close.textContent = '×';
+    close.onclick = () => dismiss(key);
+    notice.append(icon, text, close);
+    region.appendChild(notice);
+    const entry = { node: notice, timer: null };
+    notices.set(key, entry);
+    if (kind !== 'processing') entry.timer = setTimeout(() => dismiss(key), kind === 'error' ? 12000 : 6500);
   };
+  window.alert = message => window.tsShowToast(String(message), 'error');
+
+  // Mirror action feedback while preserving field-level errors and controls.
+  const selector = '.ts-global-error,.ts-global-success,.ts-alert,[role="alert"],[role="status"],[id$="-error"],[id$="-message"],[id$="-status"]';
+  const previous = new WeakMap();
+  function syncFeedback(source, initial = false) {
+    if (!(source instanceof HTMLElement) || !source.matches(selector) ||
+        source.closest('.ts-feedback-region,.ts-toast,.ts-decision-backdrop,.ts-modal-backdrop') ||
+        source.matches('.ts-error-msg,.ts-field-error,[id^="val-"],[id^="ai-review-"],#category-selected-count,#event-location-status') ||
+        source.closest('.ts-field,.ts-input-wrap') ||
+        source.querySelector('button,a,input,select,textarea')) return;
+    const text = source.textContent.replace(/\s+/g, ' ').trim();
+    const visible = !source.hidden && getComputedStyle(source).display !== 'none' &&
+      !source.closest('[hidden]') && [...source.parentElement?.getClientRects() || []].length > 0;
+    const value = visible ? text : '';
+    if (previous.get(source) === value) return;
+    previous.set(source, value);
+    if (!value) { dismiss(source); return; }
+    const error = source.matches('.ts-global-error,.ts-alert-error,[role="alert"],[id$="-error"]');
+    const success = source.matches('.ts-global-success,.ts-alert-success') || /\b(successful(?:ly)?|saved|completed|confirmed|updated|deleted|approved|registered)\b/i.test(value);
+    const processing = /^(loading|saving|uploading|processing|checking|connecting|verifying|submitting|sending|preparing|detecting|opening|minting)\b/i.test(value) || /please wait|in progress|awaiting.*confirmation/i.test(value);
+    // Informational page copy is retained until it becomes action feedback.
+    if (initial && !error && !success && !processing) return;
+    source.classList.add('ts-feedback-source');
+    window.tsShowToast(value, error ? 'error' : processing ? 'processing' : success ? 'success' : 'info', source);
+  }
+  document.querySelectorAll(selector).forEach(source => syncFeedback(source, true));
+  const observer = new MutationObserver(records => {
+    const sources = new Set();
+    records.forEach(record => {
+      const target = record.target.nodeType === Node.ELEMENT_NODE ? record.target : record.target.parentElement;
+      if (!target || target.closest('.ts-feedback-region')) return;
+      const source = target.closest(selector);
+      if (source) sources.add(source);
+      if (record.type === 'childList' || record.attributeName === 'hidden' || record.attributeName === 'style') {
+        target.querySelectorAll(selector).forEach(item => sources.add(item));
+      }
+    });
+    notices.forEach((_, key) => { if (key instanceof HTMLElement && !key.isConnected) dismiss(key); });
+    sources.forEach(source => syncFeedback(source));
+  });
+  observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden','style'] });
+  window.addEventListener('pagehide', () => {
+    observer.disconnect(); notices.forEach((_, key) => dismiss(key));
+  });
   $$('[data-toast]').forEach(b => b.addEventListener('click', () => window.tsShowToast(b.dataset.toast)));
   // fake upload display
   /*$$('input[type=file][data-file-name]').forEach(input=>input.addEventListener('change',()=>{const out=document.getElementById(input.dataset.fileName);if(out&&input.files[0])out.textContent=input.files[0].name;}));*/
