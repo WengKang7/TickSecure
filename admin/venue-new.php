@@ -5,8 +5,12 @@ $mapsConfig = venue_map_config();
 ob_start();
 ?>
 
+<style>
+    .ts-venue-new { width: 100%; max-width: 900px; margin-inline: auto; min-width: 0; }
+</style>
+<div class="ts-venue-new">
 <?=ts_page_head('Add Venue', 'Create the physical venue record before uploading and processing its seating blueprint.', '')?>
-<div class="ts-card ts-card-pad" style="max-width:900px">
+<div class="ts-card ts-card-pad">
     <div class="ts-card-title">Venue Information</div>
     <section class="ts-venue-location mt-20" aria-labelledby="venue-location-heading">
         <h2 id="venue-location-heading" class="ts-card-title">Find your venue</h2>
@@ -36,6 +40,7 @@ ob_start();
         <a class="ts-btn ts-btn-secondary" href="venues.php">Cancel</a>
         <button id="save-venue-btn" class="ts-btn ts-btn-primary">Next</button>
     </div>
+</div>
 </div>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
