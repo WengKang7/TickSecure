@@ -475,7 +475,7 @@ body .ts-clean-venue-board .ts-map-stage{fill:#111;stroke:none}
 body .ts-clean-venue-board .ts-map-stage-label{fill:#fff;font-family:var(--body)}
 body .ts-clean-venue-board .ts-ocr-seat:is(:hover,:focus-visible):not([aria-disabled=true]) .ts-seat-frame{fill:#eee;stroke:#111;stroke-width:1.5px}
 body .ts-clean-venue-board .ts-seat-selection-ring{stroke:#111;stroke-width:1px;vector-effect:non-scaling-stroke}
-body #ven-board .ts-ocr-seat[data-category-id]:not([data-category-id=""]) .ts-seat-frame{fill:var(--ts-seat-color,#fff);stroke:#555}
+body #ven-board .ts-ocr-seat[data-category-id]:not([data-category-id=""],.ts-seat-sold,.ts-seat-held,.ts-seat-blocked) .ts-seat-frame{fill:var(--ts-seat-color,#fff);stroke:#555}
 body #ven-board .ts-ocr-seat.is-category-selected .ts-seat-frame{stroke:#111;stroke-width:1.5px}
 body .ts-clean-venue-board .ts-ocr-seat[aria-pressed=true]:not([aria-disabled=true]) .ts-seat-frame{fill:#111;stroke:#111;stroke-width:1px}
 body .ts-clean-venue-board .ts-ocr-seat[aria-pressed=true] text{fill:#fff}
