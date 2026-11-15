@@ -48,9 +48,6 @@ export function validateFullName(name) {
     if (!t) return { valid: false, error: 'Full name is required.' };
     if (t.length < 3) return { valid: false, error: 'Full name must be at least 3 characters.' };
     if (t.length > 100) return { valid: false, error: 'Full name must not exceed 100 characters.' };
-    if (!/^[\p{L}\p{M}][\p{L}\p{M}\s'.-]*$/u.test(t)) {
-        return { valid: false, error: 'Full name may contain letters, spaces, apostrophes, periods and hyphens only.' };
-    }
     return { valid: true, error: null };
 }
 
