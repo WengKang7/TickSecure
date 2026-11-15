@@ -245,7 +245,7 @@ test('section review and activation both stop on Cancel and save only after conf
 function localUploadClient(options = {}) {
     const requests = [];
     const window = {
-        location: { hostname: options.hostname || 'localhost' },
+        location: { hostname: options.hostname || 'localhost', origin: options.origin || 'http://localhost' },
         tsFirebase: { emulator: { enabled: options.emulator || false }, backend: { projectUrl: 'http://localhost/ticksecure-ui/' } }
     };
     const context = vm.createContext({
@@ -254,7 +254,7 @@ function localUploadClient(options = {}) {
         fetch: async (url, request) => {
             requests.push({ url, ...request });
             return { ok: !options.error, json: async () => options.error
-                ? { error: options.error } : { ok: true, url: 'api/venue-blueprint.php?venueId=venue-1' } };
+                ? { error: options.error } : { ok: true, url: options.url || 'api/venue-blueprint.php?venueId=venue-1' } };
         }
     });
     const source = fs.readFileSync(path.join(root, 'assets/js/blueprint-upload.js'), 'utf8')
@@ -263,12 +263,35 @@ function localUploadClient(options = {}) {
     return { requests, context, window };
 }
 
-test('only loopback venue uploads use local PHP; remote and emulator sessions retain Firebase Storage', () => {
-    for (const hostname of ['localhost', '127.0.0.1', '::1', '[::1]']) {
+test('loopback and Render venue uploads use PHP; other hosts and emulators retain Firebase Storage', () => {
+    for (const hostname of ['localhost', '127.0.0.1', '::1', '[::1]', 'ticksecure.onrender.com']) {
         assert.equal(localUploadClient({ hostname }).context.useLocalBlueprintUpload(), true);
     }
     assert.equal(localUploadClient({ hostname: 'tickets.example.com' }).context.useLocalBlueprintUpload(), false);
     assert.equal(localUploadClient({ emulator: true }).context.useLocalBlueprintUpload(), false);
+});
+
+test('hosted blueprints accept permanent venue URLs and reject unrelated delivery addresses', async () => {
+    const file = new File(['PNG'], 'layout.png', { type: 'image/png' });
+    const url = 'https://res.cloudinary.com/demo/image/upload/v123/ticksecure/venues/venue-1/abc.png';
+    assert.equal(await localUploadClient({ url }).context.uploadLocalBlueprint('venue-1', file), url);
+    for (const bad of [url.replace('https:', 'http:'), url.replace('res.cloudinary.com', 'evil.example'),
+        url.replace('/venues/', '/events/'), url.replace('res.cloudinary.com', 'user@res.cloudinary.com')]) {
+        await assert.rejects(localUploadClient({ url: bad }).context.uploadLocalBlueprint('venue-1', file), /invalid file URL/);
+    }
+    const crossOrigin = localUploadClient({ origin: 'https://evil.example' });
+    await assert.rejects(crossOrigin.context.uploadLocalBlueprint('venue-1', file), /not configured/);
+    assert.equal(crossOrigin.requests.length, 0);
+});
+
+test('hosted blueprint endpoint still requires authentication from remote requests', () => {
+    const { execFileSync } = require('node:child_process');
+    const php = process.env.PHP_BINARY || (process.platform === 'win32' ? 'C:/xampp/php/php.exe' : 'php');
+    const output = execFileSync(php, ['-r', `
+        $_SERVER['REMOTE_ADDR']='203.0.113.1'; $_SERVER['REQUEST_METHOD']='POST'; require $argv[1];
+    `, path.join(root, 'api/venue-blueprint.php')], { encoding: 'utf8',
+        env: { ...process.env, TICKSECURE_HOSTED_BLUEPRINT_UPLOAD: '1' } });
+    assert.equal(JSON.parse(output).code, 'unauthenticated');
 });
 
 test('local blueprint upload sends the Firebase token and original PDF, without a shared upload secret', async () => {

@@ -8,12 +8,13 @@ RUN apt-get update \
     && a2enmod rewrite \
     && rm -rf /var/lib/apt/lists/*
 
-RUN printf 'upload_max_filesize=6M\npost_max_size=8M\n' > /usr/local/etc/php/conf.d/ticksecure-uploads.ini
+RUN printf 'upload_max_filesize=11M\npost_max_size=12M\n' > /usr/local/etc/php/conf.d/ticksecure-uploads.ini
 
 COPY . /var/www/html/
 
 # Render secret files are mounted at runtime and never included in the image.
 ENV TICKSECURE_HOSTED_CHECKOUT=1 \
+    TICKSECURE_HOSTED_BLUEPRINT_UPLOAD=1 \
     TICKSECURE_HOSTED_EVENT_REVIEW=1 \
     TICKSECURE_GEMINI_ENV=/etc/secrets/gemini.env \
     FIREBASE_PROJECT_ID=tick-c12a1 \

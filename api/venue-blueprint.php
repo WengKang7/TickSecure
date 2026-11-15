@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/venue-blueprint-policy.php';
+require_once __DIR__ . '/cloudinary-images.php';
 
 /** @param array<string,mixed> $body */
 function blueprint_respond(int $status, array $body): never
@@ -16,8 +17,9 @@ function blueprint_respond(int $status, array $body): never
 
 // Independent of generic upload tokens and the full PHP backend flag. This
 // dedicated localhost route always verifies a Firebase administrator ID token.
-if (getenv('TICKSECURE_PHP_BLUEPRINT_UPLOAD') !== '1'
-    || !blueprint_is_loopback((string)($_SERVER['REMOTE_ADDR'] ?? ''))) {
+$hostedUpload = getenv('TICKSECURE_HOSTED_BLUEPRINT_UPLOAD') === '1';
+if (!$hostedUpload && (getenv('TICKSECURE_PHP_BLUEPRINT_UPLOAD') !== '1'
+    || !blueprint_is_loopback((string)($_SERVER['REMOTE_ADDR'] ?? '')))) {
     blueprint_respond(410, ['error' => 'Local blueprint uploads are disabled.', 'code' => 'blueprint_upload_disabled']);
 }
 
@@ -50,6 +52,9 @@ try {
     if ($venue === null) {
         throw new FirebaseBackendException(404, 'Venue not found.', 'not-found');
     }
+    if ($method === 'POST' && in_array($venue['layoutStatus'] ?? '', ['ACTIVE', 'PROCESSING'], true)) {
+        throw new FirebaseBackendException(409, 'Only a draft venue blueprint can be changed.', 'layout-locked');
+    }
 
     if ($method === 'GET') {
         $path = blueprint_file_path((string)($venue['blueprintLocalFile'] ?? ''));
@@ -81,23 +86,44 @@ try {
     }
     $size = (int)($file['size'] ?? 0);
     $mime = blueprint_inspect_file($temporaryPath, $size);
-    $filename = bin2hex(random_bytes(20)) . ($mime === 'image/png' ? '.png' : '.pdf');
-    $savedPath = blueprint_file_path($filename);
-    if (!move_uploaded_file($temporaryPath, $savedPath)) {
-        throw new FirebaseBackendException(500, 'The blueprint could not be saved locally.', 'upload-save-failed');
-    }
-    chmod($savedPath, 0600);
-    $name = basename(str_replace('\\', '/', (string)($file['name'] ?? 'blueprint.pdf')));
+    $filename = '';
     $url = 'api/venue-blueprint.php?venueId=' . rawurlencode($venueId);
+    if ($hostedUpload) {
+        $url = cloudinary_store_image($temporaryPath, $venueId, [
+            'mimeType' => $mime, 'extension' => $mime === 'image/png' ? 'png' : 'pdf'
+        ], 'venues');
+        // Free Cloudinary accounts can require PDF delivery to be enabled.
+        // Check before recording an unusable URL or reporting upload success.
+        $probe = curl_init($url);
+        curl_setopt_array($probe, [CURLOPT_NOBODY => true, CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 20]);
+        curl_exec($probe);
+        $deliveryStatus = curl_getinfo($probe, CURLINFO_HTTP_CODE);
+        curl_close($probe);
+        if ($deliveryStatus !== 200) {
+            throw new FirebaseBackendException(502, $mime === 'application/pdf'
+                ? 'Cloudinary could not deliver this PDF. Enable Allow delivery of PDF and ZIP files in Cloudinary Security settings, or upload a PNG instead.'
+                : 'Cloudinary could not deliver the blueprint. Check the account quota and retry.', 'blueprint-delivery-unavailable');
+        }
+    } else {
+        $filename = bin2hex(random_bytes(20)) . ($mime === 'image/png' ? '.png' : '.pdf');
+        $savedPath = blueprint_file_path($filename);
+        if (!move_uploaded_file($temporaryPath, $savedPath)) {
+            throw new FirebaseBackendException(500, 'The blueprint could not be saved locally.', 'upload-save-failed');
+        }
+        chmod($savedPath, 0600);
+    }
+    $name = basename(str_replace('\\', '/', (string)($file['name'] ?? 'blueprint.pdf')));
+    $name = function_exists('mb_substr') ? mb_substr($name, 0, 255) : substr($name, 0, 255);
     $metadata = [
         'blueprintUrl' => $url,
         'blueprintLocalFile' => $filename,
-        'blueprintName' => mb_substr($name, 0, 255),
+        'blueprintName' => $name,
         'blueprintSize' => $size,
         'blueprintMimeType' => $mime,
-        'blueprintHash' => hash_file('sha256', $savedPath),
+        'blueprintHash' => hash_file('sha256', $savedPath ?? $temporaryPath),
         'sections' => [],
-        'blueprintAnalysis' => ['status' => 'PENDING', 'sourceName' => mb_substr($name, 0, 255), 'sourceSize' => $size],
+        'blueprintAnalysis' => ['status' => 'PENDING', 'sourceName' => $name, 'sourceSize' => $size],
         'updatedAt' => gmdate('Y-m-d\TH:i:s\Z'),
     ];
     // Recheck authorization inside the metadata transaction, so role changes or
@@ -121,5 +147,5 @@ try {
 } catch (Throwable $error) {
     if ($savedPath !== null && is_file($savedPath)) unlink($savedPath);
     error_log('Local blueprint upload failed: ' . $error->getMessage());
-    blueprint_respond(500, ['error' => 'The local blueprint service could not complete the request.', 'code' => 'backend_error']);
+    blueprint_respond(500, ['error' => 'The blueprint service could not complete the request.', 'code' => 'backend_error']);
 }
