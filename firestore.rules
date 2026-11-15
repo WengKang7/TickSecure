@@ -253,7 +253,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           'name', 'description', 'eventCategory', 'date', 'time',
           'venueId', 'venueName', 'venueLocation', 'organizerUid',
-          'organizerName', 'status', 'posterUrl', 'startingPrice',
+          'organizerName', 'status', 'posterUrl', 'bannerUrl', 'startingPrice',
           'availability', 'categories', 'maxTicketsPerBuyer',
           'salesStartDate', 'salesEndDate', 'transferEnabled', 'resaleEnabled',
           'resaleStartDate', 'resaleDeadline', 'maxResaleMarkup', 'maxResalePrice',
@@ -294,7 +294,7 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'name', 'description', 'eventCategory', 'date', 'time',
             'venueId', 'venueName', 'venueLocation', 'organizerName',
-            'posterUrl', 'startingPrice', 'availability', 'categories',
+            'posterUrl', 'bannerUrl', 'startingPrice', 'availability', 'categories',
             'maxTicketsPerBuyer', 'salesStartDate', 'salesEndDate',
             'transferEnabled', 'resaleEnabled', 'resaleStartDate',
             'resaleDeadline', 'maxResaleMarkup', 'maxResalePrice', 'status', 'statusHistory',

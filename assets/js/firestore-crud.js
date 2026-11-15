@@ -751,14 +751,14 @@ export const EventService = {
         await AuditService.log('event_updated', 'event', eventId, data);
     },
 
-    async uploadPoster(eventId, file, onStatus = () => {}) {
+    async uploadPoster(eventId, file, onStatus = () => {}, purpose = 'poster') {
         if (!file || !['image/jpeg', 'image/png'].includes(file.type) || file.size < 1 || file.size > 5 * 1024 * 1024) {
             throw new Error('Choose a JPG or PNG image no larger than 5 MB.');
         }
-        if (useLocalPosterUpload()) return uploadLocalPoster(eventId, file, onStatus);
+        if (useLocalPosterUpload()) return uploadLocalPoster(eventId, file, onStatus, purpose);
         const upload = await uploadFile(`events/${eventId}`, file, ['image/jpeg', 'image/png'], onStatus);
         const url = upload.url;
-        await updateDoc(doc(db, 'Events', eventId), { posterUrl: url, updatedAt: iso() });
+        await updateDoc(doc(db, 'Events', eventId), { [purpose === 'banner' ? 'bannerUrl' : 'posterUrl']: url, updatedAt: iso() });
         return url;
     },
 

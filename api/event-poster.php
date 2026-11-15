@@ -36,6 +36,7 @@ try {
         throw new FirebaseBackendException(401, 'Sign in before uploading a poster.', 'unauthenticated');
     }
     $artworkOnly = ($_POST['purpose'] ?? '') === 'category-artwork';
+    $imageField = ($_POST['purpose'] ?? '') === 'banner' ? 'bannerUrl' : 'posterUrl';
     $eventId = poster_require_event_id($_POST['eventId'] ?? null);
     $firebase = new FirebaseAdminRest(firebase_backend_config());
     $claims = $firebase->verifyIdToken(trim($matches[1]));
@@ -70,9 +71,9 @@ try {
         $basePath = rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? ''), 2)), '/.');
         $url = $basePath . '/' . $relativePath;
     }
-    $firebase->transaction(static function (FirebaseFirestoreTransaction $tx) use ($claims, $uid, $eventId, $url, $artworkOnly): void {
+    $firebase->transaction(static function (FirebaseFirestoreTransaction $tx) use ($claims, $uid, $eventId, $url, $artworkOnly, $imageField): void {
         poster_require_editor($claims, $tx->get('Users', $uid), $tx->get('Events', $eventId));
-        if (!$artworkOnly) $tx->update('Events', $eventId, ['posterUrl' => $url, 'updatedAt' => gmdate('Y-m-d\TH:i:s\Z')]);
+        if (!$artworkOnly) $tx->update('Events', $eventId, [$imageField => $url, 'updatedAt' => gmdate('Y-m-d\TH:i:s\Z')]);
     });
     $savedPath = null;
     poster_respond(201, ['ok' => true, 'path' => $relativePath, 'url' => $useCloud ? $url : null]);

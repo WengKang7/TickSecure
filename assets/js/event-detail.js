@@ -256,9 +256,9 @@ function renderEvent(event) {
     el('ev-org').innerHTML = `<strong>${esc(event.organizerName || 'Organizer TBA')}</strong><span>Event organizer</span>`;
     const poster = el('event-poster');
     poster.hidden = true;
-    if (event.posterUrl) {
+    if (event.bannerUrl || event.posterUrl) {
         try {
-            const url = new URL(event.posterUrl, window.location.origin);
+            const url = new URL(event.bannerUrl || event.posterUrl, window.location.origin);
             if (['http:', 'https:'].includes(url.protocol)) {
                 poster.src = url.href;
                 poster.alt = event.name || 'Event poster';

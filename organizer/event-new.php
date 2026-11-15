@@ -72,6 +72,12 @@ ob_start();
             <div class="small muted mt-8">PNG or JPG · recommended portrait artwork</div>
         </label>
         
+        <label class="ts-dropzone mt-20">
+            <input type="file" id="banner-upload" accept="image/png,image/jpeg" style="display:none">
+            <span class="ts-drop-icon"><?=ts_icon('upload')?></span>
+            <strong id="banner-name">Upload horizontal event photo</strong>
+            <div class="small muted mt-8">PNG or JPG · up to 5 MB · recommended 16:9 for the event details banner</div>
+        </label>
         <div class="flex justify-between mt-24">
             <button class="ts-btn ts-btn-secondary" id="btn-prev-3">Back</button>
             <button class="ts-btn ts-btn-primary" id="create-event-btn">Continue to Tickets &amp; Rules</button>

@@ -4,6 +4,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const venuePreviewContainer = document.getElementById('venue-preview-container');
     const posterInput = document.getElementById('poster-upload');
     const posterName = document.getElementById('poster-name');
+    const bannerInput = document.getElementById('banner-upload');
+    const bannerName = document.getElementById('banner-name');
+    bannerInput?.addEventListener('change', () => {
+        bannerName.textContent = bannerInput.files?.[0]?.name || 'Upload horizontal event photo';
+    });
     const organizerNameInput = document.getElementById('organizerName');
     
     let venuesData = [];
@@ -124,12 +129,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const validatePoster = () => {
         const V = window.tsValidation;
         V.clearFieldErrors(step3);
-        const file = posterInput?.files?.[0];
-        if (!file) return true;
-        const ok = V.runAll([
-            { check: () => V.validateFileType(file, ['image/jpeg', 'image/png']), el: posterInput },
-            { check: () => V.validateFileSize(file, 5 * 1024 * 1024), el: posterInput }
-        ]);
+        const files = [posterInput, bannerInput].filter(input => input?.files?.length);
+        const ok = files.every(input => {
+            const file = input.files[0];
+            return V.runAll([
+                { check: () => V.validateFileType(file, ['image/jpeg', 'image/png']), el: input },
+                { check: () => V.validateFileSize(file, 5 * 1024 * 1024), el: input }
+            ]);
+        });
         if (!ok) V.showGlobalError(step3, 'Poster could not be used', 'Use a JPG or PNG image no larger than 5 MB.');
         return ok;
     };
@@ -216,6 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 venueSelect.value = existingEvent.venueId || '';
                 venueSelect.dispatchEvent(new Event('change'));
                 if (existingEvent.posterUrl) posterName.textContent = 'Current poster saved';
+                if (existingEvent.bannerUrl) bannerName.textContent = 'Current horizontal photo saved';
             }
             ready = true;
         } catch(e) {
@@ -290,6 +298,21 @@ document.addEventListener('DOMContentLoaded', () => {
             posterName.textContent = posterInput.files[0].name;
             posterInput.value = '';
             status.textContent = 'Event details and poster saved.';
+        }
+        if (bannerInput?.files?.length) {
+            const status = document.getElementById('event-draft-status');
+            try {
+                await window.tsEvents.uploadPoster(currentEventId, bannerInput.files[0], message => {
+                    status.textContent = message;
+                }, 'banner');
+            } catch (reason) {
+                const error = new Error('Horizontal photo upload failed. ' + reason.message);
+                error.code = 'poster-upload-failed';
+                throw error;
+            }
+            bannerName.textContent = bannerInput.files[0].name;
+            bannerInput.value = '';
+            status.textContent = 'Event photos saved.';
         }
         return currentEventId;
     };

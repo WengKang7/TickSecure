@@ -123,3 +123,10 @@ test('PHP validates cloud delivery addresses before saving them in Firebase', ()
       } echo json_encode($out);`,path.join(root,'api/cloudinary-images.php')],{encoding:'utf8'});
     assert.deepEqual(JSON.parse(result),[200,502,502,502]);
 });
+
+test('horizontal event photos carry the banner purpose separately from poster uploads', async () => {
+    const c = client();
+    await c.context.uploadLocalPoster('event-1', image(), () => {}, 'banner');
+    assert.equal(c.requests[0].body.get('purpose'), 'banner');
+    assert.equal(c.requests[0].body.get('eventId'), 'event-1');
+});
