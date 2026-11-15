@@ -10,6 +10,58 @@
         try {
             const source = keep(cv.matFromImageData(image)), gray = keep(new cv.Mat()), rgb = keep(new cv.Mat()), hsv = keep(new cv.Mat());
             cv.cvtColor(source, gray, cv.COLOR_RGBA2GRAY); cv.cvtColor(source, rgb, cv.COLOR_RGBA2RGB); cv.cvtColor(rgb, hsv, cv.COLOR_RGB2HSV);
+            // A theatre plan can use solid coloured dots for seats and equally
+            // large black letters for row labels. Measure the coloured cores
+            // independently so antialiased edges and lettering do not join rows.
+            const ink = keep(new cv.Mat(image.height, image.width, cv.CV_8UC1));
+            const mask = ink.data;
+            for (let i = 0; i < mask.length; i++) {
+                const offset = i * 4;
+                const r = image.data[offset], g = image.data[offset + 1], b = image.data[offset + 2];
+                mask[i] = Math.max(r, g, b) - Math.min(r, g, b) >= 80 ? 255 : 0;
+            }
+            const dotLabels = keep(new cv.Mat()), dotStats = keep(new cv.Mat()), dotCenters = keep(new cv.Mat());
+            const components = cv.connectedComponentsWithStats(ink, dotLabels, dotStats, dotCenters, 8, cv.CV_32S);
+            const dots = [];
+            let colouredArea = 0, dotArea = 0;
+            for (let i = 1; i < components; i++) {
+                const [, , w, h, area] = dotStats.data32S.subarray(i * 5, i * 5 + 5);
+                colouredArea += area;
+                const size = Math.sqrt(w * h), fill = area / (w * h);
+                if (size < minimum || size > maximum || Math.max(w, h) > 1.25 * Math.min(w, h) || fill < .63 || fill > .91) continue;
+                const x = dotCenters.data64F[2 * i], y = dotCenters.data64F[2 * i + 1];
+                const offset = (Math.round(y) * image.width + Math.round(x)) * 4;
+                const color = '#' + Array.from(image.data.subarray(offset, offset + 3), c => c.toString(16).padStart(2, '0')).join('');
+                dots.push({ x: round(x), y: round(y), w, h, angle: 0, shape: 'circle', color });
+                dotArea += area;
+            }
+            if (dots.length >= 24 && dotArea >= colouredArea * .98) {
+                const sizes = dots.map(dot => Math.sqrt(dot.w * dot.h)).sort((a, b) => a - b);
+                const typical = sizes[Math.floor(sizes.length / 2)];
+                // Mixed plans may also contain grey or outlined seats. Keep
+                // the general detector if repeated neutral seat-sized boxes exist.
+                const neutral = keep(new cv.Mat());
+                cv.threshold(gray, neutral, 218, 255, cv.THRESH_BINARY_INV);
+                const halo = keep(new cv.Mat()), kernel = keep(cv.Mat.ones(3, 3, cv.CV_8U));
+                cv.dilate(ink, halo, kernel);
+                neutral.setTo(new cv.Scalar(0), halo);
+                const outlines = keep(new cv.MatVector()), tree = keep(new cv.Mat());
+                cv.findContours(neutral, outlines, tree, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+                const neutralSeats = [];
+                for (let i = 0; i < outlines.size(); i++) {
+                    const contour = outlines.get(i);
+                    try {
+                        const box = cv.boundingRect(contour);
+                        if (Math.min(box.width, box.height) >= typical * .75 && Math.max(box.width, box.height) <= typical * 1.5 &&
+                            cv.contourArea(contour) >= box.width * box.height * .52) neutralSeats.push(box);
+                    } finally { contour.delete(); }
+                }
+                const neutralRow = neutralSeats.some(a => neutralSeats.filter(b => Math.abs(a.y - b.y) < typical * .5 && Math.abs(a.x - b.x) <= typical * 4).length >= 4);
+                if (!neutralRow && sizes[0] >= typical * .75 && sizes.at(-1) <= typical * 1.3) {
+                    if (dots.length > 3000) throw new Error('More than 3,000 seat shapes were found. Crop to one floor and retry.');
+                    return { seats: dots, typicalSize: round(typical), candidates: dots.length };
+                }
+            }
             const paper = keep(new cv.Mat()); cv.threshold(gray, paper, 205, 255, cv.THRESH_BINARY);
             // Scanned diagonal borders often contain one-pixel breaks. Close
             // those breaks before looking for enclosed chair interiors.

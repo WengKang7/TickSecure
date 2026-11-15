@@ -85,7 +85,7 @@ ob_start();
 <script src="<?= ts_asset_url('assets/js/blueprint-detection.js', '..') ?>"></script>
 <script src="<?= ts_asset_url('assets/js/seat-layout-model.js', '..') ?>"></script>
 <script src="<?= ts_asset_url('assets/js/seat-import.js', '..') ?>"></script>
-<script src="<?= ts_asset_url('assets/js/seat-shapes.js', '..') ?>"></script>
+<script src="<?= ts_asset_url('assets/js/seat-shapes.js', '..') . '&amp;detector=' . filemtime(__DIR__ . '/../assets/js/seat-shape-detection.js') ?>"></script>
 <script src="<?= ts_asset_url('assets/js/blueprint-ocr.js', '..') ?>"></script>
 <script src="<?= ts_asset_url('assets/js/blueprint-preview.js', '..') ?>"></script>
 <script src="<?= ts_asset_url('assets/js/seat-map-interactions.js', '..') ?>"></script>
@@ -108,7 +108,8 @@ window.addEventListener('ts-auth-ready', async () => {
                 const image = document.createElement('img'); image.src = url; image.alt = `Original floor plan, page ${page}`; reference.appendChild(image);
             });
         }
-        window.tsVenueLayoutEditor?.(data, venueName, { cleanLayout: true, backgroundUrls: window._tsBlueprintPreview?.urls, backgroundUrl: window._tsBlueprintPreviewUrl, readOnly: layoutLocked, ...window._tsBlueprintPreviewSize });
+        const hasReference = Boolean(window._tsBlueprintPreview?.urls);
+        window.tsVenueLayoutEditor?.(data, venueName, { cleanLayout: !hasReference, backgroundUrls: window._tsBlueprintPreview?.urls, backgroundUrl: window._tsBlueprintPreviewUrl, readOnly: layoutLocked, ...window._tsBlueprintPreviewSize });
     }
 
     function sectionPayload(data) {

@@ -45,6 +45,7 @@ window.tsVenueRenderer = {
         if (scanned) {
             svg.style.aspectRatio = size.imageWidth && size.imageHeight ? `${size.imageWidth} / ${size.imageHeight}` : '104 / 106';
             svg.style.height = 'auto';
+            if (outlineOnly) svg.style.maxHeight = 'none';
             if (options.fitContainer) {
                 const ratio = size.imageWidth && size.imageHeight ? size.imageWidth / size.imageHeight : 104 / 106;
                 svg.style.width = `min(100%, calc(var(--ts-venue-fit-height, 500px) * ${ratio}))`;
@@ -154,7 +155,8 @@ window.tsVenueRenderer = {
                     seat.appendChild(node('polygon', { ...attrs, points: corners.join(' ') }));
                 } else if (outlineOnly || marker.shape === 'rect') seat.appendChild(node('rect', { ...attrs, x: marker.x - w / 2, y: marker.y - h / 2, width: w, height: h, rx: .3 }));
                 else seat.appendChild(node('circle', { ...attrs, cx: marker.x, cy: marker.y, r: 1.4 }));
-                if (!outlineOnly || marker.labelSource === 'auto') seat.appendChild(node('text', { x: marker.x, y: marker.y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': options.cleanLayout ? cleanFontSize : Math.min(1.3, h * .5), fill: '#143b24', 'pointer-events': 'none' }, marker.number || marker.label || '?'));
+                if (!outlineOnly || marker.labelSource === 'auto') seat.appendChild(node('text', { x: marker.x, y: marker.y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': options.cleanLayout || outlineOnly ? cleanFontSize : Math.min(1.3, h * .5),
+                    ...(outlineOnly ? { fill: '#fff', stroke: '#161616', 'stroke-width': cleanFontSize * .21, 'paint-order': 'stroke' } : { fill: '#143b24' }), 'pointer-events': 'none' }, marker.number || marker.label || '?'));
                 if (options.onSeatSelect || options.onCategorySelect) {
                     const activate = event => { if (disabled) return; if (options.onCategorySelect) { if (marker.categoryId) options.onCategorySelect(marker.categoryId); } else options.onSeatSelect(id, marker.label, event, markerId); };
                     seat.setAttribute('role', 'button'); seat.setAttribute('tabindex', disabled ? '-1' : '0');
