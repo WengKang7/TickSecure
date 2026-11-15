@@ -131,11 +131,7 @@ ob_start();
 <script src="<?=ts_asset_url('assets/js/seat-map-interactions.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/seat-category-model.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/organizer-seat-categories.js', '..')?>"></script>
-<section class="ts-card ts-card-pad mt-24" aria-labelledby="policy-preview-title">
-    <h2 class="ts-card-title" id="policy-preview-title">What buyers will see</h2>
-    <p class="small secondary mt-8">This preview updates as you type. Buyers see these rules on the event page after approval.</p>
-    <div id="buyer-rules-preview" class="mt-20" aria-live="polite"></div>
-</section>
+
 <section class="ts-card ts-card-pad mt-24" id="configuration-review" hidden aria-labelledby="configuration-review-title">
     <h2 class="ts-card-title" id="configuration-review-title">Review before submitting</h2>
     <p id="review-event-summary" class="secondary mt-8"></p>
