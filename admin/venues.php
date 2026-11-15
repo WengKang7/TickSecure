@@ -4,7 +4,22 @@ ob_start();
 ?>
 
 <?=ts_page_head('Venue Management', 'Create physical venues, upload seating blueprints and activate processed layouts for Organizer event configuration.', '<a class="ts-btn ts-btn-primary" href="venue-new.php">'.ts_icon('plus').' Add Venue</a>')?>
-<div class="ts-card">
+<style>
+.ts-venue-list .ts-table-wrap { overflow-x:auto; }
+.ts-venue-list .ts-table { width:100%; min-width:1000px; table-layout:fixed; border-collapse:collapse; }
+.ts-venue-list .ts-table th, .ts-venue-list .ts-table td { padding:16px; border:1px solid #e5e5e5; vertical-align:middle; white-space:normal; overflow-wrap:anywhere; }
+.ts-venue-list .ts-table th { text-align:left; background:#fafafa; }
+.ts-venue-list .ts-table th:nth-child(1) { width:14%; }
+.ts-venue-list .ts-table th:nth-child(2) { width:28%; }
+.ts-venue-list .ts-table th:nth-child(3) { width:8%; }
+.ts-venue-list .ts-table th:nth-child(4) { width:12%; }
+.ts-venue-list .ts-table th:nth-child(5) { width:11%; }
+.ts-venue-list .ts-table th:nth-child(6) { width:12%; }
+.ts-venue-list .ts-table th:nth-child(7) { width:15%; }
+.ts-venue-list .ts-venue-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.ts-venue-list .ts-venue-actions .ts-btn { margin:0; min-width:68px; justify-content:center; }
+</style>
+<div class="ts-card ts-venue-list">
     <div class="ts-filter-bar">
         <div class="ts-input-wrap ts-search">
             <?=ts_icon('search')?><input
@@ -25,7 +40,7 @@ ob_start();
                     <th>Layout Status</th>
                     <th>Detected Sections</th>
                     <th>Last Updated</th>
-                    <th></th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="venue-table-body">
@@ -68,10 +83,10 @@ window.addEventListener('ts-auth-ready', async () => {
                         <td><span class="ts-chip ts-chip-${tone}">${esc(layoutStatus)}</span></td>
                         <td>${Array.isArray(v.sections) ? v.sections.length : 0}</td>
                         <td>${new Date(v.updatedAt || v.createdAt).toLocaleDateString()}</td>
-                        <td>
+                        <td><div class="ts-venue-actions">
                             <a class="ts-btn ts-btn-secondary ts-btn-sm" href="venue-detail.php?id=${encodeURIComponent(v.id)}">Manage</a>
                             <button type="button" class="ts-btn ts-btn-secondary ts-btn-sm text-error delete-btn" data-id="${esc(v.id)}">Delete</button>
-                        </td>
+                        </div></td>
                     </tr>
                 `;
             }).join('');
