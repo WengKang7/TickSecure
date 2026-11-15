@@ -9,7 +9,7 @@ test('Render blockchain and funding actions use authenticated same-origin PHP',a
  });
  const source=fs.readFileSync('assets/js/backend-client.js','utf8').replace(/import[\s\S]*?from\s+['"][^'"]+['"];?/g,'').replaceAll('export ','');
  vm.runInContext(source,context);
- for(const name of ['getBlockchainSettings','configureBlockchain','prepareBlockchainOperation','verifyBlockchainOperation','getBuyerBlockchainOperations','getOrganizerBlockchainOperations','getDemoFundingSettings','getDemoFundingChallenge','claimDemoFunding','retryDemoFunding']){
+ for(const name of ['transferTicket','getTicketTransfers','getBlockchainSettings','configureBlockchain','prepareBlockchainOperation','verifyBlockchainOperation','getBuyerBlockchainOperations','getOrganizerBlockchainOperations','getDemoFundingSettings','getDemoFundingChallenge','claimDemoFunding','retryDemoFunding']){
   await context.invokeTrustedBackend({}, {name});
   assert.equal(calls.at(-1).url,'/api/backend.php');
   assert.equal(calls.at(-1).options.headers.Authorization,'Bearer test-token');

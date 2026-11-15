@@ -72,7 +72,8 @@ function backend_resale_is_enabled(): bool
 
 function backend_transfer_is_enabled(): bool
 {
-    return getenv('TICKSECURE_PHP_TRANSFER') === '1' && backend_is_loopback_request();
+    return (getenv('TICKSECURE_PHP_TRANSFER') === '1' && backend_is_loopback_request())
+        || getenv('TICKSECURE_HOSTED_TRANSFER') === '1';
 }
 
 function backend_blockchain_is_enabled(): bool

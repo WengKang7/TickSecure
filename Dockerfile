@@ -30,6 +30,7 @@ RUN /usr/local/bin/python3.12 -c "import json,subprocess; result=subprocess.run(
 
 # Render secret files are mounted at runtime and never included in the image.
 ENV TICKSECURE_HOSTED_CHECKOUT=1 \
+    TICKSECURE_HOSTED_TRANSFER=1 \
     TICKSECURE_HOSTED_FACE=1 \
     TICKSECURE_HOSTED_BLOCKCHAIN=1 \
     TICKSECURE_BLOCKCHAIN_SIGNER_KEY_FILE=/etc/secrets/ticksecure-blockchain-authorizer.json \
