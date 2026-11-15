@@ -3,6 +3,17 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
+<style>
+.ts-confirmation-page #confirmation-mint-panel { padding:20px; text-align:center; }
+.ts-confirmation-page #confirmation-mint-panel>div { display:flex; flex-direction:column; align-items:center; gap:14px; }
+.ts-confirmation-page #confirmation-mint-panel strong { display:block; }
+.ts-confirmation-page #confirmation-mint-status { margin:0; }
+.ts-confirmation-page #confirmation-navigation { display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:12px; }
+.ts-confirmation-page #confirmation-navigation .ts-btn { margin:0; min-width:136px; justify-content:center; }
+.ts-confirmation-page #confirmation-details .ts-detail-item { min-width:0; padding:18px 12px; }
+.ts-confirmation-page #confirmation-details .ts-detail-value { overflow-wrap:anywhere; margin-top:6px; }
+@media(max-width:540px) { .ts-confirmation-page #confirmation-navigation { flex-direction:column; align-items:stretch; } }
+</style>
 <main class="ts-section-tight ts-confirmation-page">
     <div class="ts-container" style="max-width:880px">
         <div class="ts-card">
