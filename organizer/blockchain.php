@@ -40,6 +40,7 @@ ob_start();
   <div id="chain-deployment" hidden>
     <p class="small secondary">First time: deploy your buyer-enabled contract with a setup wallet and Sepolia test ETH. The backend authorizes each eligible action; only the required buyer wallet can submit it.</p>
     <div class="ts-chain-deploy-actions"><button type="button" class="ts-btn ts-btn-primary" id="chain-deploy" disabled>Deploy ticket contract</button><label class="ts-chain-hash-label"><span class="ts-label">Deployment transaction hash</span><input class="ts-input" id="chain-deployment-hash" placeholder="0x…" autocomplete="off" spellcheck="false"></label><button type="button" class="ts-btn ts-btn-secondary" id="chain-register">Verify &amp; register</button></div>
+    <p id="chain-deploy-reason" class="small secondary mt-12" hidden></p>
     <p class="small secondary mt-12">Maximum quoted fee: 0.0001 SepoliaETH per NFT operation and 0.001 SepoliaETH per deployment. Expensive requests pause. Verify after two confirmations. Paste a deployment hash to recover interrupted setup. Clear the field to start a new attempt only if the previous deployment was cancelled or reverted.</p>
   </div>
 </section>

@@ -1,5 +1,5 @@
-import { sepolia } from './blockchain-client.js?v=20261102-organizer-chain';
-import { fundDemoWallet } from './demo-funding-client.js?v=20261102-organizer-chain';
+import { sepolia } from './blockchain-client.js?v=20261115-hosted-chain-v2';
+import { fundDemoWallet } from './demo-funding-client.js?v=20261115-hosted-chain-v2';
 const el=id=>document.getElementById(id),D=window.tsBlockchainDisplay,role=document.querySelector('[data-chain-role]').dataset.chainRole;
 const params=new URLSearchParams(window.location.search),filters={};for(const key of ['ticketId','bookingId'])if(params.get(key))filters[key]=params.get(key);
 let uid='',version=0,busy=false,records=[],configured=false,timer;

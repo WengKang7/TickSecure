@@ -1,4 +1,4 @@
-import { invokeTrustedBackend } from './backend-client.js?v=20261101-demo-funding';
+import { invokeTrustedBackend } from './backend-client.js?v=20261115-hosted-chain-v2';
 const el = id => document.getElementById(id);
 let generation = 0;
 let retrying = false;

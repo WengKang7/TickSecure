@@ -1,4 +1,4 @@
-import { sepolia } from './blockchain-client.js?v=20261102-organizer-chain';
+import { sepolia } from './blockchain-client.js?v=20261115-hosted-chain-v2';
 const el=id=>document.getElementById(id),node=(tag,cls,text)=>{const n=document.createElement(tag);n.className=cls||'';if(text!==undefined)n.textContent=text;return n;};
 let uid='',version=0,busy=false,settings=null,records=[],timer;
 const registrationSignatures=new Map();
@@ -9,7 +9,15 @@ function saved(value){try{const key='ticksecure:sepolia-deployment:'+uid;if(valu
 function explorer(value,type='tx'){const link=node('a','ts-chain-code',value);link.href='https://sepolia.etherscan.io/'+type+'/'+encodeURIComponent(value);link.target='_blank';link.rel='noopener noreferrer';return link;}
 function render(){
     for(const id of ['chain-refresh','chain-connect','chain-register'])el(id).disabled=busy||!active();
-    el('chain-deploy').disabled=busy||!active()||!settings?.deploymentBytecode||Boolean(el('chain-deployment-hash').value.trim());
+    const blocked = busy ? 'Please wait for the current setup request to finish.'
+        : !active() ? 'Sign in with an active organizer account.'
+        : !settings ? 'Contract setup could not load. Click Refresh to retry.'
+        : !settings.deploymentBytecode && !settings.configured ? settings.setupMessage || 'The server has not supplied contract deployment data.'
+        : el('chain-deployment-hash').value.trim() ? 'Clear the hash field to deploy a new contract, or verify an existing deployment hash.' : '';
+    el('chain-deploy').disabled=Boolean(blocked);
+    const reason=el('chain-deploy-reason');
+    if(reason){reason.textContent=blocked;reason.hidden=!blocked||Boolean(settings?.configured);}
+
     el('chain-deployment').hidden=Boolean(settings?.configured);el('chain-operator').textContent=settings?.operatorAddress||'Not registered';
     el('chain-contract').replaceChildren(settings?.contractAddress?explorer(settings.contractAddress,'address'):node('span','','Not deployed'));
     for(const [id,value] of [['tx-total-kpi',records.length],['tx-confirmed-kpi',records.filter(r=>r.status==='CONFIRMED').length],['tx-pending-kpi',records.filter(r=>!['CONFIRMED','FAILED'].includes(r.status)).length],['tx-failed-kpi',records.filter(r=>r.status==='FAILED').length]])el(id).textContent=String(value);
@@ -29,8 +37,10 @@ async function load(){
     const v=++version;clearTimeout(timer);uid=window.tsCurrentUser?.uid||'';busy=false;settings=null;records=[];message('');message('',true);render();
     el('chain-wallet').textContent='Not connected';
     if(!active())return;
-    try{const [config,loaded]=await Promise.all([sepolia.getSettings(),sepolia.listOrganizer().then(result=>result.records||[])]);if(v!==version||!active())return;
-        settings=config;records=loaded;el('chain-deployment-hash').value=saved();render();
+    try{const [setup,history]=await Promise.allSettled([sepolia.getSettings(),sepolia.listOrganizer()]);if(v!==version||!active())return;
+        if(setup.status==='rejected')throw setup.reason;
+        const config=setup.value;
+        settings=config;records=history.status==='fulfilled'?history.value.records||[]:[];el('chain-deployment-hash').value=saved();render();
         if(config.setupMessage)message(config.setupMessage,true);if(config.migrationRequired)message('An earlier contract is registered. A deliberate migration is required before using buyer-authorized transactions.',true);
     }catch(error){if(v===version)message(error.message||'Blockchain data could not be loaded.',true);}
 }
