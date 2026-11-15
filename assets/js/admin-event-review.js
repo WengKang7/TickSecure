@@ -201,6 +201,7 @@
                 el('review-notice').hidden = false;
             }
             render(event, venue, organizer, organization);
+            window.tsEventLocation?.show(venue || { name: event.venueName, address: event.venueLocation });
         } catch (failure) {
             el('event-detail-container').hidden = el('action-buttons').hidden = true;
             el('review-retry').hidden = false;

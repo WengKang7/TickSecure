@@ -35,6 +35,20 @@ ob_start();
             <div class="ts-review-description"><h3 class="ts-card-title">Event Description</h3><p id="val-desc" class="secondary"></p></div>
         </section>
 
+        <section class="ts-card ts-card-pad ts-review-location" aria-labelledby="event-location-heading">
+            <div class="ts-review-location-info">
+                <h2 class="ts-card-title" id="event-location-heading">Venue location</h2>
+                <strong id="event-location-name">Venue information</strong>
+                <p id="event-location-address">Loading venue address…</p>
+                <p id="event-location-status" class="small secondary" role="status">Loading venue location…</p>
+                <a id="event-location-link" class="ts-btn ts-btn-secondary ts-btn-sm" target="_blank" rel="noopener noreferrer" hidden>Open in OpenStreetMap <?=ts_icon('arrow-right')?></a>
+            </div>
+            <div class="ts-review-location-map">
+                <div id="event-location-map" aria-label="Venue location map" hidden></div>
+                <p id="event-location-empty" class="small secondary">Loading venue map…</p>
+            </div>
+        </section>
+
         <section class="ts-card" aria-labelledby="review-tickets-heading">
             <div class="ts-card-head"><div><h2 class="ts-card-title" id="review-tickets-heading">Ticket Categories &amp; Allocation</h2><p class="ts-card-sub">Only the quantities below are offered for this event. Unused seats and sections can stay off sale.</p></div></div>
             <div class="ts-review-totals" id="ticket-totals"></div>
@@ -99,6 +113,19 @@ ob_start();
     </aside>
 </div>
 
+<style>
+.ts-review-location{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.7fr);gap:24px;align-items:center}
+.ts-review-location-info{min-width:0}.ts-review-location-info>strong{display:block;margin:18px 0 8px;overflow-wrap:anywhere}
+.ts-review-location-info p{margin-bottom:12px;overflow-wrap:anywhere}
+.ts-review-location-map{min-width:0;overflow:hidden;border:1px solid #e5e5e5;border-radius:10px}
+.ts-review-location #event-location-map{height:320px;width:100%;z-index:0;isolation:isolate}
+.ts-review-location #event-location-empty{padding:24px;margin:0}
+.ts-review-location [hidden]{display:none!important}
+@media(max-width:900px){.ts-review-location{grid-template-columns:1fr}.ts-review-location #event-location-map{height:280px}}
+</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="<?=ts_asset_url('assets/js/event-location.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/event-policy.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/venue-renderer.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/seat-category-model.js', '..')?>"></script>
