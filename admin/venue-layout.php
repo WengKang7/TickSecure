@@ -108,8 +108,7 @@ window.addEventListener('ts-auth-ready', async () => {
                 const image = document.createElement('img'); image.src = url; image.alt = `Original floor plan, page ${page}`; reference.appendChild(image);
             });
         }
-        const hasReference = Boolean(window._tsBlueprintPreview?.urls);
-        window.tsVenueLayoutEditor?.(data, venueName, { cleanLayout: !hasReference, backgroundUrls: window._tsBlueprintPreview?.urls, backgroundUrl: window._tsBlueprintPreviewUrl, readOnly: layoutLocked, ...window._tsBlueprintPreviewSize });
+        window.tsVenueLayoutEditor?.(data, venueName, { cleanLayout: true, readOnly: layoutLocked, ...window._tsBlueprintPreviewSize });
     }
 
     function sectionPayload(data) {
