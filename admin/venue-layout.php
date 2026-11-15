@@ -108,7 +108,7 @@ window.addEventListener('ts-auth-ready', async () => {
                 const image = document.createElement('img'); image.src = url; image.alt = `Original floor plan, page ${page}`; reference.appendChild(image);
             });
         }
-        window.tsVenueLayoutEditor?.(data, venueName, { cleanLayout: true, readOnly: layoutLocked, ...window._tsBlueprintPreviewSize });
+        window.tsVenueLayoutEditor?.(data, venueName, { cleanLayout: true, seatOnly: true, readOnly: layoutLocked, ...window._tsBlueprintPreviewSize });
     }
 
     function sectionPayload(data) {
