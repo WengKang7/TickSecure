@@ -104,6 +104,19 @@
         function renderPanel() {
             panel.replaceChildren();
             if (!data.length) { panel.appendChild(el('p', 'small muted', 'No sections are configured. Run OCR on the uploaded file or add a missing section.')); return; }
+            if (options.confirmOnly) {
+                const approval = el('label', 'ts-ocr-review');
+                const checked = el('input');
+                checked.type = 'checkbox'; checked.id = 'review-ocr-section';
+                checked.checked = data.every(section => section.geometry?.reviewed);
+                checked.disabled = !editable;
+                checked.onchange = () => data.forEach(section => {
+                    if (section.geometry) section.geometry.reviewed = checked.checked;
+                });
+                approval.append(checked, el('span', 'small', 'I checked the seats, numbering and capacity.'));
+                panel.appendChild(approval);
+                return;
+            }
             const section = data[active];
             const label = el('label', 'ts-label', 'Selected section');
             label.htmlFor = 'layout-section-select';
@@ -222,7 +235,7 @@
             data.push(section); active = data.length - 1; seatPage = 0; render();
         };
         }
-        if (editable && window.tsVenueSeatTools) tools = window.tsVenueSeatTools.mount(document.getElementById(board), data, options, {
+        if (editable && !options.confirmOnly && window.tsVenueSeatTools) tools = window.tsVenueSeatTools.mount(document.getElementById(board), data, options, {
             getSection: () => data[active],
             redraw: () => renderMap(),
             changed: section => { if (section) active = data.indexOf(section); active = Math.max(0, Math.min(active, data.length - 1)); selectedSeatLabel = undefined; render(); }

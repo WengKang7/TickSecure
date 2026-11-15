@@ -60,9 +60,7 @@ ob_start();
     <h2 class="ts-card-title">Check seats & numbering</h2>
     <p class="small secondary mt-8" id="dynamic-sections-sub">Loading seats…</p>
     <div id="dynamic-editor-cards" class="mt-16"></div>
-    <details class="ts-simple-details mt-16"><summary>Missing a section?</summary><button type="button" id="add-layout-section" class="ts-btn ts-btn-secondary w-full mt-12">Add section</button></details>
-    <p class="small secondary mt-20">Organizers set category names and prices later.</p>
-    <a href="venue-layout.php?step=4" class="ts-btn ts-btn-primary w-full mt-16">Review & continue</a>
+    <a href="venue-layout.php?step=4" class="ts-btn ts-btn-primary w-full mt-16">Confirm</a>
   </aside>
 </div>
 <?php elseif ($step === 5 && !$activated): ?>
@@ -108,7 +106,7 @@ window.addEventListener('ts-auth-ready', async () => {
                 const image = document.createElement('img'); image.src = url; image.alt = `Original floor plan, page ${page}`; reference.appendChild(image);
             });
         }
-        window.tsVenueLayoutEditor?.(data, venueName, { cleanLayout: true, seatOnly: true, readOnly: layoutLocked, ...window._tsBlueprintPreviewSize });
+        window.tsVenueLayoutEditor?.(data, venueName, { cleanLayout: true, seatOnly: true, confirmOnly: true, readOnly: layoutLocked, ...window._tsBlueprintPreviewSize });
     }
 
     function sectionPayload(data) {
