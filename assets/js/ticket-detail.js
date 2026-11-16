@@ -50,6 +50,13 @@ window.addEventListener('ts-auth-ready', async () => {
         const identity = await window.tsFace.request('status', { ticketId: id });
         if (version !== loadVersion) return;
         el('ticket-face-manage').href = 'face-registration.php?ticketId=' + encodeURIComponent(id);
+        if (identity.chainReady !== true && ticket.status !== 'USED') {
+            el('ticket-face-gate').hidden = false;
+            el('ticket-face-message').textContent = 'Complete the NFT transaction for this ticket before viewing it. Confirm the pending mint, transfer or resale in MetaMask.';
+            el('ticket-face-register').hidden = true;
+            el('ticket-face-nft').href = 'blockchain.php?ticketId=' + encodeURIComponent(id);
+            return;
+        }
         if (!identity.registered && ticket.status !== 'USED') {
             el('ticket-face-gate').hidden = false;
             el('ticket-face-message').textContent = identity.message;

@@ -11,7 +11,7 @@ ob_start();
     </header>
     <div class="ts-alert ts-alert-error" id="ticket-error" role="alert" hidden></div>
     <section class="ts-card ts-face-card" id="ticket-face-gate" hidden>
-      <h2>Face registration</h2><p id="ticket-face-message" role="status">Checking ticket identity…</p>
+      <h2>Ticket setup</h2><p id="ticket-face-message" role="status">Checking ticket identity…</p>
       <a class="ts-btn ts-btn-primary" id="ticket-face-register" href="tickets.php">Register my face</a>
       <a class="ts-btn ts-btn-secondary" id="ticket-face-nft" href="blockchain.php">Complete NFT setup</a>
     </section>

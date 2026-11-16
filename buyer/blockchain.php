@@ -2,6 +2,23 @@
 require_once __DIR__.'/../shared/ui.php';
 ob_start();
 ?>
+<style>
+.ts-buyer-chain-page .chain-ticket-group{border:1px solid #e2e2e2;border-radius:10px;padding:24px;background:#fff}
+.ts-buyer-chain-page .chain-current-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin:0 0 14px}
+.ts-buyer-chain-page .chain-ticket-group>.ts-transfer-receipt{border:0;padding:0;box-shadow:none}
+.ts-buyer-chain-page .ts-transfer-receipt-heading{align-items:flex-start;gap:16px}
+.ts-buyer-chain-page .ts-transfer-receipt-heading h2{font-size:clamp(22px,2.5vw,30px);line-height:1.3}
+.ts-buyer-chain-page .ts-transfer-receipt-heading .ts-chip{flex-shrink:0}
+.ts-buyer-chain-page .ts-transfer-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin:24px 0}
+.ts-buyer-chain-page .ts-transfer-facts>div{min-width:0}
+.ts-buyer-chain-page .ts-transfer-code{overflow-wrap:anywhere;white-space:normal}
+.ts-buyer-chain-page .ts-transfer-receipt>.ts-btn{margin:16px 10px 0 0}
+.ts-buyer-chain-page .chain-ticket-locked{padding:14px 16px;background:#f6f6f6;border-radius:10px;margin:20px 0 0;font-size:14px}
+.ts-buyer-chain-page .chain-ticket-history{border-top:1px solid #e5e5e5;margin-top:24px;padding-top:18px}
+.ts-buyer-chain-page .chain-ticket-history summary{cursor:pointer;font-weight:600}
+.ts-buyer-chain-page .chain-ticket-history .ts-transfer-receipt{margin-top:18px;padding:20px;background:#fafafa}
+@media(max-width:600px){.ts-buyer-chain-page .chain-ticket-group{padding:18px}.ts-buyer-chain-page .ts-transfer-facts{grid-template-columns:1fr}}
+</style>
 <main class="ts-section-tight ts-buyer-chain-page" data-chain-role="buyer"><div class="ts-container">
   <a class="ts-record-back" href="tickets.php">&larr; My Tickets</a>
   <header class="chain-page-heading"><div><div class="ts-section-eyebrow">My blockchain transactions</div><h1>Your tickets.<br>On the record.</h1><p>Keep track of your ticket NFTs, transfers and resale purchases. Your wallet gives the final approval.</p></div><div class="chain-network-card"><span class="chain-network-label"><span aria-hidden="true"></span> Ethereum Sepolia</span><strong>Your wallet.<br>Your approval.</strong><span>Test network · Chain ID 11155111</span><button type="button" class="ts-btn ts-btn-secondary" id="buyer-chain-refresh"><?=ts_icon('activity')?> Refresh activity</button></div></header>

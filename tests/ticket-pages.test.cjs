@@ -33,7 +33,7 @@ function createPage(name, options = {}) {
         tsCurrentUser: { uid: 'buyer-1' },
         tsFace: { request: async () => {
             if (options.faceError) throw Error('Face service unavailable');
-            return options.identity || { registered: true, eligible: true, qr: 'TKSECURE2:ticket-1:event-1:registration:' + 'a'.repeat(64) };
+            return options.identity || { registered: true, eligible: true, chainReady: true, qr: 'TKSECURE2:ticket-1:event-1:registration:' + 'a'.repeat(64) };
         } },
         addEventListener(type, callback) { if (type === 'ts-auth-ready') ready = callback; },
         tsBookings: { getBooking: async () => options.booking || booking },
@@ -171,7 +171,7 @@ test('a different owner and stale signed-out requests cannot display ticket deta
 });
 
 test('unregistered tickets and unavailable face service never expose ticket details or QR', async () => {
-    const p = createPage('ticket-detail', {identity:{registered:false,eligible:true,message:'Register your face'}});
+    const p = createPage('ticket-detail', {identity:{registered:false,eligible:true,chainReady:true,message:'Register your face'}});
     await p.ready();
     assert.equal(p.elements.get('ticket-content').hidden,true);
     assert.equal(p.elements.get('ticket-face-gate').hidden,false);
@@ -186,6 +186,9 @@ test('unregistered tickets and unavailable face service never expose ticket deta
 test('missing event or a pending NFT never produces an entry QR even for a registered face', async () => {
     const p = createPage('ticket-detail',{eventError:true}); await p.ready();
     assert.equal(p.elements.get('download-qr').disabled,true);
-    const pending = createPage('ticket-detail',{identity:{registered:true,eligible:false,qr:null}}); await pending.ready();
+    const pending = createPage('ticket-detail',{identity:{registered:true,eligible:false,chainReady:false,qr:null}}); await pending.ready();
     assert.equal(pending.elements.get('download-qr').disabled,true);
+    assert.equal(pending.elements.get('ticket-content').hidden,true);
+    assert.equal(pending.elements.get('ticket-face-register').hidden,true);
+    assert.match(pending.elements.get('ticket-face-message').textContent,/Complete the NFT transaction/);
 });

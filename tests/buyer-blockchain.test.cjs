@@ -17,8 +17,9 @@ function page(options={}){
         localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){}});
     vm.runInContext(fs.readFileSync('assets/js/blockchain-display.js','utf8'),context);vm.runInContext(fs.readFileSync('assets/js/buyer-blockchain.js','utf8').replace(/^import .*;\r?\n/gm,''),context);
     return {window,elements,calls,storage,events,ready:async()=>{window.tsCurrentUser={uid:role,role,status:'active'};await events['ts-auth-ready']();},
-        button:()=>elements.get('buyer-chain-list').children[0].children.find(child=>child.listeners?.click)};
+        button:()=>descendants(elements.get('buyer-chain-list')).find(child=>child.listeners?.click)};
 }
+const descendants=node=>node.children.flatMap(child=>[child,...descendants(child)]);
 const text=node=>[node.textContent||'',...node.children.map(text)].join(' ');
 test('buyer cancellation prevents wallet submission and choosing the wrong wallet cannot sign',async()=>{
     const p=page({cancel:true});await p.ready();await p.button().listeners.click();assert.equal(p.calls.prepare.length,1);assert.equal(p.calls.send.length,0);assert.equal(p.calls.verify.length,0);assert.equal(p.calls.decision[0].requireAdmin,undefined);
@@ -40,4 +41,17 @@ test('organizer blockchain view uses its own management page and never loads buy
     const html=fs.readFileSync('organizer/blockchain.php','utf8');
     assert.match(html,/organizer-blockchain.js/);assert.doesNotMatch(html,/buyer-blockchain.js|buyer-chain-recover/);
     const admin=fs.readFileSync('admin/blockchain.php','utf8');assert.doesNotMatch(admin,/chain-connect|blockchain-wallet.js/);
+});
+
+test('earlier mint and current resale are grouped and a pending handover cannot open the ticket',async()=>{
+ const p=page({load:async()=>({configured:true,records:[
+  {id:'mint',ticketId:'ticket',transactionType:'MINT',timestamp:'2026-11-15',status:'CONFIRMED',verificationVersion:2,isCurrentOwner:true},
+  {id:'resale',ticketId:'ticket',transactionType:'RESALE',timestamp:'2026-11-16',status:'PENDING',performedByYou:true,canSubmit:true,isCurrentOwner:true}
+ ]})});
+ await p.ready();
+ const list=p.elements.get('buyer-chain-list');
+ assert.equal(list.children.length,1);
+ assert.match(text(list),/Earlier ticket history \(1\)/);
+ assert.match(text(list),/Ticket locked/);
+ assert.ok(!descendants(list).some(node=>node.textContent==='View ticket'));
 });

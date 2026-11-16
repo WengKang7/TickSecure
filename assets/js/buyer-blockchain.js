@@ -12,16 +12,41 @@ function render(){
     el('buyer-chain-refresh').disabled=busy;el('buyer-chain-pending').textContent=String(records.filter(r=>!D.confirmed(r)).length);el('buyer-chain-confirmed').textContent=String(records.filter(D.confirmed).length);
     const search=el('buyer-chain-search').value.trim().toLowerCase(),status=el('buyer-chain-filter').value;
     const shown=records.filter(r=>(!params.get('recordId')||r.id===params.get('recordId'))&&(!status||r.status===status)&&[r.eventName,r.ticketId,r.transactionHash,r.walletAddress,r.actorWallet].some(v=>String(v||'').toLowerCase().includes(search)));
+    const ticketReady = ticketId => {
+        const operations = records.filter(record => record.ticketId === ticketId);
+        return operations.length > 0 && operations.every(D.confirmed);
+    };
     const cards=shown.map(record=>{
         const card=D.receipt(record);
         if(role==='buyer'&&!D.confirmed(record)&&record.performedByYou){
             const hash=knownHash(record),button=D.node('button','ts-btn ts-btn-primary',hash?'Verify my transaction':({MINT:'Mint my NFT',TRANSFER:'Complete NFT transfer',RESALE:'Receive resale NFT'}[record.transactionType]||'Approve in MetaMask'));
             button.type='button';button.disabled=busy||(!record.canSubmit&&!hash);button.addEventListener('click',()=>run(v=>publish(record,v)));card.append(button);
         }else if(role==='buyer'&&!D.confirmed(record))card.append(D.node('p','small secondary','This operation must be submitted by the responsible buyer.'));
-        if(record.isCurrentOwner){const link=D.node('a','ts-btn ts-btn-secondary','View ticket');link.href='ticket-detail.php?id='+encodeURIComponent(record.ticketId);card.append(link);}
+        if(record.isCurrentOwner&&ticketReady(record.ticketId)){const link=D.node('a','ts-btn ts-btn-secondary','View ticket');link.href='ticket-detail.php?id='+encodeURIComponent(record.ticketId);card.append(link);}
         return card;
     });
-    el('buyer-chain-list').replaceChildren(...(cards.length?cards:[D.node('p','ts-transfer-empty','No matching blockchain records for your account.')]));
+    const groups = new Map();
+    shown.forEach((record,index) => {
+        if(!groups.has(record.ticketId))groups.set(record.ticketId,[]);
+        groups.get(record.ticketId).push({record,card:cards[index]});
+    });
+    const tickets = [...groups.entries()].map(([ticketId,items]) => {
+        items.sort((a,b)=>String(a.record.timestamp||'').localeCompare(String(b.record.timestamp||'')));
+        const ticket = D.node('section','chain-ticket-group');
+        const current = items.at(-1);
+        ticket.append(D.node('p','chain-current-label','Latest NFT operation'),current.card);
+        if(items.some(item=>item.record.isCurrentOwner)&&!ticketReady(ticketId)){
+            ticket.append(D.node('p','chain-ticket-locked','Ticket locked until all NFT operations are confirmed.'));
+        }
+        if(items.length>1){
+            const history=D.node('details','chain-ticket-history');
+            history.append(D.node('summary','', 'Earlier ticket history ('+(items.length-1)+')'));
+            items.slice(0,-1).reverse().forEach(item=>history.append(item.card));
+            ticket.append(history);
+        }
+        return ticket;
+    });
+    el('buyer-chain-list').replaceChildren(...(tickets.length?tickets:[D.node('p','ts-transfer-empty','No matching blockchain records for your account.')]));
     const select=el('buyer-chain-recovery-id');if(select){const value=select.value;select.replaceChildren(...records.filter(r=>r.performedByYou).map(r=>{const option=D.node('option','',r.transactionType+' · '+r.ticketId+' · '+r.id);option.value=r.id;return option;}));if(records.some(r=>r.id===value))select.value=value;el('buyer-chain-recover').disabled=busy||!select.children.length;}
 }
 async function refresh(v=version){const result=await(role==='organizer'?sepolia.listOrganizer(filters):sepolia.listBuyer(filters));if(v!==version||!active())return;records=result.records||[];configured=result.configured;render();if(!configured)message('The event organizer must finish their Sepolia contract setup before transactions can be submitted.');}

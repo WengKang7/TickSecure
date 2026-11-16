@@ -49,7 +49,7 @@ final class TicketFaceService {
             [$ticket, $event, $record] = $this->context($tx, $claims, $id);
             $registered = face_registered($record, $ticket);
             $eligible = ($ticket['status'] ?? '') === 'VALID' && ($event['status'] ?? '') === 'PUBLISHED' && face_chain_ready($ticket);
-            return ['registered' => $registered, 'eligible' => $eligible,
+            return ['registered' => $registered, 'eligible' => $eligible, 'chainReady' => face_chain_ready($ticket),
                 'qr' => $eligible && $registered ? face_qr($id, $ticket, $record, $this->key) : null,
                 'message' => $registered ? 'Face registered. Show your QR and verify your face at entry.'
                     : ($eligible ? 'Register your face to unlock the entry QR.' : 'A valid ticket and confirmed current-owner NFT are required before registration.')];
