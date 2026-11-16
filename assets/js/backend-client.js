@@ -78,6 +78,7 @@ export async function invokeTrustedBackend(request, config) {
         && window.tsFirebase?.emulator?.enabled !== true
         && ['getEventAvailability', 'getSeatMap', 'holdSelectedSeats', 'reserveSeats', 'releaseSeatReservation', 'checkout',
             'submitEventForReview', 'checkEventContent', 'moderateEvent', 'transferTicket', 'getTicketTransfers',
+            'createResaleListing', 'updateResalePrice', 'cancelResaleListing', 'suspendResaleListing', 'purchaseResale',
             'getBlockchainSettings', 'configureBlockchain', 'prepareBlockchainOperation', 'verifyBlockchainOperation',
             'getBuyerBlockchainOperations', 'getOrganizerBlockchainOperations', 'getDemoFundingSettings',
             'getDemoFundingChallenge', 'claimDemoFunding', 'retryDemoFunding'].includes(config.name);

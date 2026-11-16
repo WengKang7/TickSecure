@@ -1,5 +1,5 @@
 import { auth, db } from './firebase-init.js';
-import { invokeTrustedBackend } from './backend-client.js?v=20261113-render-review-v3';
+import { invokeTrustedBackend } from './backend-client.js?v=20261116-hosted-resale';
 import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,

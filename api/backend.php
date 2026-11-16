@@ -67,7 +67,8 @@ function backend_checkout_is_enabled(): bool
 
 function backend_resale_is_enabled(): bool
 {
-    return getenv('TICKSECURE_PHP_RESALE') === '1' && backend_is_loopback_request();
+    return (getenv('TICKSECURE_PHP_RESALE') === '1' && backend_is_loopback_request())
+        || getenv('TICKSECURE_HOSTED_RESALE') === '1';
 }
 
 function backend_transfer_is_enabled(): bool
