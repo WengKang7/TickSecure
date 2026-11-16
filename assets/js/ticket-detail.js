@@ -35,6 +35,7 @@ window.addEventListener('ts-auth-ready', async () => {
     el('download-qr').disabled = true;
     el('view-booking').hidden = true;
     el('ticket-face-gate').hidden = true;
+    el('ticket-face-nft').hidden = true;
     artworkReady = false; flipTicket(false); el('ticket-flip-button').disabled = true;
     el('ticket-art-image').removeAttribute('src');
     downloadSvg = '';
@@ -49,6 +50,7 @@ window.addEventListener('ts-auth-ready', async () => {
         const ticket = { ...record, id };
         const identity = await window.tsFace.request('status', { ticketId: id });
         if (version !== loadVersion) return;
+        el('ticket-face-nft').hidden = identity.chainReady === true;
         el('ticket-face-manage').href = 'face-registration.php?ticketId=' + encodeURIComponent(id);
         if (identity.chainReady !== true && ticket.status !== 'USED') {
             el('ticket-face-gate').hidden = false;

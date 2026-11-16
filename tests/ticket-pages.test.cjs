@@ -176,6 +176,7 @@ test('unregistered tickets and unavailable face service never expose ticket deta
     assert.equal(p.elements.get('ticket-content').hidden,true);
     assert.equal(p.elements.get('ticket-face-gate').hidden,false);
     assert.equal(p.elements.get('ticket-face-register').href,'face-registration.php?ticketId=ticket-1');
+    assert.equal(p.elements.get('ticket-face-nft').hidden,true);
     assert.equal(p.elements.get('download-qr').disabled,true);
     assert.equal(p.elements.get('ticket-flip-button').disabled,true);
     const fail = createPage('ticket-detail',{faceError:true}); await fail.ready();
@@ -190,5 +191,6 @@ test('missing event or a pending NFT never produces an entry QR even for a regis
     assert.equal(pending.elements.get('download-qr').disabled,true);
     assert.equal(pending.elements.get('ticket-content').hidden,true);
     assert.equal(pending.elements.get('ticket-face-register').hidden,true);
+    assert.equal(pending.elements.get('ticket-face-nft').hidden,false);
     assert.match(pending.elements.get('ticket-face-message').textContent,/Complete the NFT transaction/);
 });
