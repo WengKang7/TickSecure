@@ -1,13 +1,14 @@
-TickSecure Entry 1.3.0 (build 5)
+TickSecure Entry 1.3.1 (build 6)
 Built: 2026-11-16
 Package: com.ticksecure.ticksecure_checkin
-Android: 7.0+ (API 24), target API 36
+Android: 7.0+ (API 24)
 Server: https://ticksecure.onrender.com/api/face.php
-Connection: Wi-Fi or mobile data. USB and PC not required for hosted mode.
-Sign in: Existing active organizer or administrator account.
-Workflow: QR verification, consent, five guided face poses, server face matching, atomic USED status.
-Network requests do not automatically retry check-in after errors.
-Checks: 7 Flutter tests passed, Flutter analyze passed, release build passed, APK signature verified.
-Signing: Existing debug certificate retained for demo update compatibility.
-Physical device camera and hosted face-matching end-to-end rehearsal still required.
-APK SHA256: BFDFB024B355537543B015522484674F9F944FD19A388371D6A919D0A0909C5D
+Connection: Wi-Fi or mobile data. No USB or PC required in hosted mode.
+Capture: Five automatic forward-facing images. No check-in head turns.
+Quality: Auto focus/exposure where supported; reject blurred, poorly lit, multiple or off-angle faces; select three sharpest accepted consistent samples.
+Identity: Existing comparison threshold, registered owner, QR and single-use checks retained.
+Supervision: Head-turn challenge removed from new Android check-in. Staff must supervise live attendee.
+Checks: 7 Flutter tests, Flutter analyze, 9 image-processing tests, 5 pose tests, 25 PHP security checks, 8 JS checks passed.
+APK signature verified and update compatible with previous demo APK.
+Physical camera and recognition accuracy must still be tested on actual devices and lighting.
+APK SHA256: 633B01ED0D5F3917A1D9E0233F871DA5484D0DE7CADB92A5CFF07200D426476A

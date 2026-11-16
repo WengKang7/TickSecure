@@ -222,7 +222,10 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
       status = 'Checking QR, current owner and NFT status…';
     });
     try {
-      final result = await api.call('beginCheckIn', {'qr': text});
+      final result = await api.call('beginCheckIn', {
+        'qr': text,
+        'captureMode': 'frontal',
+      });
       if (!current(value)) return;
       if (result['challengeId'] is! String) {
         throw const CheckinException(
@@ -277,6 +280,12 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
       );
       camera = next;
       await next.initialize();
+      try {
+        await next.setFocusMode(FocusMode.auto);
+      } catch (_) {}
+      try {
+        await next.setExposureMode(ExposureMode.auto);
+      } catch (_) {}
       if (!current(value) || camera != next) {
         await next.dispose();
         return;
@@ -333,17 +342,19 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
       busy = true;
       error = '';
       receipt = null;
-      status = 'Follow the five face movement directions.';
+      status = 'Look straight ahead and hold still while your face is scanned.';
     });
     final frames = <String>[];
     try {
       final steps = faceMovements(challenge!['movements']);
+      final frontal = steps.every((step) => step == 'center');
       for (var i = 0; i < steps.length; i++) {
-        for (var seconds = 3; seconds > 0; seconds--) {
+        for (var seconds = frontal ? 1 : 3; seconds > 0; seconds--) {
           if (!current(value)) return;
           setState(() {
-            status =
-                'Step ${i + 1} of 5: ${faceInstruction(steps[i])}. Hold for $seconds…';
+            status = frontal
+                ? 'Scanning face ${i + 1} of 5. Look straight ahead.'
+                : 'Step ${i + 1} of 5: ${faceInstruction(steps[i])}. Hold for $seconds…';
           });
           await Future<void>.delayed(const Duration(seconds: 1));
         }
@@ -594,7 +605,7 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
                           ),
                           Text('Seat ${challenge!['seat']}'),
                           const Text(
-                            'Follow five head movement directions within 90 seconds. Staff should read the prompts to the attendee.',
+                            'Look straight ahead and hold still during the automatic face scan. Staff must supervise the attendee.',
                           ),
                         ],
                       ),

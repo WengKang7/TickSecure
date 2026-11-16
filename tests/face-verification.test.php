@@ -225,5 +225,16 @@ $tests['failed enrollment movement cannot be replayed and old checkin challenge 
     unset($db->rows['FaceChallenges/'.$c['challengeId']]['movements']);
     denied(fn () => $s->complete(claims('organizer'), $c['challengeId'], []));
 };
+$tests['frontal checkin is server bound and enrollment still requires turns'] = function () {
+    [$db, $s, $key, $qr] = enrolled();
+    $c = $s->begin(claims('organizer'), $qr, true);
+    ensure($c['movements'] === array_fill(0, 5, 'center'), 'frontal challenge returned');
+    ensure($db->rows['FaceChallenges/'.$c['challengeId']]['movements'] === $c['movements'], 'mode stored on server');
+    denied(fn () => face_movements(array_fill(0, 5, 'center')));
+    ensure(face_movements(array_fill(0, 5, 'center'), true) === $c['movements'], 'check-in accepts frontal capture');
+    $result = $s->complete(claims('organizer'), $c['challengeId'], ['mock']);
+    ensure($result['valid'] === true, 'matching frontal capture admits');
+    ensure($db->rows['NFTTickets/ticket']['status'] === 'USED', 'single use retained');
+};
 foreach ($tests as $name => $run) { $run(); echo "PASS $name\n"; }
 echo count($tests) . " face security checks passed.\n";

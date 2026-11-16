@@ -1,3 +1,9 @@
+# Version 1.3.1 — automatic forward-facing entry scan
+
+At check-in, look straight at the camera while the app takes five quick pictures automatically. No head turns are required. The server checks that each capture contains one sharp, evenly lit, frontal face, compares consistent samples with the registered owner, and uses the three sharpest accepted samples.
+
+Staff must supervise the attendee. This forward-facing scan does not include the head-turn challenge. Buyer face registration keeps its existing guided process. The comparison threshold, current-owner checks and single-entry status remain enforced. Camera accuracy still requires testing with your actual lighting and devices.
+
 # TickSecure Entry 1.3.0 (build 5) — hosted Android check-in
 
 The APK connects to https://ticksecure.onrender.com over HTTPS using Wi-Fi or mobile data. A USB connection, PC and XAMPP are unnecessary for hosted check-in.

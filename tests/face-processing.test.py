@@ -3,6 +3,10 @@ import base64
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest.mock import patch
+import io
+import json
+import sys
 import cv2
 import numpy as np
 
@@ -78,6 +82,35 @@ class ProcessingTests(unittest.TestCase):
         _, raw = cv2.imencode('.jpg', np.zeros((1400, 1400, 3), np.uint8))
         with self.assertRaisesRegex(ValueError, '1280'):
             worker.jpeg_size(raw.tobytes())
+
+
+
+class FrontalSelectionTests(unittest.TestCase):
+    def test_frontal_scan_selects_three_sharpest_consistent_samples(self):
+        sys.path.insert(0, str(Path(worker.__file__).parent))
+        import movement
+        class Detector:
+            def close(self):
+                pass
+        vectors = []
+        for i in range(5):
+            vector = np.zeros(128)
+            vector[0] = 1
+            vector[i + 1] = .01
+            vectors.append((vector / np.linalg.norm(vector)).tolist())
+        qualities = [30, 80, 40, 90, 60]
+        def capture(frame, detector, recognizer, pose_detector, poses, scores):
+            index = int(frame)
+            poses.append({'yaw': 0, 'roll': 0, 'offset': 0})
+            scores.append(qualities[index])
+            return vectors[index]
+        payload = json.dumps({'frames': list(map(str, range(5))), 'movements': ['center'] * 5}).encode()
+        with patch.object(worker.sys, 'stdin', type('Input', (), {'buffer': io.BytesIO(payload)})()), \
+             patch.object(worker, 'extract', side_effect=capture), \
+             patch.object(movement, 'MovementDetector', return_value=Detector()):
+            result = worker.main()
+        self.assertEqual(result['movementCheck'], 'frontal-v1')
+        self.assertEqual(result['vectors'], [vectors[3], vectors[1], vectors[4]])
 
 
 if __name__ == '__main__':

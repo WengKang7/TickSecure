@@ -114,9 +114,9 @@ final class TicketFaceService {
             return ['registered' => false];
         });
     }
-    public function begin(array $claims, string $qr): array {
+    public function begin(array $claims, string $qr, bool $frontal = false): array {
         $parsed = face_parse_qr($qr);
-        return $this->db->transaction(function ($tx) use ($claims, $parsed) {
+        return $this->db->transaction(function ($tx) use ($claims, $parsed, $frontal) {
             $id = $parsed['ticketId'];
             [$ticket, $event, $record] = $this->context($tx, $claims, $id, true);
             face_entry_eligible($ticket, $event);
@@ -125,7 +125,7 @@ final class TicketFaceService {
             }
             $this->rate($tx, (string)$claims['sub']);
             $challenge = bin2hex(random_bytes(24));
-            $movements = $this->movements();
+            $movements = $frontal ? array_fill(0, 5, 'center') : $this->movements();
             $tx->create('FaceChallenges', $challenge, ['kind' => 'checkin', 'movements' => $movements, 'scannerUid' => $claims['sub'], 'ticketId' => $id,
                 'revision' => face_revision($ticket), 'version' => $record['version'], 'expiresAt' => time() + 90, 'used' => false]);
             return ['challengeId' => $challenge, 'movements' => $movements, 'expiresIn' => 90, 'eventName' => $event['name'] ?? 'Event',
@@ -143,7 +143,7 @@ final class TicketFaceService {
             if (!face_registered($record, $ticket) || $challenge['revision'] !== face_revision($ticket) || $challenge['version'] !== $record['version']) {
                 face_fail('Ticket ownership or face registration changed. Scan the current QR again.');
             }
-            face_movements($challenge['movements'] ?? null);
+            face_movements($challenge['movements'] ?? null, true);
             $tx->update('FaceChallenges', $challengeId, ['used' => true]);
             return [$challenge, $record];
         });

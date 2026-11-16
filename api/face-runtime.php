@@ -24,7 +24,7 @@ function face_runtime_config(): array {
     return ['key' => $key, 'python' => (string)($config['python'] ?? 'python')];
 }
 function face_extract(array $frames, string $python, array $movements): array {
-    face_movements($movements);
+    face_movements($movements, true);
     if (count($frames) !== 5) face_fail('Complete all five guided camera steps. Update the mobile app if needed.', 'invalid-argument', 400);
     foreach ($frames as $frame) if (!is_string($frame) || strlen($frame) > 1000000 || !preg_match('/^[A-Za-z0-9+\/=]+$/D', $frame)) {
         face_fail('Invalid camera image.', 'invalid-argument', 400);
@@ -45,6 +45,6 @@ function face_extract(array $frames, string $python, array $movements): array {
     $output = stream_get_contents($pipes[1], 40000); fclose($pipes[1]); proc_close($process);
     $result = json_decode($output, true);
     if (isset($result['error'])) face_fail((string)$result['error'], 'face-capture-failed');
-    if (($result['data']['model'] ?? '') !== FACE_MODEL || ($result['data']['movementCheck'] ?? '') !== 'head-turn-v1') face_fail('Face models are unavailable. Ask the organizer to check the setup.', 'unavailable', 503);
+    if (($result['data']['model'] ?? '') !== FACE_MODEL || ($result['data']['movementCheck'] ?? '') !== ($movements === array_fill(0, 5, 'center') ? 'frontal-v1' : 'head-turn-v1')) face_fail('Face models are unavailable. Ask the organizer to check the setup.', 'unavailable', 503);
     return face_vectors($result['data']['vectors'] ?? null);
 }

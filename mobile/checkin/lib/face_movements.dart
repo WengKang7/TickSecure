@@ -8,6 +8,7 @@ List<String> faceMovements(dynamic value) {
   }
   final steps = value.cast<String>();
   if (![
+    'center,center,center,center,center',
     'center,left,center,right,center',
     'center,right,center,left,center',
   ].contains(steps.join(','))) {

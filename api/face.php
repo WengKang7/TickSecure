@@ -38,7 +38,7 @@ try {
         'beginEnrollment' => $service->beginEnrollment($claims, face_id($input['ticketId'] ?? null)),
         'enroll' => $service->enroll($claims, face_id($input['ticketId'] ?? null), (array)($input['frames'] ?? []), ($input['consent'] ?? false) === true, face_id($input['challengeId'] ?? null)),
         'remove' => $service->remove($claims, face_id($input['ticketId'] ?? null)),
-        'beginCheckIn' => $service->begin($claims, (string)($input['qr'] ?? '')),
+        'beginCheckIn' => $service->begin($claims, (string)($input['qr'] ?? ''), ($input['captureMode'] ?? '') === 'frontal'),
         'completeCheckIn' => $service->complete($claims, face_id($input['challengeId'] ?? null), (array)($input['frames'] ?? [])),
         'testFace' => $service->complete($claims, face_id($input['challengeId'] ?? null), (array)($input['frames'] ?? []), false),
         default => throw new FirebaseBackendException(400, 'Unknown face verification action.', 'invalid-argument')

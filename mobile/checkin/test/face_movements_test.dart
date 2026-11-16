@@ -13,6 +13,7 @@ void main() {
         expect(faceMovements(sequence), sequence);
         expect(faceInstruction(turns[0]), contains(turns[0]));
       }
+      expect(faceMovements(List.filled(5, 'center')), List.filled(5, 'center'));
       expect(faceInstruction('center'), contains('straight'));
       for (final value in [
         null,
