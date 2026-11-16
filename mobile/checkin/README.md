@@ -1,3 +1,22 @@
+# TickSecure Entry 1.3.0 (build 5) — hosted Android check-in
+
+The APK connects to https://ticksecure.onrender.com over HTTPS using Wi-Fi or mobile data. A USB connection, PC and XAMPP are unnecessary for hosted check-in.
+
+1. Download and install downloads/ticksecure-entry-demo.apk on Android 7.0 or later. Update over the existing app.
+2. Keep the check-in website set to https://ticksecure.onrender.com.
+3. Sign in with an active organizer or administrator account. Organizers can check in their own events.
+4. Allow camera access and scan the attendee's ticket QR.
+5. Confirm the attendee's consent, start the face camera and follow its five movement directions.
+6. The server compares captures with the buyer's registered face. Entry is allowed only after it confirms that the ticket is USED.
+
+The app sends the camera frames to your Render server for face matching. Tokens stay in memory. Private server keys and saved biometric templates are never included in the APK. Successful entry consumes a real demo ticket. Physical camera and internet testing must be rehearsed on your device.
+
+The app waits up to 120 seconds for requests because Render can sleep while idle. If a check-in request times out, scan the ticket again to check its status before retrying.
+
+## Optional local Wi-Fi or USB fallback
+
+The previous local connection instructions below remain available when using your PC as the server.
+
 ## Wi-Fi upgrade — version 1.2.0 (build 3)
 
 Install the updated APK over the existing app. Wi-Fi setup is described below. USB remains available by entering http://127.0.0.1:8080/ticksecure-ui and running Connect-USB.ps1. Existing face registrations remain usable. The earlier three-image APK cannot complete the new server movement check. No extra SepoliaETH is needed.

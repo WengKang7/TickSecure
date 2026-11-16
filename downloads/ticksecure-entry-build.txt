@@ -1,16 +1,13 @@
-TickSecure Entry 1.2.1 (build 4) - Android Wi-Fi FYP demo
-Built: 2026-11-12
+TickSecure Entry 1.3.0 (build 5)
+Built: 2026-11-16
 Package: com.ticksecure.ticksecure_checkin
 Android: 7.0+ (API 24), target API 36
-Build: Flutter 3.41.5 / Dart 3.11.3 / JDK 17
-APK: release compilation, debug certificate for local sideload demonstration
-Checks: Flutter analyze passed; 6 Flutter tests passed; Android release build passed.
-Runtime: XAMPP Apache and face matcher on PC. Both devices use the same trusted Wi-Fi and need internet for Firebase.
-Configured PC: http://192.168.100.104/ticksecure-ui
-Android permits HTTP only for configured PC and loopback. HTTP images/tokens are unencrypted. Reserve this IP or rebuild if it changes.
-LAN API checked: unauthenticated POST correctly returns 401.
-Windows Wi-Fi profile currently Public. Private-profile Apache firewall setup needs an Administrator PowerShell window. No existing TickSecure Wi-Fi firewall rule was found during this build.
-Hardware: No physical phone/camera Wi-Fi end-to-end rehearsal performed.
-Setup: mobile/checkin/README.md and Connect-WiFi.ps1. USB fallback remains available.
-Successful entry consumes the real demo ticket. Use a fresh registered demo ticket.
-APK SHA256: 0F771388A07E864651FE23369B6E40A94294025472AF9157DD0B212D1D46FA8B
+Server: https://ticksecure.onrender.com/api/face.php
+Connection: Wi-Fi or mobile data. USB and PC not required for hosted mode.
+Sign in: Existing active organizer or administrator account.
+Workflow: QR verification, consent, five guided face poses, server face matching, atomic USED status.
+Network requests do not automatically retry check-in after errors.
+Checks: 7 Flutter tests passed, Flutter analyze passed, release build passed, APK signature verified.
+Signing: Existing debug certificate retained for demo update compatibility.
+Physical device camera and hosted face-matching end-to-end rehearsal still required.
+APK SHA256: BFDFB024B355537543B015522484674F9F944FD19A388371D6A919D0A0909C5D

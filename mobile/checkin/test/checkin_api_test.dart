@@ -7,6 +7,26 @@ import 'package:ticksecure_checkin/checkin_api.dart';
 import 'package:ticksecure_checkin/main.dart';
 
 void main() {
+  test('hosted check-in accepts only the TickSecure HTTPS origin', () {
+    final api = CheckinApi(apiKey: 'key');
+    api.setServer('https://ticksecure.onrender.com/');
+    expect(
+      api.endpoint.toString(),
+      'https://ticksecure.onrender.com/api/face.php',
+    );
+    for (final address in [
+      'http://ticksecure.onrender.com',
+      'https://ticksecure.onrender.com.evil.test',
+      'https://ticksecure.onrender.com:444',
+      'https://ticksecure.onrender.com/api',
+      'https://user@ticksecure.onrender.com',
+      'https://ticksecure.onrender.com/?token=secret',
+    ]) {
+      expect(() => api.setServer(address), throwsA(isA<CheckinException>()));
+    }
+    api.dispose();
+  });
+
   test(
     'Wi-Fi routes only the staff API to the PC and blocks redirects',
     () async {
@@ -56,7 +76,7 @@ void main() {
   );
 
   test(
-    'staff session uses Firebase identity and then the protected loopback endpoint',
+    'staff session uses Firebase identity and then the protected hosted endpoint',
     () async {
       final requests = <http.Request>[];
       final api = CheckinApi(

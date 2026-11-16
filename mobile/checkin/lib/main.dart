@@ -79,13 +79,11 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
   final email = TextEditingController(),
       password = TextEditingController(),
       qr = TextEditingController(),
-      server = TextEditingController(text: 'http://192.168.100.104/ticksecure-ui');
+      server = TextEditingController(text: 'https://ticksecure.onrender.com');
   CameraController? camera;
   Map<String, dynamic>? staff, challenge, receipt;
   DateTime? expiry;
-  String status =
-          'Connect your phone and PC to the same Wi-Fi before signing in.',
-      error = '';
+  String status = 'Connect to Wi-Fi or mobile data, then sign in.', error = '';
   bool busy = false, consent = false, foreground = true;
   int generation = 0;
   CameraLensDirection facing = CameraLensDirection.back;
@@ -513,7 +511,7 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
                 gap(),
                 if (staff == null) ...[
                   const Text(
-                    'Use your existing organizer or administrator account. Your PC performs face matching over Wi-Fi.',
+                    'Sign in with your organizer or administrator account.',
                   ),
                   gap(),
                   TextField(
@@ -522,9 +520,9 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
                     keyboardType: TextInputType.url,
                     autocorrect: false,
                     decoration: const InputDecoration(
-                      labelText: 'PC server address',
+                      labelText: 'Check-in website',
                       helperText:
-                          'Connect to the same trusted Wi-Fi as the PC.',
+                          'Use the hosted website for check-in over the internet.',
                     ),
                   ),
                   gap(),
@@ -705,7 +703,7 @@ class _EntryScreenState extends State<EntryScreen> with WidgetsBindingObserver {
                   ),
                 gap(),
                 const Text(
-                  'Local FYP demonstration. Staff must supervise the attendee. Keep the PC, Wi-Fi and XAMPP running.',
+                  'FYP demonstration. Staff must supervise the attendee. Keep this device connected to the internet.',
                   style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),
               ],

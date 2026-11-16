@@ -10,10 +10,10 @@ class CheckinException implements Exception {
 }
 
 /// Tokens stay in memory. Face templates and service-account credentials never
-/// enter the app. The selected server must use a private IPv4 or loopback address.
+/// enter the app. Public hosting is restricted to the TickSecure HTTPS origin.
 class CheckinApi {
   static final defaultEndpoint = Uri.parse(
-    'http://127.0.0.1:8080/ticksecure-ui/api/face.php',
+    'https://ticksecure.onrender.com/api/face.php',
   );
   Uri endpoint = defaultEndpoint;
   final String apiKey;
@@ -26,6 +26,12 @@ class CheckinApi {
 
   void setServer(String address) {
     final uri = Uri.tryParse(address.trim());
+    final hosted =
+        uri != null &&
+        uri.scheme == 'https' &&
+        uri.host == 'ticksecure.onrender.com' &&
+        (!uri.hasPort || uri.port == 443) &&
+        (uri.path.isEmpty || uri.path == '/');
     final parts = uri?.host.split('.').map(int.tryParse).toList();
     final ipv4 =
         parts != null &&
@@ -38,13 +44,13 @@ class CheckinApi {
             (parts[0] == 192 && parts[1] == 168) ||
             (parts[0] == 172 && parts[1]! >= 16 && parts[1]! <= 31));
     if (uri == null ||
-        !private ||
+        (!private && !hosted) ||
         !['http', 'https'].contains(uri.scheme) ||
         uri.userInfo.isNotEmpty ||
         uri.hasQuery ||
         uri.hasFragment) {
       throw const CheckinException(
-        'Enter your PC address, for example http://192.168.100.104/ticksecure-ui',
+        'Use https://ticksecure.onrender.com, or your supported local PC address.',
       );
     }
     if (uri.scheme == 'http' &&
@@ -82,7 +88,7 @@ class CheckinApi {
       final response = await client
           .send(request)
           .then(http.Response.fromStream)
-          .timeout(const Duration(seconds: 45));
+          .timeout(const Duration(seconds: 120));
       final decoded = jsonDecode(response.body);
       if (decoded is! Map<String, dynamic>) throw const FormatException();
       if (response.statusCode < 200 ||
@@ -101,11 +107,11 @@ class CheckinApi {
       );
     } on http.ClientException {
       throw const CheckinException(
-        'Cannot reach the PC. Connect the phone and PC to the same Wi-Fi, start XAMPP Apache, and check the PC address and firewall.',
+        'Cannot reach the check-in server. Check your internet connection and server address. For local mode, check the PC, Wi-Fi and XAMPP.',
       );
     } on FormatException {
       throw const CheckinException(
-        'The server returned an unexpected response. Check XAMPP and the /ticksecure-ui/api/face.php address.',
+        'The server returned an unexpected response. Render may be starting up. Wait briefly and sign in again.',
       );
     }
   }
