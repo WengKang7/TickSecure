@@ -3,10 +3,26 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<main class="ts-section-tight"><div class="ts-container"><div class="ts-content-grid">
-  <div>
+<style>
+.rd-page .ts-content-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr);gap:24px;align-items:start}
+.rd-page .rd-main{display:grid;gap:24px;min-width:0}.rd-page .rd-main>.ts-card{margin-top:0}
+.rd-page #rd-event-name{font-size:clamp(28px,3vw,44px);line-height:1.2;letter-spacing:-.035em;margin:12px 0;overflow-wrap:anywhere}
+.rd-page .rd-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.rd-page #rd-status-badge{flex-shrink:0;align-self:flex-start}
+.rd-page .rd-photo{width:100%;height:300px;object-fit:cover;border-radius:10px;margin-bottom:24px;display:block}
+.rd-page .ts-detail-item{min-width:0;padding:16px 0}.rd-page .ts-detail-value{overflow-wrap:anywhere}
+.rd-page .rd-about{white-space:pre-line;line-height:1.8;margin-top:12px}
+.rd-page #event-location-map{height:300px;width:100%;border-radius:10px;isolation:isolate;z-index:0;margin-top:20px}
+.rd-page #event-location-address{margin:8px 0;line-height:1.7}
+.rd-page .ts-order-summary .ts-summary-row{display:flex;justify-content:space-between;gap:16px;padding:14px 0}
+.rd-page .ts-order-summary p{margin-top:16px;line-height:1.7}.rd-page [hidden]{display:none!important}
+@media(max-width:900px){.rd-page .ts-content-grid{grid-template-columns:1fr}.rd-page .rd-photo{height:240px}}
+</style>
+<main class="ts-section-tight rd-page"><div class="ts-container"><div class="ts-content-grid">
+  <div class="rd-main">
     <div class="ts-card ts-card-pad">
-      <div class="flex justify-between items-start">
+      <img id="rd-event-photo" class="rd-photo" alt="" hidden>
+      <div class="rd-heading">
         <div>
           <div class="ts-section-eyebrow">Verified resale ticket</div>
           <h1 class="mt-0 mb-8" id="rd-event-name">Loading…</h1>
@@ -27,10 +43,22 @@ ob_start();
       <div class="ts-detail-grid mt-8">
         <div class="ts-detail-item"><div class="ts-detail-label">Seller</div><div class="ts-detail-value" id="rd-seller">Loading…</div></div>
         <div class="ts-detail-item"><div class="ts-detail-label">Ticket status</div><div class="ts-detail-value" id="rd-ticket-status">Loading…</div></div>
-        <div class="ts-detail-item"><div class="ts-detail-label">Event</div><div class="ts-detail-value" id="rd-event-date">-</div></div>
+        <div class="ts-detail-item"><div class="ts-detail-label">Date &amp; time</div><div class="ts-detail-value" id="rd-event-date">-</div></div>
         <div class="ts-detail-item"><div class="ts-detail-label">Venue</div><div class="ts-detail-value" id="rd-venue">-</div></div>
       </div>
     </div>
+    <section class="ts-card ts-card-pad" id="rd-about-section" hidden>
+      <h2 class="ts-card-title">About the event</h2><p id="rd-about" class="secondary rd-about"></p>
+      <a id="rd-event-link" class="ts-btn ts-btn-secondary mt-16" hidden>View event details</a>
+    </section>
+    <section class="ts-card ts-card-pad" aria-labelledby="event-location-heading">
+      <h2 id="event-location-heading" class="ts-card-title">Venue location</h2>
+      <strong id="event-location-name">Venue information</strong><p id="event-location-address"></p>
+      <p id="event-location-status" class="small secondary" role="status"></p>
+      <a id="event-location-link" class="ts-btn ts-btn-secondary ts-btn-sm" target="_blank" rel="noopener noreferrer" hidden>Open in OpenStreetMap</a>
+      <div id="event-location-map" aria-label="Venue location map" hidden></div>
+      <p id="event-location-empty" class="small secondary">Loading venue map…</p>
+    </section>
   </div>
   <aside>
     <div class="ts-card ts-card-pad ts-order-summary">
@@ -45,6 +73,10 @@ ob_start();
   </aside>
 </div></div></main>
 
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="<?=ts_asset_url('assets/js/event-location.js', '..')?>"></script>
+<script src="<?=ts_asset_url('assets/js/ticket-display.js', '..')?>"></script>
 <script type="module">
 import '../assets/js/resale-policy.js';
 const resaleServiceCharge = 20;
@@ -98,6 +130,31 @@ async function initializeResaleDetail() {
             console.warn('Unable to load event details for resale listing:', error);
         }
 
+        const photo = document.getElementById('rd-event-photo');
+        try {
+            const image = event?.bannerUrl || event?.posterUrl || listing.eventPosterUrl;
+            if (image) {
+                const url = new URL(image, window.location.href);
+                if (['https:', 'http:'].includes(url.protocol)) {
+                    photo.src = url.href;
+                    photo.alt = event?.name || listing.eventName || 'Event photo';
+                    photo.hidden = false;
+                    photo.addEventListener('error', () => { photo.hidden = true; }, { once: true });
+                }
+            }
+        } catch (_) { photo.hidden = true; }
+        if (event) {
+            document.getElementById('rd-about').textContent = event.description || '';
+            document.getElementById('rd-about-section').hidden = false;
+            const eventLink = document.getElementById('rd-event-link');
+            eventLink.href = 'event-detail.php?id=' + encodeURIComponent(listing.eventId);
+            eventLink.hidden = false;
+        }
+        let venue = null;
+        try { if (event?.venueId) venue = await window.tsVenues.getVenue(event.venueId); }
+        catch (_) { /* The event address remains available if venue loading fails. */ }
+        window.tsEventLocation?.show(venue || { name: event?.venueName, address: event?.venueLocation });
+
         const status = String(listing.status || '').toUpperCase();
         const resalePrice = amount(listing.resalePrice);
         const maximumPrice = amount(listing.maxAllowedPrice);
@@ -120,12 +177,12 @@ async function initializeResaleDetail() {
             ? 'Listed for resale'
             : (status || 'Unknown');
         document.getElementById('rd-event-name').textContent = listing.eventName || event?.name || 'Untitled event';
-        document.getElementById('rd-ticket-info').textContent = `${listing.categoryName || 'Ticket'} · Seat ${listing.seatId || 'Not assigned'}`;
+        document.getElementById('rd-ticket-info').textContent = `${listing.categoryName || 'Ticket'} · Seat ${window.tsTicketDisplay?.seatLabel(listing) || listing.seatId || 'Not assigned'}`;
         document.getElementById('rd-orig-price').textContent = currency(listing.originalPrice);
         document.getElementById('rd-resale-price').textContent = currency(resalePrice);
         document.getElementById('rd-max-price').textContent = currentMaximum ? currency(currentMaximum) : 'Not configured';
         document.getElementById('rd-seller').textContent = abbreviated(listing.sellerWallet || listing.sellerUid);
-        document.getElementById('rd-event-date').textContent = eventDateLabel(event);
+        document.getElementById('rd-event-date').textContent = window.tsTicketDisplay?.eventDate(listing, event) || eventDateLabel(event);
         document.getElementById('rd-venue').textContent = event?.venueName || 'Not available';
         document.getElementById('rd-sum-ticket').textContent = currency(resalePrice);
         document.getElementById('rd-sum-total').textContent = currency(resalePrice + resaleServiceCharge);
