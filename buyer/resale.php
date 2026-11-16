@@ -2,6 +2,22 @@
 require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
+<style>
+.ts-resale-list-table{width:100%;min-width:1100px;table-layout:fixed;border-collapse:collapse}
+.ts-resale-list-table th,.ts-resale-list-table td{border:1px solid #e5e5e5;padding:18px 16px!important;vertical-align:middle;white-space:normal!important;overflow-wrap:anywhere}
+.ts-resale-list-table th{text-align:left;background:#fafafa}
+.ts-resale-list-table th:nth-child(1){width:26%}
+.ts-resale-list-table th:nth-child(2){width:22%}
+.ts-resale-list-table th:nth-child(3){width:9%}
+.ts-resale-list-table th:nth-child(4){width:11%}
+.ts-resale-list-table th:nth-child(5){width:10%}
+.ts-resale-list-table th:nth-child(6){width:9%}
+.ts-resale-list-table th:nth-child(7){width:13%}
+.ts-resale-list-table .cell-sub{white-space:normal;overflow-wrap:anywhere;line-height:1.6;margin-top:6px}
+.ts-resale-list-table .ts-table-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.ts-resale-list-table .ts-table-actions .ts-btn{margin:0;justify-content:center}
+</style>
+
 
 <main class="ts-section-tight">
     <div class="ts-container">
@@ -22,7 +38,7 @@ ob_start();
         </div>
         <div class="ts-card">
             <div class="ts-table-wrap">
-                <table class="ts-table">
+                <table class="ts-table ts-resale-list-table">
                     <thead>
                         <tr>
                             <th>Ticket</th>
@@ -31,7 +47,7 @@ ob_start();
                             <th>Listing Price</th>
                             <th>Listed</th>
                             <th>Status</th>
-                            <th></th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="resale-tbody">
