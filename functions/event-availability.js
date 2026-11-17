@@ -7,12 +7,15 @@ function eventAvailability(event, physicalSeats, eventSeats, currentTime = Date.
             physicalCounts.set(String(seat.sectionId), (physicalCounts.get(String(seat.sectionId)) || 0) + 1);
         }
     }
-    const blocked = new Map(), activeReservations = new Map();
+    const blocked = new Map(), activeReservations = new Map(), unavailableLabels = new Set();
     for (const seat of eventSeats) {
         if (seat.eventId !== event.id || seat.venueId !== event.venueId) continue;
         const reusable = seat.status === 'AVAILABLE' || (seat.status === 'RESERVED'
             && !(Date.parse(seat.reservationExpiry || '') > currentTime));
-        if (!reusable) blocked.set(String(seat.sectionId), (blocked.get(String(seat.sectionId)) || 0) + 1);
+        if (!reusable) {
+            blocked.set(String(seat.sectionId), (blocked.get(String(seat.sectionId)) || 0) + 1);
+            if (physicalLabels.has(seat.seatLabel)) unavailableLabels.add(seat.seatLabel);
+        }
         if (seat.status === 'RESERVED' && Date.parse(seat.reservationExpiry || '') > currentTime) activeReservations.set(String(seat.sectionId), (activeReservations.get(String(seat.sectionId)) || 0) + 1);
     }
     const entries = Array.isArray(event.categories)
@@ -33,7 +36,7 @@ function eventAvailability(event, physicalSeats, eventSeats, currentTime = Date.
         return { sectionId, allocated, remaining: Math.max(0, capacity - (blocked.get(sectionId) || 0)) };
     });
     return { eventId: event.id, checkedAt: new Date(currentTime).toISOString(), categories, reserved,
-        remaining: categories.reduce((sum, category) => sum + category.remaining, 0) };
+        remaining: categories.reduce((sum, category) => sum + category.remaining, 0), unavailableSeatLabels: [...unavailableLabels] };
 }
 
 module.exports = { eventAvailability };

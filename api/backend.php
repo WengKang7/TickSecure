@@ -1707,7 +1707,7 @@ try {
         backend_fail(400, 'The backend request data is invalid.', 'invalid-argument');
     }
 
-    // Public aggregate only; do not create inventory or expose individual seats.
+    // Public availability only; never create inventory or expose customer details.
     if ($action === 'getEventAvailability') {
         if (!backend_is_enabled() && !backend_checkout_is_enabled()) {
             backend_fail(410, 'Event availability is not enabled.', 'php_backend_disabled');

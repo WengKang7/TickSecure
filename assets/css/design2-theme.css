@@ -475,7 +475,7 @@ body .ts-clean-venue-board .ts-map-stage{fill:#111;stroke:none}
 body .ts-clean-venue-board .ts-map-stage-label{fill:#fff;font-family:var(--body)}
 body .ts-clean-venue-board .ts-ocr-seat:is(:hover,:focus-visible):not([aria-disabled=true]) .ts-seat-frame{fill:#eee;stroke:#111;stroke-width:1.5px}
 body .ts-clean-venue-board .ts-seat-selection-ring{stroke:#111;stroke-width:1px;vector-effect:non-scaling-stroke}
-body #ven-board .ts-ocr-seat.is-category-selected[data-category-id]:not([data-category-id=""],.ts-seat-sold,.ts-seat-held,.ts-seat-blocked) .ts-seat-frame{fill:var(--ts-seat-color,#fff);stroke:#555}
+body #ven-board .ts-ocr-seat.is-category-selected[data-category-id]:not([data-category-id=""],.ts-seat-sold,.ts-seat-held,.ts-seat-blocked,.ts-seat-unavailable) .ts-seat-frame{fill:var(--ts-seat-color,#fff);stroke:#555}
 body #ven-board .ts-ocr-seat.is-category-selected .ts-seat-frame{stroke:#111;stroke-width:1.5px}
 body .ts-clean-venue-board .ts-ocr-seat[aria-pressed=true]:not([aria-disabled=true]) .ts-seat-frame{fill:#111;stroke:#111;stroke-width:1px}
 body .ts-clean-venue-board .ts-ocr-seat[aria-pressed=true] text{fill:#fff}
@@ -714,3 +714,7 @@ body .ts-feedback-source{position:absolute!important;width:1px!important;height:
 @keyframes ts-feedback-spin{to{transform:rotate(360deg)}}
 @media(max-width:600px){.ts-feedback-region{right:12px;bottom:16px;max-width:calc(100vw - 24px)}}
 @media(prefers-reduced-motion:reduce){body .ts-feedback-toast{animation:none}.ts-feedback-toast[data-kind=processing] .ts-feedback-icon{animation:none}}
+
+/* Event overview: reflect sold seats and active holds from the existing availability request. */
+body #ven-board .ts-ocr-seat.ts-seat-unavailable[data-category-id] .ts-seat-frame{fill:#d9d9d9;stroke:#c7c7c7;opacity:1}
+body #ven-board .ts-ocr-seat.ts-seat-unavailable text{fill:#666}

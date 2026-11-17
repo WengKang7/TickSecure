@@ -22,6 +22,14 @@ function remainingFor(sectionId) {
 }
 
 function renderAvailability() {
+    if (Array.isArray(availability?.unavailableSeatLabels)) {
+        const unavailable = new Set(availability.unavailableSeatLabels);
+        el('ven-board').querySelectorAll('[data-physical-seat-label]').forEach(seat => {
+            const blocked = unavailable.has(seat.dataset.physicalSeatLabel);
+            seat.classList.toggle('ts-seat-unavailable', blocked);
+            seat.setAttribute('aria-label', `Seat ${seat.dataset.physicalSeatLabel}${blocked ? ', unavailable' : ''}`);
+        });
+    }
     el('event-remaining').textContent = availability
         ? `${availability.remaining} seat${availability.remaining === 1 ? '' : 's'} remaining`
         : availabilityLoading ? 'Checking remaining seats...' : 'Remaining seats unavailable';

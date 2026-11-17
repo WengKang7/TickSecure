@@ -36,7 +36,8 @@ class Element {
         const result = [];
         for (const child of this.children) {
             if ((selector === '[data-section-id]' && child.dataset.sectionId !== undefined)
-                || (selector === '[data-category-section]' && child.dataset.categorySection !== undefined)) result.push(child);
+                || (selector === '[data-category-section]' && child.dataset.categorySection !== undefined)
+                || (selector === '[data-physical-seat-label]' && child.dataset.physicalSeatLabel !== undefined)) result.push(child);
             result.push(...child.querySelectorAll(selector));
         }
         return result;
@@ -58,6 +59,22 @@ const venue = {
         { sectionId: 'D', name: 'Section D', seatCount: 20 }
     ]
 };
+
+test('event plan greys unavailable seats and restores them after the hold expires',async()=>{
+    let blocked=['A-1'];
+    const page=createPage({getAvailability:async()=>({eventId:event.id,categories:[{sectionId:'A',remaining:19},{sectionId:'B',remaining:40}],remaining:59,unavailableSeatLabels:blocked})});
+    await page.ready();
+    const sold=new Element(),available=new Element();
+    sold.dataset.physicalSeatLabel='A-1';available.dataset.physicalSeatLabel='A-2';
+    page.elements.get('ven-board').append(sold,available);
+    await page.elements.get('refresh-availability').listeners.click();
+    assert.match(sold.className,/ts-seat-unavailable/);
+    assert.match(sold.getAttribute('aria-label'),/unavailable/);
+    assert.doesNotMatch(available.className,/ts-seat-unavailable/);
+    blocked=[];await page.elements.get('refresh-availability').listeners.click();
+    assert.doesNotMatch(sold.className,/ts-seat-unavailable/);
+    assert.equal(page.venueReads(),1);assert.equal(page.writes.length,0);
+});
 
 function createPage(options = {}) {
     const php = fs.readFileSync(path.join(root, 'public/event-detail.php'), 'utf8');

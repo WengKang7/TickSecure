@@ -42,13 +42,27 @@ for (const [name, inventory, expected] of [
         for (const result of [js, php]) {
             assert.deepEqual(result.categories.map(category => category.remaining), expected);
             assert.equal(result.remaining, expected.reduce((sum, value) => sum + value, 0));
-            assert.deepEqual(Object.keys(result).sort(), ['categories', 'checkedAt', 'eventId', 'remaining', 'reserved']);
+            assert.deepEqual(Object.keys(result).sort(), ['categories', 'checkedAt', 'eventId', 'remaining', 'reserved', 'unavailableSeatLabels']);
             assert.equal(result.reserved, inventory.some(s=>s.status==='RESERVED' && Date.parse(s.reservationExpiry)>currentTime && s.sectionId==='A') ? 1 : 0);
             assert.equal(JSON.stringify(result).includes('private-'), false, 'no seat IDs or buyer identities');
         }
         assert.deepEqual(php.categories, js.categories);
     });
 }
+
+test('grey seat labels include sold and active holds, exclude expired holds and private fields', () => {
+    const inventory = [
+        seat('A','SOLD',{seatLabel:'A0'}),
+        seat('A','RESERVED',{seatLabel:'A1',reservationExpiry:'2026-10-23T12:01:00Z'}),
+        seat('A','RESERVED',{seatLabel:'A2',reservationExpiry:'2026-10-23T11:59:00Z'}),
+        seat('A','SOLD',{seatLabel:'A3',eventId:'other-event'}),
+        seat('A','BLOCKED',{seatLabel:'not-a-public-seat'})
+    ];
+    for (const result of [eventAvailability(event,physical,inventory,currentTime),phpAvailability([event,physical,inventory,currentTime])]) {
+        assert.deepEqual(result.unavailableSeatLabels,['A0','A1']);
+        assert.equal(JSON.stringify(result).includes('private-'),false);
+    }
+});
 
 test('legacy category arrays return the same section counts in both backends', () => {
     const legacy = { ...event, categories: [{ sectionId: 'A', quantity: 4 }, { section: 'B', available: 2 }] };

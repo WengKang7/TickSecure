@@ -14,7 +14,7 @@ function backend_event_availability(array $event, array $physicalSeats, array $e
             $physicalCounts[$id] = ($physicalCounts[$id] ?? 0) + 1;
         }
     }
-    $blocked = []; $activeReservations = [];
+    $blocked = []; $activeReservations = []; $unavailableLabels = [];
     foreach ($eventSeats as $seat) {
         if (($seat['eventId'] ?? '') !== $event['id'] || ($seat['venueId'] ?? '') !== ($event['venueId'] ?? '')) continue;
         $expiry = strtotime((string)($seat['reservationExpiry'] ?? ''));
@@ -25,6 +25,8 @@ function backend_event_availability(array $event, array $physicalSeats, array $e
         $reusable = ($seat['status'] ?? '') === 'AVAILABLE' || (($seat['status'] ?? '') === 'RESERVED'
             && !($expiry !== false && $expiry > $currentTime));
         if (!$reusable) {
+            $label = (string)($seat['seatLabel'] ?? '');
+            if (isset($physicalLabels[$label])) $unavailableLabels[$label] = true;
             $id = (string)($seat['sectionId'] ?? '');
             $blocked[$id] = ($blocked[$id] ?? 0) + 1;
         }
@@ -52,5 +54,6 @@ function backend_event_availability(array $event, array $physicalSeats, array $e
         $categories[] = ['sectionId' => $id, 'allocated' => $allocated, 'remaining' => max(0, $capacity - ($blocked[$id] ?? 0))];
     }
     return ['eventId' => $event['id'], 'checkedAt' => gmdate('Y-m-d\TH:i:s\Z', (int)$currentTime),
-        'categories' => $categories, 'remaining' => array_sum(array_column($categories, 'remaining')), 'reserved' => $reserved];
+        'categories' => $categories, 'remaining' => array_sum(array_column($categories, 'remaining')), 'reserved' => $reserved,
+        'unavailableSeatLabels' => array_keys($unavailableLabels)];
 }

@@ -134,7 +134,7 @@ window.tsVenueRenderer = {
                 const disabled = ['SOLD', 'HELD', 'BLOCKED', 'CONTEXT'].includes(state) || Boolean(options.onCategorySelect && !marker.categoryId);
                 const seat = node('g', { class: 'ts-ocr-seat' + (marker.status ? ' ts-seat-' + state.toLowerCase() : ''),
                     'aria-label': `Seat ${id}-${marker.label || 'unlabelled'}${marker.status ? ', ' + state.toLowerCase() : ''}`,
-                    'data-seat-label': marker.label || '', 'data-seat-id': markerId, 'data-category-id': marker.categoryId || '',
+                    'data-seat-label': marker.label || '', 'data-physical-seat-label': `${id}-${marker.label || ''}`, 'data-seat-id': markerId, 'data-category-id': marker.categoryId || '',
                     style: /^#[0-9a-f]{6}$/i.test(marker.color || '') ? `--ts-seat-color:${marker.color}` : '' });
                 seat.appendChild(node('title', {}, `Seat ${id}-${marker.label || 'unlabelled'}${marker.categoryName ? ' · ' + marker.categoryName : ''}`));
                 const w = options.cleanLayout ? sharedWidth : marker.width || (outlineOnly ? 3.2 : 2.8), h = options.cleanLayout ? sharedHeight : marker.height || (outlineOnly ? 3.2 : 2.8);
