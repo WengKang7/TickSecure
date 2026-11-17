@@ -663,6 +663,45 @@ body .ts-collectible-footer{left:0;right:0;bottom:0;height:40px;box-sizing:borde
 .ts-nft-preview-panel{position:absolute;left:0;right:0;bottom:0;min-height:65px;padding:16px 12px;box-sizing:border-box;background:var(--nft-panel);color:var(--nft-text);border-top:2px solid var(--nft-ribbon);font:600 15px/1.3 var(--display);overflow-wrap:anywhere}
 @media(max-width:480px){body .ts-collectible-series{font-size:13px;padding:10px 14px 10px 20px}body .ts-collectible-caption{padding:16px 18px}body .ts-collectible-footer{padding-inline:18px}}
 
+/* A single light sweep on interaction; artwork, text and controls remain unchanged. */
+@media (prefers-reduced-motion: no-preference) {
+  body .ts-collectible-poster::before,
+  .ts-nft-category-preview::after {
+    content: ''; position: absolute; inset: 0; z-index: 2;
+    background: linear-gradient(110deg, transparent 30%, #ffffff0a 42%, #ffffff38 50%, #ffffff0a 58%, transparent 70%);
+    transform: translateX(-110%); opacity: 0; pointer-events: none;
+  }
+  body .ts-collectible-card:focus-visible .ts-collectible-poster::before {
+    animation: ts-artwork-sheen 650ms ease-out;
+  }
+  .ts-nft-gallery-dialog[open] {
+    animation: ts-artwork-dialog-in 220ms cubic-bezier(.2,.7,.3,1) backwards;
+  }
+  .ts-nft-gallery-dialog[open]::backdrop {
+    animation: ts-artwork-backdrop-in 180ms ease-out backwards;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    body .ts-collectible-card:hover .ts-collectible-poster::before,
+    .ts-nft-category-preview:hover::after {
+      animation: ts-artwork-sheen 650ms ease-out;
+    }
+    .ts-nft-image-choice {
+      transition: transform 180ms ease-out, border-color 180ms ease-out, box-shadow 180ms ease-out;
+    }
+    .ts-nft-image-choice:hover { transform: translateY(-2px); }
+  }
+}
+@keyframes ts-artwork-sheen {
+  0% { transform: translateX(-110%); opacity: 0; }
+  15%, 75% { opacity: 1; }
+  100% { transform: translateX(110%); opacity: 0; }
+}
+@keyframes ts-artwork-dialog-in {
+  from { opacity: 0; transform: translateY(8px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes ts-artwork-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+
 /* Shared feedback across buyer, organizer and administrator pages. */
 .ts-feedback-region{position:fixed;right:24px;bottom:24px;z-index:10000;display:flex;flex-direction:column;align-items:flex-end;gap:10px;max-width:min(460px,calc(100vw - 32px));max-height:70vh;overflow-y:auto;padding:4px;pointer-events:none}
 body .ts-feedback-toast{display:flex;align-items:center;gap:12px;padding:15px 16px;background:#111827;color:#fff;border-radius:10px;box-shadow:0 12px 28px #10182833;font-size:14px;line-height:1.5;pointer-events:auto;animation:ts-feedback-enter .2s ease-out;overflow-wrap:anywhere}

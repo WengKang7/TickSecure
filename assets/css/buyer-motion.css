@@ -39,6 +39,39 @@
       transform: translateY(-3px);
       box-shadow: 0 8px 22px #0000000a;
     }
+    body.ts-body-public .ts-events-page .ts-event-card:hover {
+      transform: translateY(-4px);
+      box-shadow: none;
+    }
+    body.ts-body-public .ts-events-poster {
+      transition: transform 300ms cubic-bezier(.2,.7,.3,1);
+    }
+    body.ts-body-public .ts-event-card:hover .ts-events-poster {
+      transform: scale(1.035);
+    }
+  }
+
+  /* Keyboard navigation receives the same quiet artwork feedback as hover. */
+  body.ts-body-public .ts-event-card:focus-visible .ts-events-poster {
+    transform: scale(1.035);
+  }
+  body.ts-body-public .ts-events-card-action svg {
+    transition: transform 200ms ease-out;
+  }
+  body.ts-body-public .ts-event-card:is(:hover, :focus-visible) .ts-events-card-action svg {
+    transform: translateX(2px);
+  }
+
+  /* These start only after the existing booking code reveals a confirmed result. */
+  body.ts-body-public #booking-success-icon:not([hidden]) {
+    animation: ts-booking-confirmed 360ms cubic-bezier(.2,.7,.3,1) both;
+  }
+  body.ts-body-public #booking-success-icon:not([hidden]) svg :is(path, polyline) {
+    stroke-dasharray: 32;
+    animation: ts-booking-check 320ms 100ms ease-out backwards;
+  }
+  body.ts-body-public .ts-confirmation-page #confirmation-details:not([hidden]) {
+    animation: ts-buyer-intro 300ms 70ms ease-out backwards;
   }
 }
 
@@ -47,3 +80,11 @@
 @keyframes ts-buyer-card-in { from { opacity: .3; translate: 0 7px; } to { opacity: 1; translate: 0 0; } }
 @keyframes ts-buyer-menu-in { from { opacity: 0; translate: 0 -4px; } to { opacity: 1; translate: 0 0; } }
 @keyframes ts-buyer-feedback { from { opacity: .4; } to { opacity: 1; } }
+@keyframes ts-booking-confirmed { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
+@keyframes ts-booking-check { from { stroke-dashoffset: 32; } to { stroke-dashoffset: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  body.ts-body-public .ts-event-card:is(:hover, :focus-visible) .ts-events-poster {
+    transform: none;
+  }
+}
