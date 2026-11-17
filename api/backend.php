@@ -16,6 +16,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/firebase-admin.php';
 require_once __DIR__ . '/password-reset.php';
 require_once __DIR__ . '/event-availability.php';
+require_once __DIR__ . '/display-read-cache.php';
 require_once __DIR__ . '/seat-picker-policy.php';
 require_once __DIR__ . '/seat-category-policy.php';
 require_once __DIR__ . '/ticket-transfer-history.php';
@@ -833,8 +834,11 @@ function backend_get_seat_map(FirebaseAdminRest $firebase, string $uid, array $d
     $expected = 0;
     foreach ($event['categories'] ?? [] as $allocation) $expected += backend_require_positive_integer($allocation['quantity'] ?? $allocation['available'] ?? 0, 'Category allocation', 100000);
     if ($expected > 5000) backend_fail(413, 'This event is too large for the interactive picker. Use automatic assignment.', 'resource-exhausted');
-    $inventory = $firebase->queryDocuments('EventSeats', ['eventId' => $eventId], [], 5001);
-    if (count($inventory) < $expected) { backend_ensure_event_inventory($firebase, $event); $inventory = $firebase->queryDocuments('EventSeats', ['eventId' => $eventId], [], 5001); }
+    // Other categories are drawn from venue geometry; only this category needs live inventory.
+    $categoryExpected = backend_require_positive_integer($category['quantity'] ?? $category['available'] ?? 0, 'Category allocation', 100000);
+    $seatFilter = ['eventId' => $eventId, 'sectionId' => $sectionId];
+    $inventory = $firebase->queryDocuments('EventSeats', $seatFilter, [], 5001);
+    if (count($inventory) < $categoryExpected) { backend_ensure_event_inventory($firebase, $event); $inventory = $firebase->queryDocuments('EventSeats', $seatFilter, [], 5001); }
     if (count($inventory) > 5000) backend_fail(413, 'This event is too large for the interactive picker. Use automatic assignment.', 'resource-exhausted');
     $venue = $firebase->getDocument('Venues', $event['venueId']) ?? [];
     $g = []; $markers = []; $pages = [];
@@ -1716,7 +1720,14 @@ try {
                 backend_fail(404, 'Published event not found.', 'not-found');
             }
             $event['id'] = $eventId;
-            $physical = empty($event['venueId']) ? [] : $tx->query('Seats', ['venueId' => $event['venueId']]);
+            $venueId = (string)($event['venueId'] ?? '');
+            $venue = $venueId === '' ? null : $tx->get('Venues', $venueId);
+            // Physical seat positions do not change during ticket sales. A venue edit
+            // changes updatedAt and immediately selects a different cache key.
+            // Live holds/sales below are deliberately never cached.
+            $physical = $venue === null ? ($venueId === '' ? [] : $tx->query('Seats', ['venueId' => $venueId]))
+                : display_read_cache('physical-seats', $venueId . '|' . ($venue['updatedAt'] ?? '') . '|' . ($venue['layoutStatus'] ?? ''), 300,
+                    static fn (): array => $tx->query('Seats', ['venueId' => $venueId]));
             return backend_event_availability($event, $physical, $tx->query('EventSeats', ['eventId' => $eventId]));
         });
         backend_respond(200, ['data' => $result]);

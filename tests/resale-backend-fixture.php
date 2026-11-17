@@ -5,12 +5,14 @@ class FirebaseBackendException extends RuntimeException {
     public function __construct(public int $httpStatus, string $message, public string $errorCode) { parent::__construct($message); }
 }
 class FirebaseAdminRest {
+    public array $queries = [];
     public function __construct(public array $records) {}
     public function getDocument(string $collection, string $id): ?array {
         $record = $this->records[$collection . '/' . $id] ?? null;
         return $record === null ? null : ['id' => $id] + $record;
     }
     public function queryDocuments(string $collection, array $filters = [], array $orderBy = [], ?int $limit = null): array {
+        $this->queries[] = ['collection' => $collection, 'filters' => $filters];
         return (new FirebaseFirestoreTransaction($this->records))->query($collection, $filters, $orderBy, $limit);
     }
     public function transaction(callable $callback): mixed {
@@ -63,6 +65,8 @@ class FirebaseFirestoreTransaction {
 $source = file_get_contents(__DIR__ . '/../api/backend.php');
 require_once __DIR__ . '/../api/ticket-transfer-history.php';
 require_once __DIR__ . '/../api/event-content-review.php';
+require_once __DIR__ . '/../api/seat-picker-policy.php';
+require_once __DIR__ . '/../api/seat-category-policy.php';
 $start = strpos($source, 'const BACKEND_SERVICE_CHARGE');
 $end = strpos($source, 'if (!backend_is_enabled()');
 eval(substr($source, $start, $end - $start));
@@ -72,6 +76,7 @@ foreach ($cases as $case) {
     $firebase = new FirebaseAdminRest($case['records']);
     try {
         $result = match ($case['action']) {
+            'getSeatMap' => backend_get_seat_map($firebase, $case['uid'], $case['data']),
             'moderateEvent' => backend_moderate_event($firebase, $case['uid'], $case['data']),
             'checkout' => backend_checkout($firebase, $case['uid'], $case['data']),
             'transferTicket' => backend_transfer_ticket($firebase, $case['uid'], $case['data']),
@@ -83,7 +88,7 @@ foreach ($cases as $case) {
             'suspendResaleListing' => backend_suspend_resale_listing($firebase, $case['uid'], $case['data']),
             'purchaseResale' => backend_purchase_resale($firebase, $case['uid'], $case['data'])
         };
-        $results[] = ['result' => $result, 'records' => $firebase->records];
+        $results[] = ['result' => $result, 'records' => $firebase->records] + (!empty($case['traceReads']) ? ['queries' => $firebase->queries] : []);
     } catch (FirebaseBackendException $error) {
         $results[] = ['error' => $error->errorCode, 'records' => $firebase->records];
     }

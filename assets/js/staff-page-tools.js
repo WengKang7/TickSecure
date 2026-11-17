@@ -49,7 +49,8 @@
         footer.innerHTML='<span role="status"></span><div class="flex gap-12"><button type="button" class="ts-btn ts-btn-secondary ts-btn-sm">Previous</button><button type="button" class="ts-btn ts-btn-secondary ts-btn-sm">Next</button><button type="button" class="ts-btn ts-btn-secondary ts-btn-sm">Refresh</button></div>';
         body.closest('.ts-card').append(footer);
         const [previous,next,refresh]=footer.querySelectorAll('button'), status=footer.querySelector('span');
-        let rows=[],filtered=[],page=1,version=0,loaded=false;
+        let rows=[],filtered=[],page=1,version=0,loaded=false,loading=false,loadedUid='';
+        const visible=()=>{const panel=body.closest('[data-panel]');return !panel||panel.classList.contains('active');};
         const allowed=()=>window.tsCurrentUser?.role===role && window.tsCurrentUser?.status==='active';
         function render(reset=false) {
             if (!allowed()) return;
@@ -62,27 +63,36 @@
             config.after?.(filtered,rows);config.bind?.(body,filtered);
         }
         async function load() {
-            if(!allowed())return;
+            if(!allowed()||!visible()||loading)return;
             const request=++version, uid=window.tsCurrentUser.uid;
+            loading=true;loadedUid=uid;
             loaded=false;previous.disabled=next.disabled=refresh.disabled=true;config.exportButton && (el(config.exportButton).disabled=true);
             body.innerHTML=`<tr><td colspan="${config.columns}">Loading…</td></tr>`;
             try {
                 const data=await config.load();
                 if(request!==version||!allowed()||uid!==window.tsCurrentUser.uid)return;
-                rows=data;loaded=true;config.loaded?.(rows);render();
+                rows=data;loaded=true;loadedUid=uid;config.loaded?.(rows);render();
                 if(config.exportButton)el(config.exportButton).disabled=false;
             } catch(error) {
                 if(request!==version||!allowed())return;
                 rows=[];filtered=[];body.innerHTML=`<tr><td colspan="${config.columns}">${esc(error.message||'Unable to load records.')} Use Refresh to retry.</td></tr>`;status.textContent='Unable to load records';
                 config.clear?.();
-            } finally {if(request===version)refresh.disabled=false;}
+            } finally {if(request===version){loading=false;refresh.disabled=false;}}
         }
         previous.addEventListener('click',()=>{page--;render();});next.addEventListener('click',()=>{page++;render();});refresh.addEventListener('click',load);
         for(const id of config.controls||[])el(id).addEventListener(el(id).tagName==='INPUT'&&el(id).type!=='date'?'input':'change',()=>{if(loaded)render(true);});
         if(config.exportButton)el(config.exportButton).addEventListener('click',()=>{if(loaded&&allowed())download(config.filename,config.csv(filtered));});
         config.setup?.(()=>render(true));
-        window.addEventListener('ts-auth-ready',()=>{if(allowed())load();else{version++;rows=[];filtered=[];loaded=false;body.innerHTML='';status.textContent='';previous.disabled=next.disabled=true;if(config.exportButton)el(config.exportButton).disabled=true;config.clear?.();}});
-        if(allowed())load();
+        function sync(){
+            if(!allowed()||(loadedUid&&loadedUid!==window.tsCurrentUser?.uid)){
+                version++;rows=[];filtered=[];loaded=false;loading=false;loadedUid='';body.innerHTML='';status.textContent='';previous.disabled=next.disabled=true;
+                if(config.exportButton)el(config.exportButton).disabled=true;config.clear?.();
+            }
+            if(allowed()&&!loaded)load();
+        }
+        window.addEventListener('ts-auth-ready',sync);
+        window.addEventListener('ts-tab-change',sync);
+        sync();
         return {refresh:load};
     }
     return {esc,norm,number,date,day,dateText,money,csv,download,options,mintStatus,paginate,table};

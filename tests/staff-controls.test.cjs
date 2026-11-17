@@ -60,11 +60,13 @@ test('audit date/role/activity filters combine and exports every filtered record
 });
 
 test('table controls paginate, filter, disable export on failure and discard late signed-out responses',async()=>{
+    let panelActive=false;
+    const panel={classList:{contains:()=>panelActive}};
     class Element {
         constructor(){this.listeners={};this.value='';this.disabled=false;this.innerHTML='';this.textContent='';this.tagName='INPUT';this.type='text';}
         addEventListener(name,fn){this.listeners[name]=fn;}
         append(child){this.child=child;}
-        closest(){return card;}
+        closest(selector){return selector==='[data-panel]'?panel:card;}
         querySelectorAll(){return buttons;}
         querySelector(){return status;}
         fire(name){return this.listeners[name]?.();}
@@ -79,7 +81,9 @@ test('table controls paginate, filter, disable export on failure and discard lat
     const controller=window.tsStaffTools.table({role:'admin',body:'body',columns:1,controls:['search'],exportButton:'export',
         load:async()=>{calls++;if(fail)throw Error('Offline');if(resolveLate===true)return new Promise(resolve=>{resolveLate=resolve;});return rows;},
         filter:r=>!get('search').value||String(r.id)===get('search').value,row:r=>`<tr><td>${r.id}</td></tr>`});
-    await new Promise(setImmediate);
+    await new Promise(setImmediate);assert.equal(calls,0,'hidden tabs do not read records');
+    panelActive=true;events['ts-tab-change']();await new Promise(setImmediate);
+    events['ts-auth-ready']();events['ts-tab-change']();assert.equal(calls,1,'auth and tab events reuse loaded rows');
     assert.match(status.textContent,/47 records/);assert.equal(buttons[0].disabled,true);assert.equal(get('export').disabled,false);
     buttons[1].fire('click');buttons[1].fire('click');assert.match(get('body').innerHTML,/<td>46<\/td>/);assert.equal(buttons[1].disabled,true);
     get('search').value='4';get('search').fire('input');assert.match(status.textContent,/1 records · Page 1/);assert.equal(calls,1);

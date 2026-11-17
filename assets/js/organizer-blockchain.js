@@ -1,6 +1,7 @@
 import { sepolia } from './blockchain-client.js?v=20261115-hosted-chain-v2';
 const el=id=>document.getElementById(id),node=(tag,cls,text)=>{const n=document.createElement(tag);n.className=cls||'';if(text!==undefined)n.textContent=text;return n;};
-let uid='',version=0,busy=false,settings=null,records=[],timer;
+let uid='',version=0,busy=false,settings=null,records=[],timer,historyLoaded=false,historyLoading=false;
+const historyVisible=()=>{const panel=el('tx-table-body').closest('[data-panel]');return !panel||panel.classList.contains('active');};
 const registrationSignatures=new Map();
 const active=()=>window.tsCurrentUser?.uid===uid&&window.tsCurrentUser?.role==='organizer'&&window.tsCurrentUser?.status==='active';
 const validHash=value=>/^0x[0-9a-fA-F]{64}$/.test(String(value||''));
@@ -33,14 +34,21 @@ function render(){
     if(!rows.length){const row=node('tr'),cell=node('td','text-center secondary','No matching records.');cell.colSpan=6;row.append(cell);rows.push(row);}
     el('tx-table-body').replaceChildren(...rows);
 }
+async function loadHistory(v=version){
+    if(!active()||!historyVisible()||historyLoading)return;
+    historyLoading=true;
+    try{const result=await sepolia.listOrganizer();if(v!==version||!active())return;records=result.records||[];historyLoaded=true;render();}
+    catch(error){if(v===version)message(error.message||'Blockchain history could not be loaded.',true);}
+    finally{if(v===version)historyLoading=false;}
+}
 async function load(){
-    const v=++version;clearTimeout(timer);uid=window.tsCurrentUser?.uid||'';busy=false;settings=null;records=[];message('');message('',true);render();
+    const v=++version;clearTimeout(timer);uid=window.tsCurrentUser?.uid||'';busy=false;settings=null;records=[];historyLoaded=historyLoading=false;message('');message('',true);render();
     el('chain-wallet').textContent='Not connected';
     if(!active())return;
-    try{const [setup,history]=await Promise.allSettled([sepolia.getSettings(),sepolia.listOrganizer()]);if(v!==version||!active())return;
+    try{const [setup]=await Promise.allSettled([sepolia.getSettings(),loadHistory(v)]);if(v!==version||!active())return;
         if(setup.status==='rejected')throw setup.reason;
         const config=setup.value;
-        settings=config;records=history.status==='fulfilled'?history.value.records||[]:[];el('chain-deployment-hash').value=saved();render();
+        settings=config;el('chain-deployment-hash').value=saved();render();
         if(config.setupMessage)message(config.setupMessage,true);if(config.migrationRequired)message('An earlier contract is registered. A deliberate migration is required before using buyer-authorized transactions.',true);
     }catch(error){if(v===version)message(error.message||'Blockchain data could not be loaded.',true);}
 }
@@ -67,4 +75,7 @@ el('chain-deploy').addEventListener('click',()=>run(async v=>{
 el('chain-register').addEventListener('click',()=>run(register));el('chain-refresh').addEventListener('click',load);
 el('chain-deployment-hash').addEventListener('input',()=>{saved(el('chain-deployment-hash').value.trim());render();});
 for(const id of ['chain-search','chain-status','chain-type'])el(id).addEventListener(id==='chain-search'?'input':'change',render);
-window.addEventListener('ts-auth-ready',load);window.addEventListener('pagehide',()=>{++version;clearTimeout(timer);});if(window.tsCurrentUser)load();
+let authKey=null;
+function syncAuth(){const user=window.tsCurrentUser,key=[user?.uid,user?.role,user?.status].join('|');if(key===authKey)return;authKey=key;return load();}
+window.addEventListener('ts-auth-ready',syncAuth);window.addEventListener('pagehide',()=>{++version;clearTimeout(timer);});if(window.tsCurrentUser)syncAuth();
+window.addEventListener('ts-tab-change',()=>{if(!historyLoaded)loadHistory();});

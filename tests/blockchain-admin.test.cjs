@@ -8,26 +8,36 @@ const issuer='0x'+'1'.repeat(40),receiver='0x'+'2'.repeat(40),contract='0x'+'3'.
 class Element{
     constructor(){this.children=[];this.listeners={};this.value='';this.hidden=false;}
     append(...children){this.children.push(...children);}replaceChildren(...children){this.children=children;}addEventListener(name,fn){this.listeners[name]=fn;}
+    closest(){return this.panel||null;}
 }
 function page(options={}){
     const html=fs.readFileSync('organizer/blockchain.php','utf8'),elements=new Map([...html.matchAll(/id="([^"]+)"/g)].map(m=>[m[1],new Element()]));
-    const events={},storage=new Map(),timers=[],calls={prepare:[],verify:[],send:[],confirm:[],configure:[]};
+    const events={},storage=new Map(),timers=[],calls={prepare:[],verify:[],send:[],confirm:[],configure:[],history:0};
+    const panel={classList:{contains:()=>!options.hiddenHistory}};elements.get('tx-table-body').panel=panel;
     let rows=[{id:'record',ticketId:'ticket',transactionType:'MINT',walletAddress:receiver,status:'PENDING',timestamp:'2026-10-30T00:00:00.000Z'}];
     const settings=options.undeployed?{configured:false,deploymentBytecode:'0x1234',registrationMessagePrefix:'Test deployment: '}:{configured:true,contractAddress:contract,operatorAddress:issuer};
     const window={tsCurrentUser:null,addEventListener:(type,fn)=>events[type]=fn,tsBlockchain:{getTransactions:async()=>structuredClone(rows)},
         tsChainWallet:{connect:async()=>issuer,signMessage:async()=> 'test-proof',send:async request=>{calls.send.push(request);return hash;}},
         tsConfirmDecision:async request=>{calls.confirm.push(request);return options.decision?options.decision(request):options.cancel?null:{};}};
-    const sepolia={listOrganizer:async()=>({records:structuredClone(rows)}),getSettings:async()=>settings,prepare:async id=>{calls.prepare.push(id);return {operatorAddress:issuer,contractAddress:contract,walletAddress:receiver,calldata:'0x5678'};},
+    const sepolia={listOrganizer:async()=>{calls.history++;return {records:structuredClone(rows)};},getSettings:async()=>settings,prepare:async id=>{calls.prepare.push(id);return {operatorAddress:issuer,contractAddress:contract,walletAddress:receiver,calldata:'0x5678'};},
         verify:async(id,txHash)=>{calls.verify.push({id,hash:txHash});const status=options.verifyStatus||'CONFIRMED';rows=rows.map(r=>({...r,transactionHash:txHash,status,chainId:11155111,contractAddress:contract,verificationVersion:status==='CONFIRMED'?1:0}));return {status};},
         configure:async txHash=>{calls.configure.push(txHash);return {configured:true,contractAddress:contract,operatorAddress:issuer};}};
     const context=vm.createContext({window,sepolia,document:{getElementById:id=>elements.get(id),createElement:()=>new Element()},
         localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},
         setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},console});
     const source=fs.readFileSync('assets/js/organizer-blockchain.js','utf8').replace(/^import .*;\r?\n/,'');vm.runInContext(source,context);
-    return {window,elements,calls,storage,timers,ready:async()=>{window.tsCurrentUser={uid:'organizer',role:'organizer',status:'active',emailVerified:true};await events['ts-auth-ready']();},events,
+    return {window,elements,calls,storage,timers,showHistory:async()=>{options.hiddenHistory=false;await events['ts-tab-change']();await new Promise(setImmediate);},ready:async()=>{window.tsCurrentUser={uid:'organizer',role:'organizer',status:'active',emailVerified:true};await events['ts-auth-ready']();},events,
         click:id=>elements.get(id).listeners.click(),button:()=>elements.get('tx-table-body').children[0].children[5].children[0]};
 }
 const text=node=>[node.textContent||'',...node.children.map(text)].join(' ');
+
+test('hidden transaction history loads on first open and is reused until Refresh',async()=>{
+    const p=page({hiddenHistory:true});await p.ready();assert.equal(p.calls.history,0);
+    assert.match(text(p.elements.get('chain-contract')),/0x/);
+    await p.showHistory();assert.equal(p.calls.history,1);
+    await p.showHistory();assert.equal(p.calls.history,1);
+    await p.click('chain-refresh');assert.equal(p.calls.history,2);
+});
 
 test('organizer monitoring has no controls to publish or verify buyer ticket operations',async()=>{
     const p=page();await p.ready();const row=p.elements.get('tx-table-body').children[0];assert.match(text(row),/Buyer performs this action/);

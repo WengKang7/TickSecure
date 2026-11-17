@@ -9,6 +9,7 @@
     tabs.forEach(t => t.addEventListener('click', () => {
       tabs.forEach(x => x.classList.remove('active')); panels.forEach(x => x.classList.remove('active'));
       t.classList.add('active'); const p = $(`[data-panel="${t.dataset.tab}"]`, w); if (p) p.classList.add('active');
+      window.dispatchEvent(new CustomEvent('ts-tab-change', { detail: { container: w, panel: p } }));
     }));
   });
   // accordions

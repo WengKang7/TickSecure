@@ -343,12 +343,13 @@ export const NotificationService = {
 
     async getUnreadCount(userUid = null) {
         const u = userUid || uid();
-        const snap = await getDocs(query(
+        // The header needs a number, not every unread notification document.
+        const snap = await getCountFromServer(query(
             collection(db, 'Notifications'),
             where('recipientUid', '==', u),
             where('read', '==', false)
         ));
-        return snap.size;
+        return snap.data().count;
     }
 };
 

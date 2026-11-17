@@ -123,3 +123,18 @@ test('mark all includes unread notifications beyond the displayed 50 and writes 
     assert.deepEqual(s.commits.map(batch => batch.length), [450, 80]);
     assert.ok(s.commits.flat().every(item => item.data.read === true && item.ref.id !== 'private'));
 });
+
+test('unread badge requests a server count instead of downloading notification documents', async () => {
+    const source=fs.readFileSync('assets/js/firestore-crud.js','utf8');
+    const method=source.match(/async getUnreadCount\(userUid = null\) \{[\s\S]*?\n    \}/)[0];
+    const calls=[];
+    const api=vm.runInNewContext('({'+method+'})',{
+        db:{},uid:()=> 'buyer-1',collection:(_,name)=>name,
+        where:(field,op,value)=>({field,op,value}),query:(name,...filters)=>({name,filters}),
+        getDocs:()=>{throw Error('Must not download unread documents');},
+        getCountFromServer:async q=>{calls.push(q);return {data:()=>({count:530})};}
+    });
+    assert.equal(await api.getUnreadCount(),530);
+    assert.deepEqual(JSON.parse(JSON.stringify(calls)),[{name:'Notifications',filters:[
+        {field:'recipientUid',op:'==',value:'buyer-1'},{field:'read',op:'==',value:false}]}]);
+});

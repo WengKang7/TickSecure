@@ -749,11 +749,14 @@ exports.getSeatMap = onCall({ region, enforceAppCheck: false }, async request =>
     const allocations = Array.isArray(event.categories) ? event.categories : Object.values(event.categories || {});
     const expected = allocations.reduce((sum, category) => sum + requirePositiveInteger(category.quantity ?? category.available, 'Category allocation', maxInventoryPerCategory), 0);
     if (expected > 5000) throw new HttpsError('resource-exhausted', 'This event is too large for the interactive picker. Use automatic assignment.');
+    const selectedAllocation = categoryForSection(event.categories, sectionId);
+    const categoryExpected = requirePositiveInteger(selectedAllocation.quantity ?? selectedAllocation.available, 'Category allocation', maxInventoryPerCategory);
+    const selectedInventory = db.collection('EventSeats').where('eventId', '==', eventId).where('sectionId', '==', sectionId).limit(5001);
     let [inventory, venueSnap] = await Promise.all([
-        db.collection('EventSeats').where('eventId', '==', eventId).limit(5001).get(),
+        selectedInventory.get(),
         db.collection('Venues').doc(event.venueId).get()
     ]);
-    if (inventory.size < expected) { await ensureEventInventory(event); inventory = await db.collection('EventSeats').where('eventId', '==', eventId).limit(5001).get(); }
+    if (inventory.size < categoryExpected) { await ensureEventInventory(event); inventory = await selectedInventory.get(); }
     if (inventory.size > 5000) throw new HttpsError('resource-exhausted', 'This event is too large for the interactive picker. Use automatic assignment.');
     const venue = venueSnap.data() || {};
     const physicalSections = venue.sections || [];
