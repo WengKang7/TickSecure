@@ -13,6 +13,13 @@ function fixture() {
         { id: 'must-not-be-selectable', seatLabel: 'Other-1', position: {x:90,y:35,width:4,height:4,page:1} }
     ] } };
 }
+
+test('3D category display names do not change physical matching or reservable IDs',()=>{
+    const data=fixture();data.seats[0].displaySeatLabel='VIP-1';
+    const scene=Model.createScene(data);
+    assert.equal(scene.seats[0].label,'VIP-1');assert.equal(scene.seats[0].id,'id0');
+    assert.equal(scene.seats.length,25);assert.equal(data.seats[0].seatLabel,'Main-1');
+});
 function fakeContext() {
     const calls = [];
     return { calls, createLinearGradient: () => ({ addColorStop() {} }), clearRect() {}, fillRect() {}, beginPath() {}, closePath() {}, stroke() {}, fill() {},

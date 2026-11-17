@@ -28,7 +28,7 @@
         const depth = clamp(median(source.map(s => (s.position.height || 2.8) / 106 * imageHeight)) * scale, .7, 1.3);
         const point = p => [(p.x - 52) / 104 * imageWidth * scale, (p.y - 53) / 106 * imageHeight * scale];
         const seats = source.map((s, i) => { const [x, z] = point(s.position); return {
-            id: i < offered.length ? s.id : null, label: String(s.seatLabel || ''), number: String(s.number || s.seatLabel || ''),
+            id: i < offered.length ? s.id : null, label: String(s.displaySeatLabel || s.seatLabel || ''), number: String(s.number || s.seatLabel || ''),
             status: i < offered.length ? s.status : 'CONTEXT', x, z, angle: 0
         }; });
         const xs = seats.map(s => s.x), zs = seats.map(s => s.z);

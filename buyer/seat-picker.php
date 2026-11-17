@@ -86,6 +86,7 @@ ob_start();
     </div>
   </div>
 </main>
+<script src="<?= ts_asset_url('assets/js/ticket-display.js', '..') ?>"></script>
 <script src="<?= ts_asset_url('assets/js/venue-renderer.js', '..') ?>"></script>
 <script src="<?= ts_asset_url('assets/js/seat-map-interactions.js', '..') ?>"></script>
 <script src="<?= ts_asset_url('assets/js/seat-view-model.js', '..') ?>"></script>

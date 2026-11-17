@@ -125,13 +125,14 @@ test('ticket flips to the same collectible artwork and back without replacing it
 test('digital ticket and artwork show the purchased category seat label without changing its QR identity', async () => {
     const record={...ticket,categoryName:'CAT 1',seatId:'DETECTED_SEATS-113'};
     const p=createPage('ticket-detail',{ticket:record});await p.ready();
-    assert.equal(p.elements.get('val-seat').textContent,'CAT1_113');
-    assert.equal(p.elements.get('ticket-art-seat').textContent,'Seat CAT1_113');
+    assert.equal(p.elements.get('val-seat').textContent,'CAT1-113');
+    assert.equal(p.elements.get('ticket-art-seat').textContent,'Seat CAT1-113');
     assert.equal(record.seatId,'DETECTED_SEATS-113');
     const format=p.window.tsTicketDisplay.seatLabel;
-    assert.equal(format({categoryName:'CAT 2',seatId:'DETECTED_SEATS-113'}),'CAT2_113');
-    assert.equal(format({categoryName:'VIP',seatId:'DETECTED_SEATS-007'}),'VIP_007');
-    assert.equal(format({categoryName:'CAT 1',seatId:'CAT1_113'}),'CAT1_113');
+    assert.equal(format({categoryName:'CAT 2',seatId:'DETECTED_SEATS-113'}),'CAT2-113');
+    assert.equal(format({categoryName:'VIP',seatId:'DETECTED_SEATS-007'}),'VIP-007');
+    assert.equal(format({categoryName:'CAT 1',seatId:'CAT1-113'}),'CAT1-113');
+    assert.equal(format({categoryName:'CAT 1',seatId:'CAT1_113'}),'CAT1-113');
     assert.equal(format({seatId:'DETECTED_SEATS-113'}),'DETECTED_SEATS-113');
     assert.equal(format({categoryName:'CAT 1',seatId:'A01'}),'A01');
     assert.equal(format({categoryName:'CAT 1'}),'Not assigned');

@@ -8,6 +8,7 @@
     const error = message => { el('picker-error').hidden = !message; el('picker-error').textContent = message || ''; };
     const sameSelection = () => hold && hold.seats.length === selected.size && hold.seats.every(seat => selected.has(seat.id)) && Date.parse(hold.reservationExpiry) > Date.now();
     const mapSeats = () => new Map((model?.seats || []).map(seat => [seat.id, seat]));
+    const seatName = seat => window.tsTicketDisplay?.seatLabel({seatLabel:seat.seatLabel,categoryName:model?.categoryName}) || seat.seatLabel;
     const owns = () => hold?.seats.map(seat => seat.id) || (model?.seats || []).filter(seat => seat.status === 'MINE').map(seat => seat.id);
     function renderWaitlist() {
         const root=el('picker-waitlist-details');if(!root)return;
@@ -15,7 +16,7 @@
         const member=model?.seats.find(seat=>seat.waitlistPosition || seat.waitlistOffer);
         const choice=el('picker-waitlist-seat'), previous=choice.value;choice.replaceChildren();
         (model?.seats||[]).filter(seat=>seat.status==='HELD' || seat.id===member?.id).forEach(seat=>{
-            const option=create('option','',seat.seatLabel);option.value=seat.id;choice.appendChild(option);
+            const option=create('option','',seatName(seat));option.value=seat.id;choice.appendChild(option);
         });
         if([...choice.children].some(option=>option.value===previous))choice.value=previous;
         choice.disabled=busy || !!member || !supported;
@@ -26,8 +27,8 @@
         el('picker-waitlist-claim').hidden=!member?.waitlistOffer;
         el('picker-waitlist-claim').disabled=busy || !(Date.parse(member?.reservationExpiry||'')>Date.now());
         el('picker-waitlist-position').textContent=!supported?'Choose a quantity of 1 to join a seat waiting list on the hosted website.'
-            :member?.waitlistOffer?`Seat ${member.seatLabel} is offered to you until ${new Date(member.reservationExpiry).toLocaleTimeString()}. Claim it to start checkout.`
-            :member?`Seat ${member.seatLabel}: your waiting-list position is ${member.waitlistPosition}. You will be notified if offered this seat.`
+            :member?.waitlistOffer?`Seat ${seatName(member)} is offered to you until ${new Date(member.reservationExpiry).toLocaleTimeString()}. Claim it to start checkout.`
+            :member?`Seat ${seatName(member)}: your waiting-list position is ${member.waitlistPosition}. You will be notified if offered this seat.`
             :choice.children.length?'Join explicitly to receive priority if a held seat is released.':'No held seats are available to queue for.';
         if(member || params.get('waitlist')==='1')root.open=true;
     }
@@ -44,7 +45,7 @@
         const seat = mapSeats().get(focusedSeatId);
         el('picker-seat-preview').hidden = !seat;
         if (!seat) return;
-        el('picker-preview-label').textContent = `Seat ${seat.seatLabel}`;
+        el('picker-preview-label').textContent = `Seat ${seatName(seat)}`;
         el('picker-preview-status').textContent = `${selected.has(seat.id) ? 'Selected · ' : ''}${seat.status === 'MINE' ? 'Held by you' : seat.status.toLowerCase()}`;
         el('picker-view-seat').disabled = !seat.position || failed3D || !window.tsSeatView3D;
         el('picker-view-seat').textContent = viewInfo.viewSeatId === seat.id && viewMode === '3d' ? 'Viewing from this seat' : 'View from this seat';
@@ -68,7 +69,7 @@
         el('picker-3d-fallback').hidden = !failed3D;
         el('picker-overview').hidden = !viewInfo.viewSeatId;
         const seat = mapSeats().get(viewInfo.viewSeatId);
-        el('picker-view-status').textContent = seat ? `View from ${seat.seatLabel}` : 'Venue overview';
+        el('picker-view-status').textContent = seat ? `View from ${seatName(seat)}` : 'Venue overview';
         el('picker-3d-note').textContent = `${seat ? 'Drag to look around.' : 'Drag to rotate.'} Illustrative view: actual attendees, floor slopes and obstructions are not modelled.${viewInfo.estimatedStage ? ' Stage position is estimated.' : ''}`;
         const pages = el('picker-plan-page'); pages.replaceChildren();
         (viewInfo.pages || []).forEach(page => { const option = create('option', '', `Plan page ${page}`); option.value = String(page); pages.appendChild(option); });
@@ -87,8 +88,8 @@
         [...selected].forEach(id => {
             const seat = records.get(id); if (!seat) return;
             const canPreview = seat.position && window.tsSeatView3D && !failed3D;
-            const pill = create(canPreview ? 'button' : 'span', 'ts-seat-pill', seat.seatLabel);
-            if (canPreview) { pill.type = 'button'; pill.setAttribute('aria-label', `View toward the stage from ${seat.seatLabel}`); pill.addEventListener('click', () => showSeatView(id)); }
+            const pill = create(canPreview ? 'button' : 'span', 'ts-seat-pill', seatName(seat));
+            if (canPreview) { pill.type = 'button'; pill.setAttribute('aria-label', `View toward the stage from ${seatName(seat)}`); pill.addEventListener('click', () => showSeatView(id)); }
             el('picker-selected').appendChild(pill);
         });
         el('picker-count').textContent = `${selected.size} of ${quantity} seats selected`;
@@ -122,8 +123,8 @@
         return [
             ...context.map((seat, index) => ({ ...seat.position, id: `context:${page}:${index}`, label: seat.seatLabel,
                 number: seat.number || seat.seatLabel, status: 'CONTEXT' })),
-            ...offered.map(seat => ({ ...seat.position, id: seat.id, label: seat.seatLabel,
-                number: seat.number || seat.seatLabel, status: seat.status === 'MINE' ? 'AVAILABLE' : seat.status }))
+            ...offered.map(seat => ({ ...seat.position, id: seat.id, label: seatName(seat),
+                number: seat.number || seatName(seat), status: seat.status === 'MINE' ? 'AVAILABLE' : seat.status }))
         ];
     }
     function toggle(id) {
@@ -169,10 +170,10 @@
                 onViewportChange: value => { viewport = value; }, onSeatSelect: (_, label, event, id) => toggle(id) });
         }
         const filter = el('picker-search').value.trim().toLowerCase(), list = el('picker-seat-list'); list.replaceChildren();
-        model.seats.filter(seat => !filter || seat.seatLabel.toLowerCase().includes(filter) || seat.row.toLowerCase().includes(filter)).forEach(seat => {
-            const button = create('button', 'ts-picker-seat-option', seat.seatLabel); button.type = 'button';
+        model.seats.filter(seat => !filter || seatName(seat).toLowerCase().includes(filter) || seat.seatLabel.toLowerCase().includes(filter) || seat.row.toLowerCase().includes(filter)).forEach(seat => {
+            const button = create('button', 'ts-picker-seat-option', seatName(seat)); button.type = 'button';
             button.disabled = !['AVAILABLE', 'MINE'].includes(seat.status) || busy;
-            button.setAttribute('aria-pressed', String(selected.has(seat.id))); button.setAttribute('aria-label', `${seat.seatLabel}, ${seat.status.toLowerCase()}`);
+            button.setAttribute('aria-pressed', String(selected.has(seat.id))); button.setAttribute('aria-label', `${seatName(seat)}, ${seat.status.toLowerCase()}`);
             button.addEventListener('click', () => toggle(seat.id)); list.appendChild(button);
         });
         renderSummary();
@@ -186,6 +187,7 @@
             if (!Array.isArray(result.seats) || !Number.isFinite(result.unitPrice) || result.unitPrice <= 0) throw Error('The seat map returned incomplete event data.');
             if (quantity > Math.min(20, result.maxPerBuyer)) throw Error('Your requested quantity exceeds the event ticket limit. Change your category or quantity.');
             model = result;
+            model.seats.forEach(seat => { seat.displaySeatLabel=seatName(seat); });
             const records = mapSeats(); [...selected].forEach(id => { if (!records.has(id) || !['AVAILABLE', 'MINE'].includes(records.get(id).status)) selected.delete(id); });
             if (initial) model.seats.filter(s => s.status === 'MINE').slice(0, quantity).forEach(s => selected.add(s.id));
             if (hold && hold.seats.some(s => records.get(s.id)?.status !== 'MINE')) { hold = null; error('Your previous hold is no longer valid. Choose seats again.'); }

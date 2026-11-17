@@ -19,7 +19,8 @@ function page(options = {}) {
     let now = Date.now();
     const seats = ['AVAILABLE','AVAILABLE','HELD','SOLD'].map((status, index) => ({ id: 'seat' + index, seatLabel: 'Main-A' + (index + 1), sectionId: 'Main', row: 'A', number: String(index + 1), status,
         position: { x: 10 + 5 * index, y: 30, width: 2, height: 2, shape: 'circle', page: 1 } }));
-    const data = { seats, unitPrice: 100, maxPerBuyer: 4, categoryName: 'Standard', eventName: 'Concert', venueName: 'Hall', geometry: { imageWidth: 800, imageHeight: 600, page: 1, decorations: [] } };
+    if(options.named)seats.forEach((seat,index)=>{seat.seatLabel='DETECTED_SEATS-'+(72+index);seat.number=String(72+index);});
+    const data = { seats, unitPrice: 100, maxPerBuyer: 4, categoryName: options.named?'VIP':'Standard', eventName: 'Concert', venueName: 'Hall', geometry: { imageWidth: 800, imageHeight: 600, page: 1, decorations: [] } };
     const window = { location: { search: options.search || '?eventId=event1&sectionId=Main&qty=2', href: '' },
         tsDecision: async () => options.cancelDecision ? null : {},
         tsCurrentUser: { uid: 'buyer', walletAddress: options.wallet ? '0x' + '1'.repeat(40) : '' },
@@ -50,6 +51,7 @@ function page(options = {}) {
     } };
     const context = vm.createContext({ window, document: { getElementById: id => elements.get(id), createElement: () => new Element(), hidden: false }, URLSearchParams,
         Date: class extends Date { static now() { return now; } }, setInterval: (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearInterval() {} });
+    vm.runInContext(fs.readFileSync('assets/js/ticket-display.js', 'utf8'), context);
     vm.runInContext(fs.readFileSync('assets/js/seat-picker.js', 'utf8'), context);
     return { elements, window, views, writes, data, previews, updates3D, visibility3D, disposals:()=>disposals, select3D:id=>controls3D.onSeatSelect(id), ready: flush, auth: () => listeners['ts-auth-ready'](), advance: ms => { now += ms; timers.filter(t => t.ms === 1000).forEach(t => t.fn()); },
         people(value) { elements.get('picker-people').checked=value; elements.get('picker-people').listeners.change(); },
@@ -72,6 +74,18 @@ test('buyer selects only available exact IDs and reserves before wallet continua
     assert.equal(checkout.searchParams.get('qty'), '2');
     p.advance(601000); assert.equal(p.elements.get('picker-continue').attributes['aria-disabled'], 'true');
     assert.equal(p.writes.length, 1, 'local expiry never releases a potentially renewed server hold');
+});
+
+test('category seat names are display-only and keep exact reservation IDs and physical labels',async()=>{
+    const p=page({named:true,threeD:true,search:'?eventId=event1&sectionId=Main&qty=1'});await p.ready();
+    p.select3D('seat0');assert.equal(p.elements.get('picker-selected').children[0].textContent,'VIP-72');
+    assert.equal(p.elements.get('picker-preview-label').textContent,'Seat VIP-72');
+    assert.equal(p.updates3D.at(-1).model.seats[0].displaySeatLabel,'VIP-72');
+    assert.equal(p.updates3D.at(-1).model.seats[0].seatLabel,'DETECTED_SEATS-72');
+    await p.click('picker-reserve');assert.deepEqual(p.writes[0].ids,['seat0']);
+    const wallet=new URL(p.elements.get('picker-continue').href,'http://localhost/buyer/');
+    const checkout=new URL(wallet.searchParams.get('redirect'),'http://localhost/buyer/');
+    assert.equal(checkout.searchParams.get('seatLabels'),'DETECTED_SEATS-72');
 });
 
 test('waiting-list controls join, display position, leave and claim a single offered seat',async()=>{
