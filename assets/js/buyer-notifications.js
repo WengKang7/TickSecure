@@ -31,6 +31,7 @@
     function target(item) {
         const id = String(item.relatedEntityId || ''); if (!id) return null;
         const type = String(item.relatedEntityType || '').toLowerCase();
+        if (type === 'seat_waitlist' && item.eventId && item.sectionId) return `seat-picker.php?eventId=${encodeURIComponent(item.eventId)}&sectionId=${encodeURIComponent(item.sectionId)}&qty=1&waitlist=1`;
         if (type === 'booking') return `booking-detail.php?id=${encodeURIComponent(id)}`;
         if (type === 'ticket') return `ticket-detail.php?id=${encodeURIComponent(id)}`;
         if (type === 'event') return `../public/event-detail.php?id=${encodeURIComponent(id)}`;

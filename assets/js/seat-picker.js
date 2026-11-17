@@ -9,6 +9,37 @@
     const sameSelection = () => hold && hold.seats.length === selected.size && hold.seats.every(seat => selected.has(seat.id)) && Date.parse(hold.reservationExpiry) > Date.now();
     const mapSeats = () => new Map((model?.seats || []).map(seat => [seat.id, seat]));
     const owns = () => hold?.seats.map(seat => seat.id) || (model?.seats || []).filter(seat => seat.status === 'MINE').map(seat => seat.id);
+    function renderWaitlist() {
+        const root=el('picker-waitlist-details');if(!root)return;
+        const supported=quantity===1 && window.tsSeats?.seatWaitlist && !window.tsFirebase?.emulator?.enabled;
+        const member=model?.seats.find(seat=>seat.waitlistPosition || seat.waitlistOffer);
+        const choice=el('picker-waitlist-seat'), previous=choice.value;choice.replaceChildren();
+        (model?.seats||[]).filter(seat=>seat.status==='HELD' || seat.id===member?.id).forEach(seat=>{
+            const option=create('option','',seat.seatLabel);option.value=seat.id;choice.appendChild(option);
+        });
+        if([...choice.children].some(option=>option.value===previous))choice.value=previous;
+        choice.disabled=busy || !!member || !supported;
+        el('picker-waitlist-join').hidden=!!member;
+        el('picker-waitlist-join').disabled=busy || !supported || !choice.children.length;
+        el('picker-waitlist-leave').hidden=!member;
+        el('picker-waitlist-leave').disabled=busy;
+        el('picker-waitlist-claim').hidden=!member?.waitlistOffer;
+        el('picker-waitlist-claim').disabled=busy || !(Date.parse(member?.reservationExpiry||'')>Date.now());
+        el('picker-waitlist-position').textContent=!supported?'Choose a quantity of 1 to join a seat waiting list on the hosted website.'
+            :member?.waitlistOffer?`Seat ${member.seatLabel} is offered to you until ${new Date(member.reservationExpiry).toLocaleTimeString()}. Claim it to start checkout.`
+            :member?`Seat ${member.seatLabel}: your waiting-list position is ${member.waitlistPosition}. You will be notified if offered this seat.`
+            :choice.children.length?'Join explicitly to receive priority if a held seat is released.':'No held seats are available to queue for.';
+        if(member || params.get('waitlist')==='1')root.open=true;
+    }
+    async function waitlistAction(leave=false) {
+        if(busy || quantity!==1 || !uid)return;
+        const member=model?.seats.find(seat=>seat.waitlistPosition || seat.waitlistOffer);
+        const id=leave?member?.id:el('picker-waitlist-seat').value;if(!id)return;
+        const actionVersion=version;busy=true;renderWaitlist();
+        try{await window.tsSeats.seatWaitlist(eventId,id,leave);if(actionVersion===version)error('');}
+        catch(failure){if(actionVersion===version)error(failure.message||'Could not update the waiting list.');}
+        finally{if(actionVersion===version){busy=false;await load();renderWaitlist();}}
+    }
     function renderPreview() {
         const seat = mapSeats().get(focusedSeatId);
         el('picker-seat-preview').hidden = !seat;
@@ -51,6 +82,7 @@
     }
     function clear3D() { view3D?.dispose(); view3D = null; focusedSeatId = null; viewInfo = {}; el('buyer-seat-3d').hidden = true; syncViewControls(); }
     function renderSummary() {
+        renderWaitlist();
         const records = mapSeats(); el('picker-selected').replaceChildren();
         [...selected].forEach(id => {
             const seat = records.get(id); if (!seat) return;
@@ -98,6 +130,9 @@
         if (busy) return;
         const seat = mapSeats().get(id); if (!seat) return;
         focusedSeatId = id; renderPreview();
+        if(seat.status==='HELD' && quantity===1 && el('picker-waitlist-details')){
+            renderWaitlist();el('picker-waitlist-details').open=true;el('picker-waitlist-seat').value=id;
+        }
         if (!['AVAILABLE', 'MINE'].includes(seat.status)) return;
         if (selected.has(id)) selected.delete(id);
         else if (selected.size < quantity) selected.add(id);
@@ -170,7 +205,7 @@
             if (!Array.isArray(result.seats) || result.seats.length !== quantity || new Set(result.seats.map(s => s.id)).size !== quantity
                 || result.seats.some(s => !selected.has(s.id) || !s.seatLabel) || !(Date.parse(result.reservationExpiry) > Date.now())) throw Error('The reservation response was incomplete. Refresh availability before continuing.');
             hold = result;
-            model.seats.forEach(seat => { if (selected.has(seat.id)) { seat.status = 'MINE'; seat.reservationExpiry = result.reservationExpiry; } else if (seat.status === 'MINE') seat.status = 'AVAILABLE'; });
+            model.seats.forEach(seat => { if (selected.has(seat.id)) { seat.status = 'MINE'; seat.reservationExpiry = result.reservationExpiry; delete seat.waitlistOffer; delete seat.waitlistPosition; } else if (seat.status === 'MINE') seat.status = 'AVAILABLE'; });
         } catch (failure) { if (requestVersion === version) { failed = true; error(failure.message || 'These seats could not be reserved.'); } }
         finally { if (requestVersion === version) { busy = false; render(); if (failed) await load(); } }
     }
@@ -196,6 +231,12 @@
     el('picker-plan-page').addEventListener('change', () => view3D?.setPage(Number(el('picker-plan-page').value)));
     el('picker-search').addEventListener('input', render); el('picker-refresh').addEventListener('click', () => load());
     el('picker-reserve').addEventListener('click', reserve); el('picker-release').addEventListener('click', release);
+    el('picker-waitlist-join')?.addEventListener('click',()=>waitlistAction());
+    el('picker-waitlist-leave')?.addEventListener('click',()=>waitlistAction(true));
+    el('picker-waitlist-claim')?.addEventListener('click',async()=>{
+        const offered=model?.seats.find(seat=>seat.waitlistOffer);if(busy || quantity!==1 || !offered)return;
+        selected.clear();selected.add(offered.id);await reserve();
+    });
     const autoQuery = new URLSearchParams({ eventId, sectionId, qty: String(quantity) }); el('picker-auto').href = `seat-assignment.php?${autoQuery}`;
     const categoryQuery = new URLSearchParams({ id: eventId, sectionId, qty: String(quantity) }); el('picker-back').href = `../public/event-detail.php?${categoryQuery}`;
     ['picker-back', 'picker-auto'].forEach(id => el(id).addEventListener('click', async event => { event.preventDefault(); if (!busy && await release()) window.location.href = el(id).href; }));

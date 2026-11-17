@@ -10,8 +10,8 @@ function eventAvailability(event, physicalSeats, eventSeats, currentTime = Date.
     const blocked = new Map(), activeReservations = new Map(), unavailableLabels = new Set();
     for (const seat of eventSeats) {
         if (seat.eventId !== event.id || seat.venueId !== event.venueId) continue;
-        const reusable = seat.status === 'AVAILABLE' || (seat.status === 'RESERVED'
-            && !(Date.parse(seat.reservationExpiry || '') > currentTime));
+        const reusable = !seat.hasWaitlist && (seat.status === 'AVAILABLE' || (seat.status === 'RESERVED'
+            && !(Date.parse(seat.reservationExpiry || '') > currentTime)));
         if (!reusable) {
             blocked.set(String(seat.sectionId), (blocked.get(String(seat.sectionId)) || 0) + 1);
             if (physicalLabels.has(seat.seatLabel)) unavailableLabels.add(seat.seatLabel);

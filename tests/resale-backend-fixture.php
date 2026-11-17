@@ -67,6 +67,7 @@ require_once __DIR__ . '/../api/ticket-transfer-history.php';
 require_once __DIR__ . '/../api/event-content-review.php';
 require_once __DIR__ . '/../api/seat-picker-policy.php';
 require_once __DIR__ . '/../api/seat-category-policy.php';
+require_once __DIR__ . '/../api/seat-waitlist.php';
 $start = strpos($source, 'const BACKEND_SERVICE_CHARGE');
 $end = strpos($source, 'if (!backend_is_enabled()');
 eval(substr($source, $start, $end - $start));
@@ -76,6 +77,10 @@ foreach ($cases as $case) {
     $firebase = new FirebaseAdminRest($case['records']);
     try {
         $result = match ($case['action']) {
+            'joinSeatWaitlist' => backend_seat_waitlist($firebase,$case['uid'],$case['data']),
+            'leaveSeatWaitlist' => backend_seat_waitlist($firebase,$case['uid'],$case['data'],true),
+            'advanceSeatWaitlist' => waitlist_advance($firebase,$case['data']['eventId'],$case['data']['seatDocId']),
+            'holdSelectedSeats' => backend_hold_selected_seats($firebase,$case['uid'],$case['data']),
             'getSeatMap' => backend_get_seat_map($firebase, $case['uid'], $case['data']),
             'moderateEvent' => backend_moderate_event($firebase, $case['uid'], $case['data']),
             'checkout' => backend_checkout($firebase, $case['uid'], $case['data']),

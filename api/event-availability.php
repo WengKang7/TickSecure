@@ -22,8 +22,8 @@ function backend_event_availability(array $event, array $physicalSeats, array $e
             $id = (string)($seat['sectionId'] ?? '');
             $activeReservations[$id] = ($activeReservations[$id] ?? 0) + 1;
         }
-        $reusable = ($seat['status'] ?? '') === 'AVAILABLE' || (($seat['status'] ?? '') === 'RESERVED'
-            && !($expiry !== false && $expiry > $currentTime));
+        $reusable = empty($seat['hasWaitlist']) && (($seat['status'] ?? '') === 'AVAILABLE' || (($seat['status'] ?? '') === 'RESERVED'
+            && !($expiry !== false && $expiry > $currentTime)));
         if (!$reusable) {
             $label = (string)($seat['seatLabel'] ?? '');
             if (isset($physicalLabels[$label])) $unavailableLabels[$label] = true;

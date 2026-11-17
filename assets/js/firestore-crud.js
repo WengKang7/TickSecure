@@ -4,7 +4,7 @@
  * Exposed globally as window.ts<ServiceName> for use by page scripts.
  */
 import { db, auth, storage } from './firebase-init.js';
-import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261116-hosted-resale';
+import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261117-waitlist';
 import {
     collection, doc, addDoc, setDoc, getDoc, getDocs,
     updateDoc, deleteDoc, deleteField, query, where, orderBy, limit,
@@ -891,6 +891,10 @@ export const SeatService = {
      * Allocates the next available seats. In production this delegates seat
      * selection to a callable Function; local Firestore writes are dev-only.
      */
+    async seatWaitlist(eventId, seatDocId, leave = false) {
+        return invokeTrustedBackend({ eventId, seatDocId }, { name: leave ? 'leaveSeatWaitlist' : 'joinSeatWaitlist', region: DEFAULT_FUNCTION_REGION });
+    },
+
     async getSeatMap(eventId, sectionId) {
         return invokeTrustedBackend({ eventId, sectionId }, { name: 'getSeatMap', region: DEFAULT_FUNCTION_REGION });
     },

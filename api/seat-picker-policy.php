@@ -8,6 +8,7 @@ function picker_visible_seat(array $seat, string $uid, array $fallback = [], ?in
     $state = $seat['status'] ?? '';
     $status = $state === 'RESERVED' ? ($active ? (($seat['reservedBy'] ?? '') === $uid ? 'MINE' : 'HELD') : 'AVAILABLE')
         : (in_array($state, ['AVAILABLE', 'SOLD'], true) ? $state : 'BLOCKED');
+    if($status==='AVAILABLE' && !empty($seat['hasWaitlist']))$status='HELD';
     $result = ['id' => $seat['id'], 'sectionId' => $seat['sectionId'], 'seatLabel' => $seat['seatLabel'], 'status' => $status,
         'row' => (string)($seat['rowLabel'] ?? $fallback['row'] ?? ''), 'number' => (string)($seat['seatNumber'] ?? $fallback['number'] ?? '')];
     $position = $seat['position'] ?? $fallback;
@@ -52,6 +53,8 @@ function picker_check_selected(array $seats, array $ids, array $context): array
             && (!(strtotime((string)($seat['reservationExpiry'] ?? '')) > $context['now']) || ($seat['reservedBy'] ?? '') === $context['uid']))) {
             throw new FirebaseBackendException(409, 'A selected seat was just taken. Refresh the map and choose another seat.', 'already-exists');
         }
+        if(!empty($seat['hasWaitlist']) && !(($seat['status']??'')==='RESERVED' && ($seat['reservedBy']??'')===$context['uid'] && strtotime((string)($seat['reservationExpiry']??''))>$context['now']))
+            throw new FirebaseBackendException(409,'This seat is reserved for the next waiting-list buyer.','already-exists');
         $selected[] = $seat;
     }
     return $selected;

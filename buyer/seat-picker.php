@@ -55,6 +55,16 @@ ob_start();
         <details id="picker-list-details" class="ts-simple-details mt-16"><summary>Find seats by row or number</summary><label class="ts-label mt-16" for="picker-search">Find a seat</label>
         <input class="ts-input" id="picker-search" placeholder="Row or seat identifier" maxlength="80">
         <div class="ts-picker-seat-list mt-12" id="picker-seat-list" aria-label="Available seat identifiers"></div></details>
+        <details class="ts-simple-details mt-16" id="picker-waitlist-details">
+          <summary>Waiting list for a held seat</summary>
+          <p class="small muted mt-12">One seat per buyer per event. Offers last 5 minutes. No purchase is made automatically.</p>
+          <p class="small mt-12" id="picker-waitlist-position" aria-live="polite"></p>
+          <label class="ts-label mt-12" for="picker-waitlist-seat">Held seat</label>
+          <select class="ts-select w-full" id="picker-waitlist-seat"></select>
+          <button class="ts-btn ts-btn-secondary w-full mt-12" type="button" id="picker-waitlist-join">Join waiting list</button>
+          <button class="ts-btn ts-btn-primary w-full mt-12" type="button" id="picker-waitlist-claim" hidden>Claim offered seat</button>
+          <button class="ts-btn ts-btn-ghost w-full mt-12" type="button" id="picker-waitlist-leave" hidden>Leave waiting list / decline offer</button>
+        </details>
       </section>
       <aside class="ts-card ts-card-pad ts-seat-order-panel" aria-labelledby="picker-order-heading">
         <div class="ts-seat-order-head"><div><h2 class="ts-card-title" id="picker-order-heading">Your tickets</h2><p class="small muted mt-8">Choose your seats, then reserve.</p></div><?=ts_icon('ticket')?></div>

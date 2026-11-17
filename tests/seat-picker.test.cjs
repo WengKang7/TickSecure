@@ -26,6 +26,7 @@ function page(options = {}) {
         addEventListener: (key, action) => { listeners[key] = action; },
         tsVenueRenderer: { renderBoard: (id, sections, config) => views.push({ sections, config }) },
         tsSeats: {
+            seatWaitlist: async (eventId,seatId,leave) => {writes.push({waitlist:seatId,leave});return options.waitlist?.(data,seatId,leave);},
             getSeatMap: async () => options.getMap ? options.getMap() : structuredClone(data),
             holdSelectedSeats: async (event, section, ids) => { writes.push({ event, section, ids: [...ids] }); return options.hold ? options.hold(ids) : {
                 seats: ids.map(id => ({ id, seatLabel: seats.find(s => s.id === id).seatLabel, sectionId: section })), reservationExpiry: new Date(now + 600000).toISOString()
@@ -71,6 +72,20 @@ test('buyer selects only available exact IDs and reserves before wallet continua
     assert.equal(checkout.searchParams.get('qty'), '2');
     p.advance(601000); assert.equal(p.elements.get('picker-continue').attributes['aria-disabled'], 'true');
     assert.equal(p.writes.length, 1, 'local expiry never releases a potentially renewed server hold');
+});
+
+test('waiting-list controls join, display position, leave and claim a single offered seat',async()=>{
+    const p=page({search:'?eventId=event1&sectionId=Main&qty=1&waitlist=1',waitlist:(data,id,leave)=>{
+        const seat=data.seats.find(s=>s.id===id);if(leave)delete seat.waitlistPosition;else seat.waitlistPosition=1;
+    }});await p.ready();
+    p.elements.get('picker-waitlist-seat').value='seat2';await p.click('picker-waitlist-join');
+    assert.equal(p.writes[0].waitlist,'seat2');assert.match(p.elements.get('picker-waitlist-position').textContent,/position is 1/);
+    await p.click('picker-waitlist-leave');assert.equal(p.writes[1].leave,true);
+    Object.assign(p.data.seats[2],{status:'MINE',waitlistOffer:true,reservationExpiry:new Date(Date.now()+300000).toISOString()});
+    await p.click('picker-refresh');assert.equal(p.elements.get('picker-waitlist-claim').hidden,false);
+    await p.click('picker-waitlist-claim');assert.deepEqual(p.writes.at(-1).ids,['seat2']);
+    assert.equal(p.elements.get('picker-continue').attributes['aria-disabled'],'false');
+    assert.equal(p.elements.get('picker-waitlist-claim').hidden,true);
 });
 test('a failed release retains the hold and blocks navigation', async () => {
     const p = page({ failRelease: true, wallet: true }); await p.ready(); p.select('seat0'); p.select('seat1'); await p.click('picker-reserve');

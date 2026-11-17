@@ -517,6 +517,7 @@ exports.checkout = onCall({ region, enforceAppCheck: false }, async (request) =>
             }
             selectedSeats = seatsSnap.docs.map((seat) => ({ id: seat.id, ...seat.data() }));
         }
+        if(selectedSeats.some(seat=>seat.hasWaitlist && !(seat.status==='RESERVED' && seat.reservedBy===uid && reservationIsActive(seat))))throw new HttpsError('already-exists','A selected seat has waiting-list priority.');
         const seatLabels = selectedSeats.map((seat) => seat.seatLabel);
         const unitPrice = ticketCategory.price;
         const totalAmount = Math.round((unitPrice * requestedQuantity + serviceCharge) * 100) / 100;
@@ -686,10 +687,10 @@ exports.reserveSeats = onCall({ region, enforceAppCheck: false }, async (request
         if (alreadyHeld + otherActiveReservationCount + quantity > maxPerBuyer) {
             throw new HttpsError('failed-precondition', 'Your active seat reservations already reach the per-buyer ticket limit for this event.');
         }
-        const expired = reservations.filter((seat) => !reservationIsActive(seat, currentTime));
+        const expired = reservations.filter((seat) => !reservationIsActive(seat, currentTime) && !seat.hasWaitlist);
         const retained = ownedActive.slice(0, quantity);
         const candidates = [
-            ...availableSnap.docs.map((seat) => ({ id: seat.id, ...seat.data() })),
+            ...availableSnap.docs.map((seat) => ({ id: seat.id, ...seat.data() })).filter(seat=>!seat.hasWaitlist),
             ...expired,
         ].sort((left, right) => String(left.seatLabel).localeCompare(String(right.seatLabel)));
         const selected = [...retained, ...candidates.slice(0, quantity - retained.length)];

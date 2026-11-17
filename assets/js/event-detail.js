@@ -22,6 +22,7 @@ function remainingFor(sectionId) {
 }
 
 function renderAvailability() {
+    if(el('event-waitlist-entry'))el('event-waitlist-entry').hidden=previewOnly || !!salesMessage() || !categories.length;
     if (Array.isArray(availability?.unavailableSeatLabels)) {
         const unavailable = new Set(availability.unavailableSeatLabels);
         el('ven-board').querySelectorAll('[data-physical-seat-label]').forEach(seat => {
@@ -231,6 +232,12 @@ function renderCategories(event) {
         cards.push(empty);
     }
     el('cat-list').replaceChildren(...cards);
+    const waitingCategories=el('event-waitlist-category');
+    if(waitingCategories){
+        waitingCategories.replaceChildren();
+        categories.forEach(category=>{const option=document.createElement('option');option.value=category.sectionId;option.textContent=category.name;waitingCategories.appendChild(option);});
+        updateWaitingLink();
+    }
     el('category-count').textContent = `${categories.length} ${categories.length === 1 ? 'category' : 'categories'} · ${previewOnly ? 'viewing only' : 'choose your own seats'}`;
     el('ev-price').innerHTML = `<strong>From ${esc(startingPrice())}</strong><span>Availability checked at booking</span>`;
     if (previewOnly) {
@@ -247,6 +254,12 @@ function renderCategories(event) {
     if (Number.isInteger(requestedQuantity) && requestedQuantity > 0) quantity = requestedQuantity;
     updateOrder();
 }
+
+function updateWaitingLink(){
+    const category=categories.find(c=>c.sectionId===el('event-waitlist-category')?.value)||categories[0];
+    if(category && currentEvent)el('event-waitlist-link').href=`../buyer/seat-picker.php?${new URLSearchParams({eventId:currentEvent.id,sectionId:category.sectionId,qty:'1',waitlist:'1'})}`;
+}
+el('event-waitlist-category')?.addEventListener('change',updateWaitingLink);
 
 function renderEvent(event) {
     currentEvent = event;

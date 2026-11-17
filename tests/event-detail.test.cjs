@@ -76,6 +76,14 @@ test('event plan greys unavailable seats and restores them after the hold expire
     assert.equal(page.venueReads(),1);assert.equal(page.writes.length,0);
 });
 
+test('held-out categories still have an explicit waiting-list entry point without booking',async()=>{
+    const p=createPage({remaining:{A:0,B:0}});await p.ready();
+    assert.equal(p.elements.get('event-waitlist-entry').hidden,false);
+    const url=new URL(p.elements.get('event-waitlist-link').href,'http://localhost/public/event-detail.php');
+    assert.equal(url.searchParams.get('qty'),'1');assert.equal(url.searchParams.get('waitlist'),'1');
+    assert.equal(p.writes.length,0);
+});
+
 function createPage(options = {}) {
     const php = fs.readFileSync(path.join(root, 'public/event-detail.php'), 'utf8');
     const elements = new Map([...php.matchAll(/id="([^"]+)"/g)].map(match => [match[1], new Element()]));

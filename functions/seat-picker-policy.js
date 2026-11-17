@@ -5,6 +5,7 @@ function visibleSeat(seat, uid, fallback = {}, currentTime = Date.now()) {
         : ['AVAILABLE', 'SOLD'].includes(seat.status) ? seat.status : 'BLOCKED';
     const result = { id: seat.id, sectionId: seat.sectionId, seatLabel: seat.seatLabel, status,
         row: String(seat.rowLabel || fallback.row || ''), number: String(seat.seatNumber || fallback.number || '') };
+    if(result.status==='AVAILABLE' && seat.hasWaitlist)result.status='HELD';
     const position = seat.position || fallback;
     if (Number.isFinite(position.x) && Number.isFinite(position.y) && position.x >= 0 && position.x <= 104 && position.y >= 0 && position.y <= 106) {
         result.position = { x: position.x, y: position.y, page: Number.isInteger(position.page) && position.page > 0 ? position.page : 1,
@@ -23,6 +24,7 @@ function checkSelected(seats, ids, context) {
         if (seat.status !== 'AVAILABLE' && !(seat.status === 'RESERVED' && (!(Date.parse(seat.reservationExpiry || '') > context.now) || seat.reservedBy === context.uid))) {
             throw Object.assign(new Error('A selected seat was just taken. Refresh the map and choose another seat.'), { code: 'already-exists' });
         }
+        if(seat.hasWaitlist && !(seat.status==='RESERVED' && seat.reservedBy===context.uid && Date.parse(seat.reservationExpiry||'')>context.now))throw Object.assign(new Error('This seat is reserved for the next waiting-list buyer.'),{code:'already-exists'});
         return seat;
     });
 }

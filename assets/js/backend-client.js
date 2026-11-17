@@ -70,13 +70,13 @@ export async function invokeTrustedBackend(request, config) {
     }
     const localDemoCheckout = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
         && window.tsFirebase?.emulator?.enabled !== true
-        && ['submitEventForReview', 'checkEventContent', 'moderateEvent', 'manageAdminAccount', 'getEventAvailability', 'getSeatMap', 'holdSelectedSeats', 'reserveSeats', 'releaseSeatReservation', 'checkout',
+        && ['submitEventForReview', 'checkEventContent', 'moderateEvent', 'manageAdminAccount', 'getEventAvailability', 'getSeatMap', 'joinSeatWaitlist', 'leaveSeatWaitlist', 'holdSelectedSeats', 'reserveSeats', 'releaseSeatReservation', 'checkout',
             'createResaleListing', 'updateResalePrice', 'cancelResaleListing', 'suspendResaleListing', 'purchaseResale', 'transferTicket', 'getTicketTransfers',
             'getBlockchainSettings', 'configureBlockchain', 'prepareBlockchainOperation', 'verifyBlockchainOperation',
             'getBuyerBlockchainOperations', 'getOrganizerBlockchainOperations', 'getDemoFundingSettings', 'getDemoFundingChallenge', 'claimDemoFunding', 'retryDemoFunding'].includes(config.name);
     const hostedCheckout = window.location.hostname === 'ticksecure.onrender.com'
         && window.tsFirebase?.emulator?.enabled !== true
-        && ['getEventAvailability', 'getSeatMap', 'holdSelectedSeats', 'reserveSeats', 'releaseSeatReservation', 'checkout',
+        && ['getEventAvailability', 'getSeatMap', 'joinSeatWaitlist', 'leaveSeatWaitlist', 'holdSelectedSeats', 'reserveSeats', 'releaseSeatReservation', 'checkout',
             'submitEventForReview', 'checkEventContent', 'moderateEvent', 'transferTicket', 'getTicketTransfers',
             'createResaleListing', 'updateResalePrice', 'cancelResaleListing', 'suspendResaleListing', 'purchaseResale',
             'getBlockchainSettings', 'configureBlockchain', 'prepareBlockchainOperation', 'verifyBlockchainOperation',

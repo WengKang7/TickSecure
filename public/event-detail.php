@@ -56,6 +56,13 @@ ob_start();
             <button class="ts-btn ts-btn-ghost" type="button" id="refresh-availability" aria-label="Refresh remaining seats">Refresh</button>
           </div>
           <div class="ts-event-category-list" id="cat-list" aria-label="Ticket categories"><p class="small secondary">Loading categories...</p></div>
+          <details class="ts-simple-details mt-16" id="event-waitlist-entry" hidden>
+            <summary>Wait for a held seat</summary>
+            <p class="small muted mt-12">Join a specific seat's queue if its current buyer has not completed checkout. Sold tickets cannot be queued.</p>
+            <label class="ts-label mt-12" for="event-waitlist-category">Ticket category</label>
+            <select class="ts-select w-full" id="event-waitlist-category"></select>
+            <a class="ts-btn ts-btn-secondary w-full mt-12" id="event-waitlist-link">Open seat waiting list</a>
+          </details>
           <p class="small secondary" id="category-selection-note" aria-live="polite">Select a category to highlight its section on the venue layout.</p>
           <div class="ts-event-order" id="event-order" hidden>
             <div class="ts-event-quantity-row">

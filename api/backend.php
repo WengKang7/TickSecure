@@ -18,6 +18,7 @@ require_once __DIR__ . '/password-reset.php';
 require_once __DIR__ . '/event-availability.php';
 require_once __DIR__ . '/display-read-cache.php';
 require_once __DIR__ . '/seat-picker-policy.php';
+require_once __DIR__ . '/seat-waitlist.php';
 require_once __DIR__ . '/seat-category-policy.php';
 require_once __DIR__ . '/ticket-transfer-history.php';
 require_once __DIR__ . '/blockchain.php';
@@ -489,6 +490,7 @@ function backend_ensure_purchasable_event_inventory(FirebaseAdminRest $firebase,
     if (!backend_sales_are_open($event)) {
         backend_fail(412, 'Ticket sales are not open for this event.', 'failed-precondition');
     }
+    waitlist_refresh_event($firebase, $eventId);
     backend_ensure_event_inventory($firebase, $event);
 }
 
@@ -581,7 +583,7 @@ function backend_checkout(FirebaseAdminRest $firebase, string $uid, array $data)
         } else {
             $selectedSeats = array_slice(array_values(array_filter(backend_event_seats($transaction, $eventId),
                 static fn (array $seat): bool => ($seat['venueId'] ?? '') === ($event['venueId'] ?? '')
-                    && ($seat['sectionId'] ?? '') === $sectionId && ($seat['status'] ?? '') === 'AVAILABLE')), 0, $quantity);
+                    && ($seat['sectionId'] ?? '') === $sectionId && ($seat['status'] ?? '') === 'AVAILABLE' && empty($seat['hasWaitlist']))), 0, $quantity);
             if (count($selectedSeats) !== $quantity) {
                 backend_fail(412, 'The requested number of seats is no longer available.', 'failed-precondition');
             }
@@ -730,7 +732,7 @@ function backend_reserve_seats(FirebaseAdminRest $firebase, string $uid, array $
         $sectionSeats = array_values(array_filter($eventSeats,
             static fn (array $seat): bool => ($seat['venueId'] ?? '') === $venueId && ($seat['sectionId'] ?? '') === $sectionId));
         $reservations = array_values(array_filter($sectionSeats, static fn (array $seat): bool => ($seat['status'] ?? '') === 'RESERVED'));
-        $available = array_values(array_filter($sectionSeats, static fn (array $seat): bool => ($seat['status'] ?? '') === 'AVAILABLE'));
+        $available = array_values(array_filter($sectionSeats, static fn (array $seat): bool => ($seat['status'] ?? '') === 'AVAILABLE' && empty($seat['hasWaitlist'])));
         $ownedReservations = array_values(array_filter($eventSeats,
             static fn (array $seat): bool => ($seat['reservedBy'] ?? '') === $uid && ($seat['status'] ?? '') === 'RESERVED'));
 
@@ -754,7 +756,7 @@ function backend_reserve_seats(FirebaseAdminRest $firebase, string $uid, array $
 
         $expired = array_values(array_filter(
             $reservations,
-            static fn (array $seat): bool => !backend_reservation_is_active($seat)
+            static fn (array $seat): bool => !backend_reservation_is_active($seat) && empty($seat['hasWaitlist'])
         ));
         $retained = array_slice($ownedInSection, 0, $quantity);
         $candidates = array_merge($available, $expired);
@@ -852,7 +854,14 @@ function backend_get_seat_map(FirebaseAdminRest $firebase, string $uid, array $d
         foreach ($geometry['seatMarkers'] ?? [] as $marker) $markers[$section['sectionId'] . '-' . $marker['label']] = $marker + ['page' => $page];
     }
     $seats = [];
-    foreach ($inventory as $seat) if (($seat['venueId'] ?? '') === $event['venueId'] && ($seat['sectionId'] ?? '') === $sectionId) $seats[] = picker_visible_seat($seat, $uid, $markers[$seat['seatLabel']] ?? []);
+    foreach ($inventory as $seat) if (($seat['venueId'] ?? '') === $event['venueId'] && ($seat['sectionId'] ?? '') === $sectionId) {
+        $queue=[];
+        if(!empty($seat['hasWaitlist'])){ $advanced=waitlist_advance($firebase,$eventId,$seat['id']);$seat=$advanced['seat'];$queue=$advanced['queue']; }
+        $visible=picker_visible_seat($seat,$uid,$markers[$seat['seatLabel']]??[]);
+        foreach($queue['entries']??[] as $index=>$entry)if($entry['uid']===$uid)$visible['waitlistPosition']=$index+1;
+        if(($queue['offerUid']??'')===$uid && $visible['status']==='MINE')$visible['waitlistOffer']=true;
+        $seats[]=$visible;
+    }
     return ['eventId' => $eventId, 'venueId' => $event['venueId'], 'eventName' => $event['name'] ?? '', 'venueName' => $venue['name'] ?? $event['venueName'] ?? '',
         'sectionId' => $sectionId, 'categoryName' => $category['name'], 'unitPrice' => (float)$category['price'], 'maxPerBuyer' => min(20, backend_max_tickets_per_buyer($event)), 'seats' => $seats,
         'geometry' => ['layoutSeats' => picker_layout_context($venue['sections'] ?? []), 'pages' => (object)$pages, 'imageWidth' => $g['imageWidth'] ?? 104, 'imageHeight' => $g['imageHeight'] ?? 106, 'page' => $g['page'] ?? 1, 'decorations' => $g['decorations'] ?? []]];
@@ -877,11 +886,21 @@ function backend_hold_selected_seats(FirebaseAdminRest $firebase, string $uid, a
         $others = array_filter($owned, static fn (array $seat): bool => backend_reservation_is_active($seat) && $seat['sectionId'] !== $sectionId);
         if (backend_owned_ticket_count($tx, $eventId, $uid) + count($others) + count($selected) > min(20, backend_max_tickets_per_buyer($event))) backend_fail(412, 'This selection exceeds your ticket limit for the event.', 'failed-precondition');
         $chosen = array_flip($ids); $timestamp = backend_now();
+        $claimQueues=[];
+        foreach($selected as $seat)if(!empty($seat['hasWaitlist'])){
+            $q=$tx->get('SeatWaitlists',$seat['id']);
+            if(($q['offerUid']??'')===$uid)$claimQueues[$seat['id']]=$q;
+        }
         $expiry = (new DateTimeImmutable('@' . (time() + 600)))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\\TH:i:s\\Z');
         foreach ($owned as $seat) if ($seat['sectionId'] === $sectionId && !isset($chosen[$seat['id']])) $tx->update('EventSeats', $seat['id'], [
             'status' => 'AVAILABLE', 'reservedBy' => '', 'reservedAt' => '', 'reservationExpiry' => '', 'reservationEventId' => '', 'updatedAt' => $timestamp]);
         foreach ($selected as $seat) $tx->update('EventSeats', $seat['id'], [
             'status' => 'RESERVED', 'reservedBy' => $uid, 'reservedAt' => $timestamp, 'reservationExpiry' => $expiry, 'reservationEventId' => $eventId, 'updatedAt' => $timestamp]);
+        foreach($claimQueues as $seatId=>$q){
+            $tx->update('SeatWaitlists',$seatId,['offerUid'=>'','offerExpiry'=>'','updatedAt'=>$timestamp]);
+            $tx->delete('SeatWaitlistMembers',waitlist_member_id($eventId,$uid));
+            $tx->update('EventSeats',$seatId,['hasWaitlist'=>count($q['entries']??[])>0]);
+        }
         $fields = ['eventId' => $eventId, 'buyerUid' => $uid, 'updatedAt' => $timestamp];
         if ($lock === null) $tx->create('ReservationLocks', $lockId, $fields); else $tx->update('ReservationLocks', $lockId, $fields);
         $tx->create('AuditLogs', backend_new_document_id(), backend_audit_doc('seats_selected', 'event', $eventId, $buyer, ['sectionId' => $sectionId, 'quantity' => count($ids)]));
@@ -1748,7 +1767,7 @@ try {
     }
 
     if (!backend_is_enabled() && !(backend_checkout_is_enabled()
-        && in_array($action, ['reserveSeats', 'getSeatMap', 'holdSelectedSeats', 'releaseSeatReservation', 'checkout'], true))
+        && in_array($action, ['reserveSeats', 'getSeatMap', 'joinSeatWaitlist', 'leaveSeatWaitlist', 'holdSelectedSeats', 'releaseSeatReservation', 'checkout'], true))
         && !(backend_resale_is_enabled() && in_array($action, [
             'createResaleListing', 'updateResalePrice', 'cancelResaleListing', 'suspendResaleListing', 'purchaseResale'
         ], true))
@@ -1776,6 +1795,8 @@ try {
     }
 
     $handlers = [
+        'joinSeatWaitlist' => static fn (): array => backend_seat_waitlist($firebase,$uid,$data),
+        'leaveSeatWaitlist' => static fn (): array => backend_seat_waitlist($firebase,$uid,$data,true),
         'submitEventForReview' => static fn (): array => (new EventContentReview($firebase))->run($uid, backend_require_id($data['eventId'] ?? null, 'Event ID'), true),
         'checkEventContent' => static fn (): array => (new EventContentReview($firebase))->run($uid, backend_require_id($data['eventId'] ?? null, 'Event ID'), false),
         'manageAdminAccount' => static fn (): array => (new TickSecureAdminAccounts(firebase_backend_config()['projectId']))->manage($uid, $data),
