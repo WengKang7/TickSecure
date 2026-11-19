@@ -132,3 +132,19 @@ offer. It reuses the existing map response, adding no database polling. Choosing
 Claim seat uses the existing reservation flow; Later leaves the claim button
 available until expiry. Popup confirmation rechecks the session and expiry.
 Render must be awake with notification-email.env installed for email delivery.
+
+
+### Alerts across TickSecure pages
+
+The buyer header now checks only that buyer's live queue offers alongside its
+existing 30-second notification refresh. Hidden tabs pause, then check when
+visible again. A red warning dialog with an exclamation mark links directly to
+the offered event/category. The picker handles its matching offer locally;
+session storage prevents repeat popups when moving between pages in one tab.
+A busy confirmation dialog is allowed to finish before an offer popup appears.
+
+New waiting-list memberships include the buyer UID so a header check can advance
+that buyer's expired queued holds without loading unrelated seats. Older
+memberships still receive alerts when an offer is issued by release or a picker
+refresh; leaving and rejoining enables header-driven expiry checks for them.
+The browser must have a TickSecure page open; email remains the off-site channel.

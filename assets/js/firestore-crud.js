@@ -4,7 +4,7 @@
  * Exposed globally as window.ts<ServiceName> for use by page scripts.
  */
 import { db, auth, storage } from './firebase-init.js';
-import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261119-email';
+import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261119-global-offers';
 import {
     collection, doc, addDoc, setDoc, getDoc, getDocs,
     updateDoc, deleteDoc, deleteField, query, where, orderBy, limit,
@@ -301,6 +301,11 @@ export const AuditService = {
 // NOTIFICATION SERVICE
 // ============================================================
 export const NotificationService = {
+    async getSeatOffers() {
+        if (window.tsFirebase?.emulator?.enabled === true) return [];
+        const result = await invokeTrustedBackend({}, { name: 'getSeatWaitlistOffers', backend: 'php' });
+        return result.offers || [];
+    },
     async create(recipientUid, message, type = 'info', relatedType = '', relatedId = '') {
         const serverMail = window.tsFirebase?.emulator?.enabled !== true && (usingLocalPhpBackend()
             || ['localhost', '127.0.0.1', '[::1]', 'ticksecure.onrender.com'].includes(window.location.hostname));

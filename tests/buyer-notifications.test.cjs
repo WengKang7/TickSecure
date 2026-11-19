@@ -20,18 +20,21 @@ function app(options = {}) {
         { id: 'n2', type: 'ticket_transferred', message: 'Ticket received.', read: true }];
     const events = {}, docEvents = {}, writes = [], timers = [];
     let listCalls = 0, countCalls = 0, fail = !!options.fail;
-    const window = { location: new URL('http://localhost/ticksecure-ui/buyer/notifications.php'),
+    const window = { location: new URL(options.url || 'http://localhost/ticksecure-ui/buyer/notifications.php'),
+        sessionStorage: options.storage || new Map(),
         addEventListener: (key, callback) => { events[key] = callback; },
-        tsDecision: () => options.decision ? options.decision() : Promise.resolve(options.cancel ? null : {}),
+        tsDecision: (...args) => options.decision ? options.decision(...args) : Promise.resolve(options.cancel ? null : {}),
         tsNotifications: {
+            getSeatOffers: async () => options.offers || [],
             getForUser: async () => { listCalls++; if (options.pending) return options.pending(); if (fail) throw Error('Denied'); return structuredClone(records); },
             getUnreadCount: async () => { countCalls++; return records.filter(item => !item.read).length; },
             markRead: async id => { writes.push(['read', id]); records.find(item => item.id === id).read = true; },
             markAllRead: async () => { writes.push(['all']); records.forEach(item => { item.read = true; }); },
             delete: async id => { writes.push(['delete', id]); records = records.filter(item => item.id !== id); }
         } };
+    elements.get('buyer-notifications-link').href='http://localhost/ticksecure-ui/buyer/notifications.php';
     vm.runInNewContext(fs.readFileSync('assets/js/buyer-notifications.js', 'utf8'), { window, document: { hidden: false, getElementById: id => elements.get(id), createElement: tag => new Element(tag), addEventListener: (key, fn) => { docEvents[key] = fn; } },
-        setInterval: callback => { timers.push(callback); return timers.length; }, clearInterval() {}, Date, Promise });
+        setInterval: callback => { timers.push(callback); return timers.length; }, clearInterval() {}, Date, Promise, URL, URLSearchParams });
     return { elements, writes, events, timers, window, calls: () => ({ listCalls, countCalls }), recover: () => { fail = false; },
         auth: async profile => { window.tsCurrentUser = profile; events['ts-auth-ready']({ detail: profile }); await flush(); },
         action: (text, index = 0) => elements.get('notif-container').children[index].children[1].children.find(button => button.textContent === text).click() };
@@ -137,4 +140,23 @@ test('unread badge requests a server count instead of downloading notification d
     assert.equal(await api.getUnreadCount(),530);
     assert.deepEqual(JSON.parse(JSON.stringify(calls)),[{name:'Notifications',filters:[
         {field:'recipientUid',op:'==',value:'buyer-1'},{field:'read',op:'==',value:false}]}]);
+});
+
+
+const liveOffer = () => ({seatId:'seat-1',seatLabel:'VIP-72',categoryName:'VIP',eventName:'Concert',eventId:'event&safe',sectionId:'CAT_1',reservationExpiry:new Date(Date.now()+300000).toISOString()});
+test('offer popup opens from public pages, uses correct buyer link and is deduplicated across refreshes',async()=>{
+    const offers=[liveOffer()],storage=new Map();storage.getItem=storage.get.bind(storage);storage.setItem=storage.set.bind(storage);
+    let calls=0;const options={headerOnly:true,url:'http://localhost/ticksecure-ui/public/events.php',offers,storage,decision:async(action,subject)=>{calls++;assert.equal(action,'seatOfferOpen');assert.match(subject,/VIP-72/);return {};}};
+    const p=app(options);await p.auth({uid:'buyer-1',role:'buyer'});
+    assert.equal(calls,1);assert.equal(new URL(p.window.location.href).pathname,'/ticksecure-ui/buyer/seat-picker.php');
+    assert.equal(new URL(p.window.location.href).searchParams.get('eventId'),'event&safe');
+    await p.timers[0]();assert.equal(calls,1);
+    const nextPage=app({...options,url:'http://localhost/ticksecure-ui/buyer/tickets.php'});await nextPage.auth({uid:'buyer-1',role:'buyer'});assert.equal(calls,1);
+});
+test('expired offers do not alert and a stale session cannot navigate after confirmation',async()=>{
+    let calls=0,accept;const offer=liveOffer();offer.reservationExpiry='2000-01-01T00:00:00Z';
+    const p=app({headerOnly:true,offers:[offer],decision:()=>{calls++;return new Promise(resolve=>{accept=resolve;});}});
+    await p.auth({uid:'buyer-1',role:'buyer'});assert.equal(calls,0);
+    offer.reservationExpiry=liveOffer().reservationExpiry;await p.timers[0]();assert.equal(calls,1);
+    await p.auth(null);accept({});await flush();assert.equal(p.window.location.pathname,'/ticksecure-ui/buyer/notifications.php');
 });

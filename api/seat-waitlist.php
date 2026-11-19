@@ -98,11 +98,40 @@ function backend_seat_waitlist(FirebaseAdminRest $firebase,string $uid,array $da
         $entries[]=['uid'=>$uid,'joinedAt'=>backend_now()];
         $fields=['eventId'=>$eventId,'seatDocId'=>$seatId,'sectionId'=>$seat['sectionId'],'entries'=>$entries,'updatedAt'=>backend_now()];
         if($queue)$tx->update('SeatWaitlists',$seatId,$fields);else $tx->create('SeatWaitlists',$seatId,$fields+['offerUid'=>'','offerExpiry'=>'']);
-        $tx->create('SeatWaitlistMembers',waitlist_member_id($eventId,$uid),['eventId'=>$eventId,'seatDocId'=>$seatId]);
+        $tx->create('SeatWaitlistMembers',waitlist_member_id($eventId,$uid),['eventId'=>$eventId,'seatDocId'=>$seatId,'buyerUid'=>$uid]);
         $tx->update('EventSeats',$seatId,['hasWaitlist'=>true]);
         waitlist_notice($tx,$uid,'You joined the waiting list for '.$seat['seatLabel'].'. Open the seat picker to view your position.',$seatId,$eventId,$seat['sectionId']);
         return ['joined'=>true,'position'=>count($entries),'seatId'=>$seatId];
     });
     if($leave)waitlist_advance($firebase,$eventId,$seatId);
     return $result;
+}
+
+
+/** Only the signed-in buyer's live offers; no notification-history scan. */
+function backend_get_seat_offers(FirebaseAdminRest $firebase, string $uid): array
+{
+    backend_assert_active_buyer(backend_get_current_actor($firebase, $uid));
+    // Advance this buyer's queued seats when a previous holder times out,
+    // even when the buyer is browsing another TickSecure page.
+    foreach ($firebase->queryDocuments('SeatWaitlistMembers', ['buyerUid' => $uid], [], 20) as $membership) {
+        $seat = $firebase->getDocument('EventSeats', (string)$membership['seatDocId']);
+        if ($seat && (($seat['status'] ?? '') !== 'RESERVED' || !backend_reservation_is_active($seat)))
+            waitlist_advance($firebase, $membership['eventId'], $membership['seatDocId']);
+    }
+    $offers = [];
+    foreach ($firebase->queryDocuments('SeatWaitlists', ['offerUid' => $uid], [], 20) as $queue) {
+        if (strtotime((string)($queue['offerExpiry'] ?? '')) <= time()) continue;
+        $seat = $firebase->getDocument('EventSeats', (string)($queue['seatDocId'] ?? $queue['id']));
+        if (!$seat || ($seat['reservedBy'] ?? '') !== $uid || ($seat['status'] ?? '') !== 'RESERVED'
+            || !backend_reservation_is_active($seat) || ($seat['reservationExpiry'] ?? '') !== $queue['offerExpiry']) continue;
+        $event = $firebase->getDocument('Events', (string)$seat['eventId']);
+        if (!$event || !backend_sales_are_open($event)) continue;
+        $category = backend_category_for_section($event['categories'] ?? [], $seat['sectionId']);
+        if (!$category) continue;
+        $offers[] = ['seatId' => $queue['seatDocId'] ?? $queue['id'], 'seatLabel' => $seat['seatLabel'],
+            'categoryName' => $category['name'] ?? '', 'eventName' => $event['eventName'] ?? $event['name'] ?? 'Your event',
+            'eventId' => $seat['eventId'], 'sectionId' => $seat['sectionId'], 'reservationExpiry' => $queue['offerExpiry']];
+    }
+    return ['offers' => $offers];
 }

@@ -1784,7 +1784,7 @@ try {
     }
 
     if (!backend_is_enabled() && !(backend_checkout_is_enabled()
-        && in_array($action, ['createNotification', 'reserveSeats', 'getSeatMap', 'joinSeatWaitlist', 'leaveSeatWaitlist', 'holdSelectedSeats', 'releaseSeatReservation', 'checkout'], true))
+        && in_array($action, ['getSeatWaitlistOffers', 'createNotification', 'reserveSeats', 'getSeatMap', 'joinSeatWaitlist', 'leaveSeatWaitlist', 'holdSelectedSeats', 'releaseSeatReservation', 'checkout'], true))
         && !(backend_resale_is_enabled() && in_array($action, [
             'createResaleListing', 'updateResalePrice', 'cancelResaleListing', 'suspendResaleListing', 'purchaseResale'
         ], true))
@@ -1812,6 +1812,7 @@ try {
     }
 
     $handlers = [
+        'getSeatWaitlistOffers' => static fn (): array => backend_get_seat_offers($firebase, $uid),
         'createNotification' => static fn (): array => backend_create_notification($firebase, $uid, $data),
         'joinSeatWaitlist' => static fn (): array => backend_seat_waitlist($firebase,$uid,$data),
         'leaveSeatWaitlist' => static fn (): array => backend_seat_waitlist($firebase,$uid,$data,true),

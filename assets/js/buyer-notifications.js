@@ -11,7 +11,37 @@
         if (text !== undefined) element.textContent = text;
         return element;
     };
+    const seenOffers = new Set();
+    let offerDialogOpen = false;
     const current = (v, uid) => version === v && owner === uid && window.tsCurrentUser?.uid === uid && window.tsCurrentUser?.role === 'buyer';
+    async function showOffer(offers, v, uid) {
+        // The picker owns its claim dialog. Other buyer/public pages open it here.
+        if (document.hidden || offerDialogOpen
+            || el('ts-decision-dialog')?.open || !window.tsDecision || !current(v, uid)) return;
+        for (const offer of offers) {
+            const page = new URL(window.location.href);
+            if (el('picker-waitlist-details') && page.searchParams.get('eventId') === offer.eventId && page.searchParams.get('sectionId') === offer.sectionId) continue;
+            const expiry = Date.parse(offer.reservationExpiry);
+            if (!(expiry > Date.now()) || !offer.seatId || !offer.eventId || !offer.sectionId) continue;
+            const key = `ts-seat-offer:${uid}:${offer.seatId}:${expiry}`;
+            if (seenOffers.has(key)) continue;
+            try { if (window.sessionStorage?.getItem(key)) { seenOffers.add(key); continue; } } catch (_) {}
+            seenOffers.add(key); offerDialogOpen = true;
+            try { window.sessionStorage?.setItem(key, 'shown'); } catch (_) {}
+            try {
+                const label = window.tsTicketDisplay?.seatLabel({seatLabel:offer.seatLabel, categoryName:offer.categoryName}) || offer.seatLabel;
+                const open = await window.tsDecision('seatOfferOpen', `${offer.eventName} · ${label}`,
+                    [['Seat', label], ['Claim before', new Date(expiry).toLocaleTimeString()]]);
+                if (open && current(v, uid) && expiry > Date.now()) {
+                    const base = new URL('.', bell?.href || window.location.href);
+                    const link = new URL('seat-picker.php', base);
+                    link.search = new URLSearchParams({eventId:offer.eventId, sectionId:offer.sectionId, qty:'1', waitlist:'1'}).toString();
+                    window.location.href = link.href;
+                }
+            } finally { offerDialogOpen = false; }
+            break;
+        }
+    }
     function setError(message) { if (error) { error.textContent = message || ''; error.hidden = !message; } }
     function setBadge(count) {
         unread = Math.max(0, Number(count) || 0);
@@ -67,9 +97,10 @@
         const v = version, uid = owner; loading = true; controls();
         try {
             if (!window.tsNotifications) throw Error('Notifications are still connecting. Please refresh.');
-            const results = await Promise.allSettled([container ? window.tsNotifications.getForUser() : Promise.resolve(null), window.tsNotifications.getUnreadCount()]);
+            const results = await Promise.allSettled([container ? window.tsNotifications.getForUser() : Promise.resolve(null), window.tsNotifications.getUnreadCount(), window.tsNotifications.getSeatOffers?.() || Promise.resolve([])]);
             if (!current(v, uid)) return;
-            const [list, count] = results;
+            const [list, count, offers] = results;
+            if (offers.status === 'fulfilled') showOffer(offers.value || [], v, uid).catch(() => {});
             if (count.status === 'fulfilled') setBadge(count.value);
             if (container) {
                 if (list.status === 'rejected') throw list.reason;

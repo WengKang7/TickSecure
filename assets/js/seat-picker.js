@@ -44,7 +44,7 @@
             || !window.tsDecision || el('ts-decision-dialog')?.open) return;
         const offer = model?.seats.find(seat => seat.waitlistOffer && Date.parse(seat.reservationExpiry) > Date.now());
         if (!offer) return;
-        const key = `ts-seat-offer:${uid}:${offer.id}:${offer.reservationExpiry}`;
+        const key = `ts-seat-offer:${uid}:${offer.id}:${Date.parse(offer.reservationExpiry)}`;
         if (seenOffers.has(key)) return;
         try { if (window.sessionStorage?.getItem(key)) { seenOffers.add(key); return; } } catch (_) {}
         seenOffers.add(key); offerAlertOpen = true;

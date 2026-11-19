@@ -52,3 +52,23 @@ test('buyers cannot queue sold seats, foreign seats, or more than one seat per e
  r['EventSeats/second'].status='SOLD';assert.equal(run(r,'joinSeatWaitlist','A',{eventId:'event',seatDocId:'second'}).error,'failed-precondition');
  assert.equal(run(r,'joinSeatWaitlist','B',{eventId:'wrong',seatDocId:seatId}).error,'not-found');
 });
+
+
+test('global offer lookup returns only the authenticated buyer current offers and omits private queue members',()=>{
+    let r=run(release(queue()),'advanceSeatWaitlist').records;
+    const b=run(r,'getSeatWaitlistOffers','B',{});assert.equal(b.result.offers.length,1);
+    assert.equal(b.result.offers[0].seatId,seatId);assert.equal(b.result.offers[0].categoryName,'VIP');
+    assert.equal(b.result.offers[0].entries,undefined);assert.equal(b.result.offers[0].offerUid,undefined);
+    assert.equal(run(r,'getSeatWaitlistOffers','C',{}).result.offers.length,0);
+    r['Users/B'].status='suspended';assert.equal(run(r,'getSeatWaitlistOffers','B',{}).error,'permission-denied');
+    r['Users/B'].status='active';r['SeatWaitlists/'+seatId].offerExpiry='2000-01-01T00:00:00Z';
+    assert.equal(run(r,'getSeatWaitlistOffers','B',{}).result.offers.length,0);
+});
+
+
+test('global offer check advances an expired holder for a buyer browsing outside the picker',()=>{
+    const r=release(queue());const offered=run(r,'getSeatWaitlistOffers','B',{});
+    assert.equal(offered.result.offers[0].seatId,seatId);
+    assert.equal(offered.records['EventSeats/'+seatId].reservedBy,'B');
+    assert.equal(run(offered.records,'getSeatWaitlistOffers','C',{}).result.offers.length,0);
+});

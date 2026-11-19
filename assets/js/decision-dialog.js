@@ -20,7 +20,8 @@
         purchaseResale: { title: 'Purchase this resale ticket?', message: 'This records a simulated payment and transfers ticket ownership to your account. Review the total, including the service charge.', label: 'Purchase ticket', tone: 'success' },
         transferTicket: { title: 'Transfer ticket ownership?', message: 'This ticket will move to the recipient’s account. You will lose access to it. Check the full wallet address carefully.', label: 'Transfer ticket', tone: 'danger' },
         checkout: { title: 'Confirm your ticket purchase?', message: 'This records a simulated payment and issues your reserved tickets. Review your order before continuing.', label: 'Confirm purchase', tone: 'success' },
-        seatOfferAvailable: { title: 'Your queued seat is available!', message: 'This seat is now offered to you for a limited time. Claim it before the deadline to reserve it and continue to payment.', label: 'Claim seat', cancelLabel: 'Later', tone: 'success' },
+        seatOfferAvailable: { title: 'Your queued seat is available!', message: 'This seat is now offered to you for a limited time. Claim it before the deadline to reserve it and continue to payment.', label: 'Claim seat', cancelLabel: 'Later', tone: 'warning' },
+        seatOfferOpen: { title: 'Your queued seat is available!', message: 'Act now: your seat offer expires soon. Open the seat picker to claim it before the deadline.', label: 'Open offered seat', cancelLabel: 'Later', tone: 'warning' },
         releaseReservation: { title: 'Release your reserved seats?', message: 'These seats will become available to other buyers. You will need to reserve seats again to continue checkout.', label: 'Release seats', tone: 'danger' },
         confirmEntry: { title: 'Admit this ticket holder?', message: 'The ticket will be validated and marked as used if eligible. A used ticket cannot be admitted again.', label: 'Verify and admit', tone: 'success' },
         rescanBlueprint: { title: 'Detect seats again?', message: 'A new scan will replace the draft’s current detected seats and sections. Review the new result before activating the venue.', label: 'Scan again', tone: 'danger' }
@@ -48,7 +49,7 @@
     }
     window.tsConfirmDecision = config => {
         if (!config?.title || pending || !allowed(config)) return Promise.resolve(null);
-        dialog.setAttribute('data-tone', ['danger', 'success'].includes(config.tone) ? config.tone : 'primary');
+        dialog.setAttribute('data-tone', ['danger', 'success', 'warning'].includes(config.tone) ? config.tone : 'primary');
         el('title').textContent = config.title;
         el('message').textContent = config.message || '';
         el('subject').textContent = String(config.subject || 'Selected action');
