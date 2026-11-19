@@ -149,3 +149,14 @@ memberships are upgraded automatically when their buyer opens the seat picker,
 without changing queue order. They also receive alerts whenever an offer has
 already been issued by a release or picker refresh.
 The browser must have a TickSecure page open; email remains the off-site channel.
+
+
+### Provider key compatibility
+
+Each notification uses a stable 36-character UUIDv5 for Brevo idempotency.
+The original 64-character digest was rejected with HTTP 400 (`out_of_range`,
+`Idempotency key exceeds char limit`). The replacement keeps retries tied to the
+same notification while satisfying the provider key format. Both request forms
+were checked using Brevo's no-delivery mode: the old key failed; the UUID passed.
+Failed historic jobs are not automatically resent, and expired seat offers must
+not be revived. Test new notifications after deploying this correction.

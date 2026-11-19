@@ -4,7 +4,7 @@ const fs=require('node:fs'),vm=require('node:vm');
 
 test('email delivery policies use fake transport and never send real messages',()=>{
     const output=execFileSync('C:/xampp/php/php.exe',['tests/notification-email.test.php'],{encoding:'utf8'});
-    assert.match(output,/8 email checks passed\. No real emails sent/);
+    assert.match(output,/9 email checks passed\. No real emails sent/);
 });
 
 test('only an active administrator can create a notification; caller cannot specify its email destination',()=>{

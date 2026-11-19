@@ -49,6 +49,14 @@ function notification_email_wake(): void
     @file_put_contents(notification_email_wake_file(), bin2hex(random_bytes(12)), LOCK_EX);
 }
 
+/** Stable UUIDv5 in Brevo's documented idempotency-key format. */
+function notification_email_idempotency_key(string $notificationId): string
+{
+    $hash = sha1(hex2bin('6ba7b8119dad11d180b400c04fd430c8') . 'ticksecure-notification|' . $notificationId);
+    return substr($hash,0,8) . '-' . substr($hash,8,4) . '-5' . substr($hash,13,3) . '-'
+        . dechex((hexdec($hash[16]) & 3) | 8) . substr($hash,17,3) . '-' . substr($hash,20,12);
+}
+
 function notification_email_payload(array $config, array $job, array $account, string $role): array
 {
     $notice = $job['notification'];
@@ -86,7 +94,7 @@ function notification_email_payload(array $config, array $job, array $account, s
         'to' => [['email' => $account['email']]], 'subject' => '[TickSecure] ' . $title,
         'htmlContent' => $html, 'textContent' => $title . "\n\n" . $greeting . "\n\n" . $message . "\n\nView update: " . $url
             . "\n\nSign in to see the latest status. This email does not complete payment, NFT setup or a seat reservation.",
-        'headers' => ['idempotencyKey' => hash('sha256', 'ticksecure-notification|' . $job['notificationId'])],
+        'headers' => ['idempotencyKey' => notification_email_idempotency_key((string)$job['notificationId'])],
         'tags' => ['ticksecure-notification']];
 }
 
@@ -95,11 +103,12 @@ function notification_email_failure_details(int $status, mixed $response): array
 {
     $code = is_array($response) ? ($response['code'] ?? '') : '';
     $allowed = ['unauthorized','permission_denied','access_denied','forbidden','invalid_parameter',
-        'missing_parameter','not_enough_credits','duplicate_parameter','method_not_allowed','bad_request'];
+        'missing_parameter','out_of_range','not_enough_credits','duplicate_parameter','method_not_allowed','bad_request'];
     $code = in_array($code, $allowed, true) ? $code : 'unclassified';
     $message = is_array($response) && is_string($response['message'] ?? null) ? strtolower($response['message']) : '';
     $reason = 'unclassified';
-    if (str_contains($message, 'ip') && (str_contains($message, 'unrecogn') || str_contains($message, 'unauthor'))) $reason = 'ip_not_authorized';
+    if (str_contains($message, 'idempotency') && (str_contains($message, 'limit') || str_contains($message, 'uuid'))) $reason = 'invalid_idempotency_key';
+    elseif (str_contains($message, 'ip') && (str_contains($message, 'unrecogn') || str_contains($message, 'unauthor'))) $reason = 'ip_not_authorized';
     elseif (str_contains($message, 'permission') || str_contains($message, 'access denied')) $reason = 'api_permission_denied';
     elseif (str_contains($message, 'not activated') || str_contains($message, 'not yet activated')) $reason = 'sending_not_activated';
     elseif (str_contains($message, 'key not found') || str_contains($message, 'invalid api key')) $reason = 'invalid_api_key';

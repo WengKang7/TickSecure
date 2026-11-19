@@ -131,5 +131,16 @@ $tests['provider rejection diagnostics retain safe categories and never raw cred
     check($saved === 'provider_rejected:403:permission_denied:api_permission_denied', 'safe details persisted');
     check(!str_contains($saved,'private-key') && !str_contains($saved,'@'), 'no raw secrets retained');
 };
+$tests['email idempotency uses a stable valid UUID within the provider length limit'] = static function () use ($config, $now): void {
+    $db=database($now);$job=$db->records['EmailOutbox/n1'];
+    $payload=notification_email_payload($config,$job,$db->account,'buyer');
+    $key=$payload['headers']['idempotencyKey'];
+    check(strlen($key) === 36, 'short provider-compatible key');
+    check(preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$key) === 1, 'UUIDv5 structure');
+    check($key === notification_email_idempotency_key('n1'), 'same notification retains same key');
+    check($key !== notification_email_idempotency_key('n2'), 'different notification gets different key');
+    check(!isset($payload['headers']['X-Sib-Sandbox']), 'production mail is not dropped');
+    check(notification_email_failure_details(400,['code'=>'out_of_range','message'=>'Idempotency key exceeds char limit'])['reason'] === 'invalid_idempotency_key', 'known rejection stays actionable');
+};
 foreach ($tests as $name => $run) { $run();echo "PASS: {$name}\n"; }
 echo count($tests) . " email checks passed. No real emails sent.\n";
