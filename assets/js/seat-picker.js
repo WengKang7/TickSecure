@@ -37,6 +37,32 @@
         }
     }
     window.addEventListener('popstate', browserBack);
+    const seenOffers = new Set();
+    let offerAlertOpen = false;
+    async function alertSeatOffer() {
+        if (document.hidden || offerAlertOpen || selectionLocked() || !uid || quantity !== 1
+            || !window.tsDecision || el('ts-decision-dialog')?.open) return;
+        const offer = model?.seats.find(seat => seat.waitlistOffer && Date.parse(seat.reservationExpiry) > Date.now());
+        if (!offer) return;
+        const key = `ts-seat-offer:${uid}:${offer.id}:${offer.reservationExpiry}`;
+        if (seenOffers.has(key)) return;
+        try { if (window.sessionStorage?.getItem(key)) { seenOffers.add(key); return; } } catch (_) {}
+        seenOffers.add(key); offerAlertOpen = true;
+        try { window.sessionStorage?.setItem(key, 'shown'); } catch (_) {}
+        const alertVersion = version, alertUid = uid;
+        try {
+            const claim = await window.tsDecision('seatOfferAvailable', `${model.eventName} · ${seatName(offer)}`,
+                [['Seat', seatName(offer)], ['Claim before', new Date(offer.reservationExpiry).toLocaleTimeString()]]);
+            if (!claim || version !== alertVersion || window.tsCurrentUser?.uid !== alertUid || selectionLocked()) return;
+            const current = mapSeats().get(offer.id);
+            if (!current?.waitlistOffer || current.reservationExpiry !== offer.reservationExpiry
+                || !(Date.parse(current.reservationExpiry) > Date.now())) {
+                error('This seat offer has expired or changed. Refresh availability to check your waiting list.'); return;
+            }
+            selected.clear(); selected.add(offer.id); focusedSeatId = offer.id;
+            await reserve();
+        } finally { offerAlertOpen = false; }
+    }
     function renderWaitlist() {
         const root=el('picker-waitlist-details');if(!root)return;
         const supported=quantity===1 && window.tsSeats?.seatWaitlist && !window.tsFirebase?.emulator?.enabled;
@@ -238,6 +264,7 @@
             el('picker-category').replaceChildren(create('span', 'ts-picker-category-name', model.categoryName),
                 create('strong', 'ts-picker-unit-price', `RM${model.unitPrice.toFixed(2)}`), create('small', '', '/ person'));
             render();
+            alertSeatOffer().catch(() => {});
         } catch (failure) { if (requestVersion === version) error(failure.message || 'Could not refresh availability.'); }
         finally { if (requestVersion === version) loading = false; }
     }

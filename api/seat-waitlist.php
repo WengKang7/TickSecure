@@ -4,10 +4,11 @@ declare(strict_types=1);
 // Private queue records are accessed only by the authenticated server. The seat
 // contains a boolean guard, never the queue's buyer identifiers.
 function waitlist_member_id(string $eventId, string $uid): string { return hash('sha256', $eventId . '|' . $uid); }
-function waitlist_notice(FirebaseFirestoreTransaction $tx, string $uid, string $message, string $seatId, string $eventId, string $sectionId): void
+function waitlist_notice(FirebaseFirestoreTransaction $tx, string $uid, string $message, string $seatId, string $eventId, string $sectionId, int $emailExpiry = 0): void
 {
     $tx->create('Notifications', backend_new_document_id(), ['recipientUid'=>$uid,'message'=>$message,'type'=>'seat_waitlist',
-        'relatedEntityType'=>'seat_waitlist','relatedEntityId'=>$seatId,'eventId'=>$eventId,'sectionId'=>$sectionId,'read'=>false,'createdAt'=>backend_now()]);
+        'relatedEntityType'=>'seat_waitlist','relatedEntityId'=>$seatId,'eventId'=>$eventId,'sectionId'=>$sectionId,'read'=>false,'createdAt'=>backend_now(),
+        'emailExpiresAt'=>$emailExpiry]);
 }
 
 /** Advance on demand. A five-minute offer starts when issued, not while nobody is online. */
@@ -49,7 +50,7 @@ function waitlist_advance(FirebaseAdminRest $firebase, string $eventId, string $
         if (!$closed) $fields+=['status'=>$next!==''?'RESERVED':'AVAILABLE','reservedBy'=>$next,'reservedAt'=>$next!==''?backend_now():'',
             'reservationExpiry'=>$expiry,'reservationEventId'=>$next!==''?$eventId:''];
         $tx->update('SeatWaitlists',$seatId,$queue); $tx->update('EventSeats',$seatId,$fields);
-        if($next!=='') waitlist_notice($tx,$next,'Seat '.$seat['seatLabel'].' is offered to you for 5 minutes. Open the seat picker to claim it.',$seatId,$eventId,$seat['sectionId']);
+        if($next!=='') waitlist_notice($tx,$next,'Seat '.$seat['seatLabel'].' is offered to you for 5 minutes. Open the seat picker to claim it.',$seatId,$eventId,$seat['sectionId'],(int)strtotime($expiry));
         return ['seat'=>array_merge($seat,$fields),'queue'=>$queue];
     });
 }

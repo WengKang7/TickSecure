@@ -434,6 +434,7 @@ service cloud.firestore {
     // -----------------------------------------------------------------------
     // Biometric templates and check-in challenges are accessible only to the trusted backend.
     match /TicketFaces/{id} { allow read, write: if false; }
+    match /EmailOutbox/{id} { allow read, write: if false; }
     match /SeatWaitlists/{id} { allow read, write: if false; }
     match /SeatWaitlistMembers/{id} { allow read, write: if false; }
     match /FaceChallenges/{id} { allow read, write: if false; }

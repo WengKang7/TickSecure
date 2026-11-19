@@ -4,7 +4,7 @@
  * Exposed globally as window.ts<ServiceName> for use by page scripts.
  */
 import { db, auth, storage } from './firebase-init.js';
-import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261117-waitlist';
+import { invokeTrustedBackend, usingLocalPhpBackend } from './backend-client.js?v=20261119-email';
 import {
     collection, doc, addDoc, setDoc, getDoc, getDocs,
     updateDoc, deleteDoc, deleteField, query, where, orderBy, limit,
@@ -302,6 +302,9 @@ export const AuditService = {
 // ============================================================
 export const NotificationService = {
     async create(recipientUid, message, type = 'info', relatedType = '', relatedId = '') {
+        const serverMail = window.tsFirebase?.emulator?.enabled !== true && (usingLocalPhpBackend()
+            || ['localhost', '127.0.0.1', '[::1]', 'ticksecure.onrender.com'].includes(window.location.hostname));
+        if (serverMail) return invokeTrustedBackend({ recipientUid, message, type, relatedType, relatedId }, { name: 'createNotification', region: 'asia-southeast1' });
         await addDoc(collection(db, 'Notifications'), {
             recipientUid, message, type,
             relatedEntityType: relatedType, relatedEntityId: relatedId,

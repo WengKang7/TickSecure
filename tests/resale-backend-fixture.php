@@ -77,6 +77,7 @@ foreach ($cases as $case) {
     $firebase = new FirebaseAdminRest($case['records']);
     try {
         $result = match ($case['action']) {
+            'createNotification' => backend_create_notification($firebase, $case['uid'], $case['data']),
             'joinSeatWaitlist' => backend_seat_waitlist($firebase,$case['uid'],$case['data']),
             'leaveSeatWaitlist' => backend_seat_waitlist($firebase,$case['uid'],$case['data'],true),
             'advanceSeatWaitlist' => waitlist_advance($firebase,$case['data']['eventId'],$case['data']['seatDocId']),

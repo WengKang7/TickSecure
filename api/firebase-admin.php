@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/notification-email.php';
 
 /**
  * Small, dependency-free Firebase Admin REST bridge for a local XAMPP demo.
@@ -144,6 +145,18 @@ final class FirebaseAdminRest
             return null;
         }
         return ['uid' => (string)$user['localId'], 'email' => (string)($user['email'] ?? '')];
+    }
+
+    /** Resolve mail destinations through Firebase Auth, never a browser-supplied email address. */
+    public function getAuthUserByUid(string $uid): ?array
+    {
+        $response = $this->adminJsonRequest('POST',
+            'https://identitytoolkit.googleapis.com/v1/projects/' . rawurlencode($this->projectId) . '/accounts:lookup',
+            ['localId' => [$uid]]);
+        $user = $response['users'][0] ?? null;
+        if (!is_array($user) || ($user['localId'] ?? '') !== $uid) return null;
+        return ['uid' => $uid, 'email' => (string)($user['email'] ?? ''),
+            'emailVerified' => ($user['emailVerified'] ?? false) === true, 'displayName' => (string)($user['displayName'] ?? '')];
     }
 
     public function projectId(): string
@@ -513,6 +526,9 @@ final class FirebaseAdminRest
                     'transaction' => $transaction,
                     'writes' => $context->writes(),
                 ]);
+                if ($context->hasQueuedEmails()) {
+                    try { notification_email_wake(); } catch (Throwable) { /* Committed business data remains successful. */ }
+                }
                 return $result;
             } catch (Throwable $error) {
                 try {
@@ -649,6 +665,7 @@ final class FirebaseFirestoreTransaction
 {
     /** @var list<array<string,mixed>> */
     private array $pendingWrites = [];
+    private bool $queuedEmails = false;
 
     public function __construct(
         private readonly FirebaseAdminRest $firebase,
@@ -678,7 +695,16 @@ final class FirebaseFirestoreTransaction
     public function create(string $collection, string $id, array $fields): void
     {
         $this->pendingWrites[] = $this->firebase->createWrite($collection, $id, $fields);
+        if ($collection === 'Notifications' && notification_email_config() !== null) {
+            $job = notification_email_job($id, $fields);
+            if ($job !== null) {
+                $this->pendingWrites[] = $this->firebase->createWrite('EmailOutbox', $id, $job);
+                $this->queuedEmails = true;
+            }
+        }
     }
+
+    public function hasQueuedEmails(): bool { return $this->queuedEmails; }
 
     /** @param array<string,mixed> $fields */
     public function update(string $collection, string $id, array $fields): void

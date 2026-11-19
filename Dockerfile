@@ -50,3 +50,4 @@ RUN if ! getent group 1000 >/dev/null; then groupadd --gid 1000 render-secrets; 
     && chown -R www-data:www-data /var/www/html
 
 EXPOSE 80
+CMD ["sh", "-c", "php /var/www/html/api/notification-worker.php --watch & exec apache2-foreground"]

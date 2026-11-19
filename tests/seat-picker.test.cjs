@@ -22,7 +22,10 @@ function page(options = {}) {
     if(options.named)seats.forEach((seat,index)=>{seat.seatLabel='DETECTED_SEATS-'+(72+index);seat.number=String(72+index);});
     const data = { seats, unitPrice: 100, maxPerBuyer: 4, categoryName: options.named?'VIP':'Standard', eventName: 'Concert', venueName: 'Hall', geometry: { imageWidth: 800, imageHeight: 600, page: 1, decorations: [] } };
     const window = { location: { search: options.search || '?eventId=event1&sectionId=Main&qty=2', href: '' },
-        tsDecision: async () => options.cancelDecision ? null : {},
+        tsDecision: async (action, subject, details) => {
+            if(action==='seatOfferAvailable')return options.offerDecision ? options.offerDecision(subject,details) : null;
+            return options.cancelDecision ? null : {};
+        },
         tsCurrentUser: { uid: 'buyer', walletAddress: options.wallet ? '0x' + '1'.repeat(40) : '' },
         addEventListener: (key, action) => { listeners[key] = action; },
         tsVenueRenderer: { renderBoard: (id, sections, config) => views.push({ sections, config }) },
@@ -336,4 +339,31 @@ test('Back on a directly opened picker releases seats and uses the event page as
 test('Back after explicit release skips the added guard without another confirmation or release',async()=>{
     const p=page();await p.ready();p.select('seat0');p.select('seat1');await p.click('picker-reserve');await p.click('picker-release');
     await p.browserBack();assert.equal(p.writes.length,2);assert.deepEqual(p.historyMoves,[-1]);
+});
+
+
+test('queued seat popup names the offer, shows once, and claims the exact offered seat on confirmation',async()=>{
+    let calls=0,accept;const p=page({named:true,search:'?eventId=event1&sectionId=Main&qty=1',offerDecision:(subject,details)=>{
+        calls++;assert.match(subject,/VIP-74/);assert.equal(details[0][1],'VIP-74');return new Promise(resolve=>{accept=resolve;});
+    }});await p.ready();
+    Object.assign(p.data.seats[2],{status:'MINE',waitlistOffer:true,reservationExpiry:new Date(Date.now()+300000).toISOString()});
+    await p.click('picker-refresh');assert.equal(calls,1);await p.click('picker-refresh');assert.equal(calls,1);
+    assert.equal(p.writes.length,0);accept({});await p.ready();
+    assert.deepEqual(p.writes[0].ids,['seat2']);assert.equal(p.elements.get('picker-continue').attributes['aria-disabled'],'false');
+});
+
+test('dismissing offer popup keeps the claim button; a new offer can alert again',async()=>{
+    let calls=0;const p=page({search:'?eventId=event1&sectionId=Main&qty=1',offerDecision:()=>{calls++;return null;}});await p.ready();
+    const offer=p.data.seats[2];Object.assign(offer,{status:'MINE',waitlistOffer:true,reservationExpiry:new Date(Date.now()+300000).toISOString()});
+    await p.click('picker-refresh');await p.ready();await p.click('picker-refresh');
+    assert.equal(calls,1);assert.equal(p.writes.length,0);assert.equal(p.elements.get('picker-waitlist-claim').hidden,false);
+    offer.reservationExpiry=new Date(Date.now()+400000).toISOString();await p.click('picker-refresh');assert.equal(calls,2);
+});
+
+test('expired and stale-account offers never reserve from a popup',async()=>{
+    let accept,calls=0;const p=page({search:'?eventId=event1&sectionId=Main&qty=1',offerDecision:()=>{calls++;return new Promise(resolve=>{accept=resolve;});}});await p.ready();
+    const offer=p.data.seats[2];Object.assign(offer,{status:'MINE',waitlistOffer:true,reservationExpiry:new Date(Date.now()-1000).toISOString()});
+    await p.click('picker-refresh');assert.equal(calls,0);
+    offer.reservationExpiry=new Date(Date.now()+300000).toISOString();await p.click('picker-refresh');assert.equal(calls,1);
+    p.window.tsCurrentUser=null;await p.auth();accept({});await p.ready();assert.equal(p.writes.length,0);
 });

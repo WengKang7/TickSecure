@@ -387,6 +387,23 @@ function backend_notification(string $recipientUid, string $message, string $typ
     ];
 }
 
+/** Same administrator permission as the existing browser notification-create rule. */
+function backend_create_notification(FirebaseAdminRest $firebase, string $uid, array $data): array
+{
+    $recipient = backend_require_id($data['recipientUid'] ?? null, 'Recipient');
+    $message = trim(is_string($data['message'] ?? null) ? $data['message'] : '');
+    if ($message === '' || strlen($message) > 4000) backend_fail(400, 'Notification text is invalid.', 'invalid-argument');
+    $type = backend_require_id($data['type'] ?? 'info', 'Notification type');
+    $relatedType = ($data['relatedType'] ?? '') === '' ? '' : backend_require_id($data['relatedType'], 'Related type');
+    $relatedId = ($data['relatedId'] ?? '') === '' ? '' : backend_require_id($data['relatedId'], 'Related ID');
+    return $firebase->transaction(static function (FirebaseFirestoreTransaction $tx) use ($uid, $recipient, $message, $type, $relatedType, $relatedId): array {
+        backend_assert_active_admin(backend_get_actor($tx, $uid));
+        $id = backend_new_document_id();
+        $tx->create('Notifications', $id, backend_notification($recipient, $message, $type, $relatedType, $relatedId));
+        return ['id' => $id];
+    });
+}
+
 /** @return array<string,mixed> */
 function backend_simulated_blockchain_record(
     string $transactionType,
@@ -1767,7 +1784,7 @@ try {
     }
 
     if (!backend_is_enabled() && !(backend_checkout_is_enabled()
-        && in_array($action, ['reserveSeats', 'getSeatMap', 'joinSeatWaitlist', 'leaveSeatWaitlist', 'holdSelectedSeats', 'releaseSeatReservation', 'checkout'], true))
+        && in_array($action, ['createNotification', 'reserveSeats', 'getSeatMap', 'joinSeatWaitlist', 'leaveSeatWaitlist', 'holdSelectedSeats', 'releaseSeatReservation', 'checkout'], true))
         && !(backend_resale_is_enabled() && in_array($action, [
             'createResaleListing', 'updateResalePrice', 'cancelResaleListing', 'suspendResaleListing', 'purchaseResale'
         ], true))
@@ -1795,6 +1812,7 @@ try {
     }
 
     $handlers = [
+        'createNotification' => static fn (): array => backend_create_notification($firebase, $uid, $data),
         'joinSeatWaitlist' => static fn (): array => backend_seat_waitlist($firebase,$uid,$data),
         'leaveSeatWaitlist' => static fn (): array => backend_seat_waitlist($firebase,$uid,$data,true),
         'submitEventForReview' => static fn (): array => (new EventContentReview($firebase))->run($uid, backend_require_id($data['eventId'] ?? null, 'Event ID'), true),
