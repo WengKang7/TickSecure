@@ -93,7 +93,14 @@
             const canPreview = seat.position && window.tsSeatView3D && !failed3D;
             const pill = create(canPreview ? 'button' : 'span', 'ts-seat-pill', seatName(seat));
             if (canPreview) { pill.type = 'button'; pill.setAttribute('aria-label', `View toward the stage from ${seatName(seat)}`); pill.addEventListener('click', () => showSeatView(id)); }
-            el('picker-selected').appendChild(pill);
+            const chip = create('span', 'ts-selected-seat-chip');
+            const remove = create('button', 'ts-seat-remove', '\u00d7');
+            remove.type = 'button'; remove.disabled = selectionLocked();
+            remove.setAttribute('aria-label', `Deselect ${seatName(seat)}`);
+            remove.title = selectionLocked() ? 'Release held seats to change your selection' : `Deselect ${seatName(seat)}`;
+            remove.addEventListener('click', () => toggle(id));
+            chip.appendChild(pill); chip.appendChild(remove);
+            el('picker-selected').appendChild(chip);
         });
         el('picker-count').textContent = `${selected.size} of ${quantity} seats selected`;
         el('picker-total').textContent = model ? `RM${(model.unitPrice * selected.size + (selected.size ? 20 : 0)).toFixed(2)}` : '—';

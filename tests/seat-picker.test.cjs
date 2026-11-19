@@ -78,7 +78,7 @@ test('buyer selects only available exact IDs and reserves before wallet continua
 
 test('category seat names are display-only and keep exact reservation IDs and physical labels',async()=>{
     const p=page({named:true,threeD:true,search:'?eventId=event1&sectionId=Main&qty=1'});await p.ready();
-    p.select3D('seat0');assert.equal(p.elements.get('picker-selected').children[0].textContent,'VIP-72');
+    p.select3D('seat0');assert.equal(p.elements.get('picker-selected').children[0].children[0].textContent,'VIP-72');
     assert.equal(p.elements.get('picker-preview-label').textContent,'Seat VIP-72');
     assert.equal(p.updates3D.at(-1).model.seats[0].displaySeatLabel,'VIP-72');
     assert.equal(p.updates3D.at(-1).model.seats[0].seatLabel,'DETECTED_SEATS-72');
@@ -274,4 +274,19 @@ test('Reset view exits the seated preview without changing the chosen seats or m
     assert.equal(p.elements.get('picker-overview').hidden,true);
     assert.equal(p.elements.get('picker-view-seat').hidden,true);
     assert.deepEqual(p.updates3D.at(-1).selected,['seat0']);assert.equal(p.writes.length,0);
+});
+
+
+test('selected seat cross removes only its seat and cannot change a pending or held reservation',async()=>{
+    let finish;
+    const p=page({named:true,threeD:true,hold:ids=>new Promise(resolve=>{finish=()=>resolve({seats:ids.map(id=>({id,seatLabel:id})),reservationExpiry:new Date(Date.now()+600000).toISOString()});})});await p.ready();
+    p.select3D('seat0');p.select3D('seat1');
+    const cross=()=>p.elements.get('picker-selected').children[0].children[1];
+    assert.equal(cross().textContent,'\u00d7');assert.equal(cross().attributes['aria-label'],'Deselect VIP-72');
+    cross().listeners.click();assert.deepEqual(p.updates3D.at(-1).selected,['seat1']);assert.equal(p.writes.length,0);
+    assert.equal(p.elements.get('picker-total').textContent,'RM120.00');
+    p.select3D('seat0');const pending=p.click('picker-reserve');
+    assert.equal(cross().disabled,true);cross().listeners.click();assert.deepEqual(p.updates3D.at(-1).selected,['seat1','seat0']);
+    finish();await pending;assert.equal(cross().disabled,true);cross().listeners.click();
+    assert.deepEqual(p.updates3D.at(-1).selected,['seat1','seat0']);assert.equal(p.writes.length,1);
 });

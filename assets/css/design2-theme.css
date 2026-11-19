@@ -734,3 +734,10 @@ body .ts-seat-page :is(#picker-back,#picker-auto)[aria-disabled="true"] { opacit
   body .ts-seat-page :is(#picker-zoom-in,#picker-zoom-out) { width:44px; }
   body .ts-seat-page :is(#picker-view-seat,#picker-refresh) { grid-column:1/-1; }
 }
+
+/* Separate preview and deselect actions without nesting buttons. */
+body .ts-seat-page .ts-selected-seat-chip { display:inline-flex; align-items:center; max-width:100%; background:#111; color:#fff; border-radius:10px; }
+body .ts-seat-page .ts-selected-seat-chip .ts-seat-pill { border:0; background:transparent; padding:6px 4px 6px 10px; margin:0; min-width:0; }
+body .ts-seat-page .ts-seat-remove { display:inline-flex; align-items:center; justify-content:center; flex:none; width:32px; min-height:32px; padding:0; margin:0; border:0; border-radius:0 10px 10px 0; color:#fff; background:transparent; font:20px/1 Arial,sans-serif; cursor:pointer; }
+body .ts-seat-page .ts-seat-remove:hover:not(:disabled) { background:#ffffff26; }
+body .ts-seat-page .ts-seat-remove:disabled { opacity:.4; cursor:not-allowed; }
