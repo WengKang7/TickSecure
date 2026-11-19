@@ -90,6 +90,25 @@ function notification_email_payload(array $config, array $job, array $account, s
         'tags' => ['ticksecure-notification']];
 }
 
+/** Classify provider failures without retaining raw responses or private values. */
+function notification_email_failure_details(int $status, mixed $response): array
+{
+    $code = is_array($response) ? ($response['code'] ?? '') : '';
+    $allowed = ['unauthorized','permission_denied','access_denied','forbidden','invalid_parameter',
+        'missing_parameter','not_enough_credits','duplicate_parameter','method_not_allowed','bad_request'];
+    $code = in_array($code, $allowed, true) ? $code : 'unclassified';
+    $message = is_array($response) && is_string($response['message'] ?? null) ? strtolower($response['message']) : '';
+    $reason = 'unclassified';
+    if (str_contains($message, 'ip') && (str_contains($message, 'unrecogn') || str_contains($message, 'unauthor'))) $reason = 'ip_not_authorized';
+    elseif (str_contains($message, 'permission') || str_contains($message, 'access denied')) $reason = 'api_permission_denied';
+    elseif (str_contains($message, 'not activated') || str_contains($message, 'not yet activated')) $reason = 'sending_not_activated';
+    elseif (str_contains($message, 'key not found') || str_contains($message, 'invalid api key')) $reason = 'invalid_api_key';
+    elseif (str_contains($message, 'sender') && (str_contains($message, 'valid') || str_contains($message, 'verif'))) $reason = 'sender_not_validated';
+    elseif (str_contains($message, 'credit') || str_contains($message, 'quota')) $reason = 'sending_quota';
+    elseif (str_contains($message, 'suspend') || str_contains($message, 'blocked')) $reason = 'account_or_request_blocked';
+    return ['httpStatus' => max(0, min(599, $status)), 'errorCode' => $code, 'reason' => $reason];
+}
+
 /** Returns safe delivery metadata only; provider responses and credentials are never logged. */
 function notification_email_http(array $config, array $payload): array
 {
@@ -100,7 +119,8 @@ function notification_email_http(array $config, array $payload): array
         CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]);
     $body = curl_exec($curl); $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE); $error = curl_errno($curl); curl_close($curl);
     $decoded = is_string($body) ? json_decode($body, true) : null;
-    return ['status' => $error ? 0 : $status, 'id' => is_array($decoded) ? (string)($decoded['messageId'] ?? '') : ''];
+    return ['status' => $error ? 0 : $status, 'id' => is_array($decoded) ? (string)($decoded['messageId'] ?? '') : '',
+        'failure' => notification_email_failure_details($error ? 0 : $status, $decoded)];
 }
 
 final class NotificationEmailDelivery
@@ -147,7 +167,15 @@ final class NotificationEmailDelivery
         $status = (int)($result['status'] ?? 0);
         if ($status >= 200 && $status < 300 && !empty($result['id'])) return $this->finish($id, $token, 'ACCEPTED', '', (string)$result['id']);
         if ($status === 429) return $this->finish($id, $token, $claimed['attempts'] < 3 ? 'PENDING' : 'FAILED', 'provider_rate_limited');
-        if ($status >= 400 && $status < 500) return $this->finish($id, $token, 'FAILED', 'provider_rejected');
+        if ($status >= 400 && $status < 500) {
+            $safe = $result['failure'] ?? notification_email_failure_details($status, null);
+            $detail = 'provider_rejected:' . (int)$status;
+            foreach (['errorCode', 'reason'] as $field) {
+                $value = (string)($safe[$field] ?? 'unclassified');
+                $detail .= ':' . (preg_match('/^[a-z_]{1,40}$/D', $value) ? $value : 'unclassified');
+            }
+            return $this->finish($id, $token, 'FAILED', $detail);
+        }
         // A lost response or server error may follow an accepted send. Do not blindly resend.
         return $this->finish($id, $token, 'UNKNOWN', 'delivery_response_unavailable');
     }

@@ -119,5 +119,17 @@ $tests['interrupted delivery is quarantined and waiting-list links use safe para
     check(str_contains($payload['textContent'], 'sectionId=VIP%26injected%3D1'), 'link values encoded');
     check(notification_email_payload($config, $job + [], $db->account, 'organizer')['sender']['email'] === $config['fromEmail'], 'fixed configured sender');
 };
+$tests['provider rejection diagnostics retain safe categories and never raw credentials or addresses'] = static function () use ($config, $now): void {
+    $details = notification_email_failure_details(403, ['code'=>'permission_denied', 'message'=>'Access denied for resource smtp; private-key secret@example.com']);
+    check($details['reason'] === 'api_permission_denied', 'permission category');
+    check(notification_email_failure_details(400, ['message'=>'Your SMTP account is not yet activated'])['reason'] === 'sending_not_activated', 'activation category');
+    check(notification_email_failure_details(401, ['message'=>'Key not found'])['reason'] === 'invalid_api_key', 'key category');
+    $db=database($now);
+    $delivery=new NotificationEmailDelivery($db,$config,static fn()=>['status'=>403,'failure'=>$details],static fn()=>$now);
+    check($delivery->process('n1') === 'FAILED', 'definite rejection remains failed');
+    $saved=$db->records['EmailOutbox/n1']['lastError'];
+    check($saved === 'provider_rejected:403:permission_denied:api_permission_denied', 'safe details persisted');
+    check(!str_contains($saved,'private-key') && !str_contains($saved,'@'), 'no raw secrets retained');
+};
 foreach ($tests as $name => $run) { $run();echo "PASS: {$name}\n"; }
 echo count($tests) . " email checks passed. No real emails sent.\n";
