@@ -1,5 +1,32 @@
 (function () {
 
+  // Keep password visibility controls shared across sign-in, registration and reset.
+  document.querySelectorAll('input.ts-input[type="password"]').forEach((input, index) => {
+    if (input.closest('.ts-password-field')) return;
+    const existing = input.id === 'account-password' ? document.getElementById('password-show') : null;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'ts-password-field';
+    input.parentNode.insertBefore(wrapper, input);
+    wrapper.appendChild(input);
+    const button = existing || document.createElement('button');
+    button.type = 'button';
+    button.className = 'ts-password-toggle';
+    button.textContent = 'Show password';
+    button.setAttribute('aria-pressed', 'false');
+    if (!input.id) input.id = `ts-password-${index}`;
+    button.setAttribute('aria-controls', input.id);
+    wrapper.appendChild(button);
+    // The administrator editor already owns its existing toggle and reset logic.
+    if (!existing) button.addEventListener('click', () => {
+      const show = input.type === 'password';
+      const start = input.selectionStart, end = input.selectionEnd;
+      input.type = show ? 'text' : 'password';
+      button.textContent = show ? 'Hide password' : 'Show password';
+      button.setAttribute('aria-pressed', String(show));
+      if (start !== null && end !== null) input.setSelectionRange(start, end);
+    });
+  });
+
   const $ = (s, c = document) => c.querySelector(s); const $$ = (s, c = document) => [...c.querySelectorAll(s)];
   // sidebar
   $$('.ts-sidebar-toggle').forEach(b => b.addEventListener('click', () => $('.ts-sidebar')?.classList.toggle('open')));

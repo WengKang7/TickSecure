@@ -403,6 +403,53 @@ img {
   position: relative
 }
 
+.ts-password-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  width: 100%;
+  min-width: 0;
+}
+
+.ts-password-field > .ts-input {
+  grid-area: 1 / 1 / 2 / 3;
+  padding-inline-end: 52px;
+  min-width: 0;
+}
+
+.ts-password-toggle {
+  grid-area: 1 / 2 / 2 / 3;
+  align-self: center;
+  justify-self: start;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0;
+  cursor: pointer;
+}
+
+.ts-password-toggle::before {
+  content: '';
+  width: 20px;
+  height: 20px;
+  background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+}
+
+.ts-password-toggle[aria-pressed="true"]::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='m3 3 18 18'/%3E%3C/svg%3E");
+}
+
+.ts-password-toggle:hover { background-color: #f3f3f5; }
+.ts-password-toggle:focus-visible { outline: 2px solid var(--primary, #7028f4); outline-offset: -2px; }
+.ts-password-field > .ts-error-msg { grid-column: 1 / -1; }
+.ts-password-field > input::-ms-reveal { display: none; }
+
 .ts-input-wrap .ts-icon {
   position: absolute;
   left: 13px;
