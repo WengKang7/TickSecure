@@ -35,6 +35,17 @@ function page(options = {}) {
             releaseSeats: async (ids, context) => { writes.push({ release: [...ids], context }); if (options.failRelease) throw Error('Release unavailable'); }
         }
     };
+    const historyEntries = [{page:'events'}, null], historyMoves = [];
+    let historyIndex = options.directEntry ? 0 : 1;
+    if (options.directEntry) historyEntries.splice(0,1);
+    window.history = {
+        get state() {return historyEntries[historyIndex];},
+        get length() {return historyEntries.length;},
+        pushState(state) {historyEntries.splice(historyIndex+1);historyEntries.push(state);historyIndex++;},
+        go(offset) {historyMoves.push(offset);historyIndex=Math.max(0,historyIndex+offset);},
+        back() {this.go(-1);}
+    };
+    const browserBack = () => {historyIndex=Math.max(0,historyIndex-1);return listeners.popstate({state:window.history.state});};
     if (options.threeD) window.tsSeatView3D = { mount: (container, controls) => {
         controls3D = controls; if (options.fail3D) return null;
         const info = {pages:[1],page:1,viewSeatId:null,peopleAvailable:true,showPeople:false,peopleMotion:!options.reducedMotion,reducedMotion:!!options.reducedMotion};
@@ -53,7 +64,7 @@ function page(options = {}) {
         Date: class extends Date { static now() { return now; } }, setInterval: (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearInterval() {} });
     vm.runInContext(fs.readFileSync('assets/js/ticket-display.js', 'utf8'), context);
     vm.runInContext(fs.readFileSync('assets/js/seat-picker.js', 'utf8'), context);
-    return { elements, window, views, writes, data, previews, updates3D, visibility3D, disposals:()=>disposals, select3D:id=>controls3D.onSeatSelect(id), ready: flush, auth: () => listeners['ts-auth-ready'](), advance: ms => { now += ms; timers.filter(t => t.ms === 1000).forEach(t => t.fn()); },
+    return { elements, window, views, writes, data, previews, updates3D, visibility3D, browserBack, historyMoves, disposals:()=>disposals, select3D:id=>controls3D.onSeatSelect(id), ready: flush, auth: () => listeners['ts-auth-ready'](), advance: ms => { now += ms; timers.filter(t => t.ms === 1000).forEach(t => t.fn()); },
         people(value) { elements.get('picker-people').checked=value; elements.get('picker-people').listeners.change(); },
         select: id => views.at(-1).config.onSeatSelect('Main', '', {}, id), click: id => elements.get(id).listeners.click({ preventDefault() {} }) };
 }
@@ -289,4 +300,40 @@ test('selected seat cross removes only its seat and cannot change a pending or h
     assert.equal(cross().disabled,true);cross().listeners.click();assert.deepEqual(p.updates3D.at(-1).selected,['seat1','seat0']);
     finish();await pending;assert.equal(cross().disabled,true);cross().listeners.click();
     assert.deepEqual(p.updates3D.at(-1).selected,['seat1','seat0']);assert.equal(p.writes.length,1);
+});
+
+
+test('browser Back releases held seats after confirmation before returning to the previous page',async()=>{
+    const p=page();await p.ready();p.select('seat0');p.select('seat1');await p.click('picker-reserve');
+    assert.equal(p.window.history.length,3);
+    await p.browserBack();assert.deepEqual(p.writes[1].release,['seat0','seat1']);
+    assert.deepEqual(p.historyMoves,[-2]);assert.equal(p.elements.get('picker-continue').attributes['aria-disabled'],'true');
+});
+
+test('browser Back cancellation or release failure keeps the reservation and stays on the picker',async()=>{
+    for(const options of [{cancelDecision:true},{failRelease:true}]) {
+        const p=page(options);await p.ready();p.select('seat0');p.select('seat1');await p.click('picker-reserve');
+        await p.browserBack();await p.browserBack();
+        assert.deepEqual(p.historyMoves,[]);assert.equal(p.window.history.length,3);
+        assert.equal(p.elements.get('picker-continue').attributes['aria-disabled'],'false');
+        if(options.cancelDecision)assert.equal(p.writes.length,1);
+        else assert.equal(p.elements.get('picker-error').textContent,'Release unavailable');
+    }
+});
+
+test('browser Back during reservation waits and cannot release an unfinished hold',async()=>{
+    let finish;const p=page({hold:ids=>new Promise(resolve=>{finish=()=>resolve({seats:ids.map(id=>({id,seatLabel:id})),reservationExpiry:new Date(Date.now()+600000).toISOString()});})});
+    await p.ready();p.select('seat0');p.select('seat1');const pending=p.click('picker-reserve');
+    await p.browserBack();assert.match(p.elements.get('picker-error').textContent,/Please wait/);assert.deepEqual(p.historyMoves,[]);assert.equal(p.writes.length,1);
+    finish();await pending;await p.browserBack();assert.deepEqual(p.writes[1].release,['seat0','seat1']);assert.deepEqual(p.historyMoves,[-2]);
+});
+
+test('Back on a directly opened picker releases seats and uses the event page as fallback',async()=>{
+    const p=page({directEntry:true});await p.ready();p.select('seat0');p.select('seat1');await p.click('picker-reserve');
+    await p.browserBack();assert.deepEqual(p.writes[1].release,['seat0','seat1']);assert.ok(p.window.location.href.includes('event-detail.php'));assert.deepEqual(p.historyMoves,[]);
+});
+
+test('Back after explicit release skips the added guard without another confirmation or release',async()=>{
+    const p=page();await p.ready();p.select('seat0');p.select('seat1');await p.click('picker-reserve');await p.click('picker-release');
+    await p.browserBack();assert.equal(p.writes.length,2);assert.deepEqual(p.historyMoves,[-1]);
 });

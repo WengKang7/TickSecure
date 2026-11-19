@@ -12,6 +12,31 @@
     const mapSeats = () => new Map((model?.seats || []).map(seat => [seat.id, seat]));
     const seatName = seat => window.tsTicketDisplay?.seatLabel({seatLabel:seat.seatLabel,categoryName:model?.categoryName}) || seat.seatLabel;
     const owns = () => hold?.seats.map(seat => seat.id) || (model?.seats || []).filter(seat => seat.status === 'MINE').map(seat => seat.id);
+    let backGuard = !!window.history?.state?.tsSeatPickerGuard, leavingByBack = false;
+    function protectBrowserBack() {
+        if (!window.history || backGuard || leavingByBack || (!busy && !owns().length)) return;
+        window.history.pushState({ ...window.history.state, tsSeatPickerGuard: true }, '');
+        backGuard = true;
+    }
+    async function browserBack(event) {
+        if (!backGuard || leavingByBack || event.state?.tsSeatPickerGuard) return;
+        if (!busy && !owns().length) {
+            leavingByBack = true;
+            if (window.history.length > 2) window.history.back();
+            else window.location.href = el('picker-back').href;
+            return;
+        }
+        // Restore this document before showing the asynchronous confirmation.
+        // Only leave after the server confirms that the held seats were released.
+        window.history.pushState({ ...window.history.state, tsSeatPickerGuard: true }, '');
+        if (busy) { error('Please wait for seat processing to finish before going back.'); return; }
+        if (await release()) {
+            leavingByBack = true;
+            if (window.history.length > 2) window.history.go(-2);
+            else window.location.href = el('picker-back').href;
+        }
+    }
+    window.addEventListener('popstate', browserBack);
     function renderWaitlist() {
         const root=el('picker-waitlist-details');if(!root)return;
         const supported=quantity===1 && window.tsSeats?.seatWaitlist && !window.tsFirebase?.emulator?.enabled;
@@ -86,6 +111,7 @@
     }
     function clear3D() { view3D?.dispose(); view3D = null; focusedSeatId = null; viewInfo = {}; el('buyer-seat-3d').hidden = true; syncViewControls(); }
     function renderSummary() {
+        protectBrowserBack();
         renderWaitlist();
         const records = mapSeats(); el('picker-selected').replaceChildren();
         [...selected].forEach(id => {
@@ -223,7 +249,7 @@
             if (requestVersion !== version || requestUid !== window.tsCurrentUser?.uid) return;
             if (!Array.isArray(result.seats) || result.seats.length !== quantity || new Set(result.seats.map(s => s.id)).size !== quantity
                 || result.seats.some(s => !selected.has(s.id) || !s.seatLabel) || !(Date.parse(result.reservationExpiry) > Date.now())) throw Error('The reservation response was incomplete. Refresh availability before continuing.');
-            hold = result;
+            hold = result; error('');
             model.seats.forEach(seat => { if (selected.has(seat.id)) { seat.status = 'MINE'; seat.reservationExpiry = result.reservationExpiry; delete seat.waitlistOffer; delete seat.waitlistPosition; } else if (seat.status === 'MINE') seat.status = 'AVAILABLE'; });
         } catch (failure) { if (requestVersion === version) { failed = true; error(failure.message || 'These seats could not be reserved.'); } }
         finally { if (requestVersion === version) { busy = false; render(); if (failed) await load(); } }
@@ -280,6 +306,6 @@
     const refresh = () => { if (!document.hidden) load(); };
     let refreshInterval = setInterval(refresh, 30000);
     window.addEventListener('ts-auth-ready', ready); window.addEventListener('pagehide', () => { clearInterval(interval); clearInterval(refreshInterval); view3D?.dispose(); view3D = null; });
-    window.addEventListener('pageshow', event => { if (event.persisted) { refreshInterval = setInterval(refresh, 30000); uid = null; ready(); } });
+    window.addEventListener('pageshow', event => { if (event.persisted) { leavingByBack = false; backGuard = !!window.history?.state?.tsSeatPickerGuard; refreshInterval = setInterval(refresh, 30000); uid = null; ready(); } });
     if (window.tsCurrentUser) ready();
 })();
