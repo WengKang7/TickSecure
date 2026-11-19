@@ -145,6 +145,7 @@ A busy confirmation dialog is allowed to finish before an offer popup appears.
 
 New waiting-list memberships include the buyer UID so a header check can advance
 that buyer's expired queued holds without loading unrelated seats. Older
-memberships still receive alerts when an offer is issued by release or a picker
-refresh; leaving and rejoining enables header-driven expiry checks for them.
+memberships are upgraded automatically when their buyer opens the seat picker,
+without changing queue order. They also receive alerts whenever an offer has
+already been issued by a release or picker refresh.
 The browser must have a TickSecure page open; email remains the off-site channel.

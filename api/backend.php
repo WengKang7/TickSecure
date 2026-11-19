@@ -877,6 +877,15 @@ function backend_get_seat_map(FirebaseAdminRest $firebase, string $uid, array $d
         $visible=picker_visible_seat($seat,$uid,$markers[$seat['seatLabel']]??[]);
         foreach($queue['entries']??[] as $index=>$entry)if($entry['uid']===$uid)$visible['waitlistPosition']=$index+1;
         if(($queue['offerUid']??'')===$uid && $visible['status']==='MINE')$visible['waitlistOffer']=true;
+        if (!empty($visible['waitlistPosition']) || !empty($visible['waitlistOffer'])) {
+            // Upgrade older memberships without changing their queue position.
+            $firebase->transaction(static function (FirebaseFirestoreTransaction $tx) use ($eventId, $uid, $seat): void {
+                $memberId = waitlist_member_id($eventId, $uid);
+                $member = $tx->get('SeatWaitlistMembers', $memberId);
+                if ($member && ($member['seatDocId'] ?? '') === $seat['id'] && empty($member['buyerUid']))
+                    $tx->update('SeatWaitlistMembers', $memberId, ['buyerUid' => $uid]);
+            });
+        }
         $seats[]=$visible;
     }
     return ['eventId' => $eventId, 'venueId' => $event['venueId'], 'eventName' => $event['name'] ?? '', 'venueName' => $venue['name'] ?? $event['venueName'] ?? '',

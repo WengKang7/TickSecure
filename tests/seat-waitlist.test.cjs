@@ -72,3 +72,13 @@ test('global offer check advances an expired holder for a buyer browsing outside
     assert.equal(offered.records['EventSeats/'+seatId].reservedBy,'B');
     assert.equal(run(offered.records,'getSeatWaitlistOffers','C',{}).result.offers.length,0);
 });
+
+
+test('opening the picker upgrades a legacy queue membership without moving the buyer',()=>{
+    const r=queue();for(const [key,value] of Object.entries(r))if(key.startsWith('SeatWaitlistMembers/'))delete value.buyerUid;
+    const before=JSON.stringify(r['SeatWaitlists/'+seatId].entries);
+    const loaded=run(r,'getSeatMap','B',{eventId:'event',sectionId:'A'});
+    assert.ok(loaded.result,JSON.stringify(loaded));
+    assert.equal(JSON.stringify(loaded.records['SeatWaitlists/'+seatId].entries),before);
+    assert.equal(Object.values(loaded.records).filter(value=>value.buyerUid==='B').length,1);
+});
