@@ -718,3 +718,19 @@ body .ts-feedback-source{position:absolute!important;width:1px!important;height:
 /* Event overview: reflect sold seats and active holds from the existing availability request. */
 body #ven-board .ts-ocr-seat.ts-seat-unavailable[data-category-id] .ts-seat-frame{fill:#d9d9d9;stroke:#c7c7c7;opacity:1}
 body #ven-board .ts-ocr-seat.ts-seat-unavailable text{fill:#666}
+/* Keep all buyer camera controls together above the seating plan. */
+body .ts-seat-page .ts-buyer-view-toolbar { align-items:center; gap:12px; }
+body .ts-seat-page .ts-seat-tool-buttons { align-items:center; gap:8px; margin-left:auto; }
+body .ts-seat-page .ts-seat-tool-buttons .ts-btn { min-height:40px; margin:0; white-space:nowrap; }
+body .ts-seat-page :is(#picker-zoom-in,#picker-zoom-out) { width:40px; padding:0; font-size:19px; }
+body .ts-seat-page .ts-seat-view-preview { margin:10px 0 0; padding:10px 12px; min-height:40px; }
+body .ts-seat-page :is(#picker-back,#picker-auto)[aria-disabled="true"] { opacity:.45; cursor:not-allowed; }
+@media(max-width:900px) {
+  body .ts-seat-page .ts-seat-tool-buttons { margin-left:0; flex:1 1 100%; }
+}
+@media(max-width:620px) {
+  body .ts-seat-page .ts-seat-tool-buttons { display:grid; grid-template-columns:44px 44px minmax(0,1fr); width:100%; }
+  body .ts-seat-page .ts-seat-tool-buttons .ts-btn { min-height:44px; }
+  body .ts-seat-page :is(#picker-zoom-in,#picker-zoom-out) { width:44px; }
+  body .ts-seat-page :is(#picker-view-seat,#picker-refresh) { grid-column:1/-1; }
+}

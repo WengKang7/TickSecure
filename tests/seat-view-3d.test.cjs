@@ -125,6 +125,9 @@ test('3D controls support keyboard previews, page changes, cancelled drags and d
     canvas.fire('pointermove',{pointerId:1,clientX:160,clientY:80});
     canvas.fire('pointercancel',{pointerId:1}); assert.deepEqual(selected,['id0']);
     assert.equal(controller.viewFrom('p2'),true); assert.equal(views.at(-1).page,2);
+    controller.zoom(.5); controller.reset();
+    assert.equal(views.at(-1).viewSeatId,null); assert.equal(focused.at(-1),null);
+    assert.deepEqual(selected,['id0'], 'reset never changes seat selection');
     controller.setPage(1); assert.equal(views.at(-1).page,1); assert.equal(views.at(-1).viewSeatId,null);
     controller.dispose(); assert.equal(frames.size,0); assert.deepEqual(Object.keys(canvas.listeners),[]); assert.equal(container.children.length,0);
 });

@@ -22,12 +22,16 @@ ob_start();
             <button type="button" id="picker-mode-3d" aria-pressed="true">3D view</button>
             <button type="button" id="picker-mode-2d" aria-pressed="false">2D plan</button>
           </div>
-          <div class="ts-seat-tool-buttons">
+          <div class="ts-seat-tool-buttons" role="group" aria-label="Seat view controls">
+            <button type="button" class="ts-btn ts-btn-secondary" id="picker-view-seat" hidden>View from this seat</button>
             <button type="button" class="ts-btn ts-btn-secondary" id="picker-zoom-in" aria-label="Zoom in">+</button>
             <button type="button" class="ts-btn ts-btn-secondary" id="picker-zoom-out" aria-label="Zoom out">&minus;</button>
             <button type="button" class="ts-btn ts-btn-secondary" id="picker-fit">Reset view</button>
             <button type="button" class="ts-btn ts-btn-ghost" id="picker-refresh">Refresh availability</button>
           </div>
+        </div>
+        <div class="ts-seat-view-preview mt-12" id="picker-seat-preview" hidden>
+          <div><strong id="picker-preview-label"></strong><p class="small muted mt-4" id="picker-preview-status" role="status"></p></div>
         </div>
         <p class="small muted ts-seat-navigation-hint">Use + to zoom. Drag to explore the venue.</p>
         <div class="ts-seat-legend mt-16"><span>Available</span><span class="selected">Selected</span><span class="unavailable">Held / sold</span><span class="context" id="picker-context-legend" hidden>Other seats</span></div>
@@ -45,10 +49,6 @@ ob_start();
         </div>
         <div class="ts-seat-3d-frame mt-12" id="buyer-seat-3d" hidden></div>
         <div class="ts-generated-board mt-16" id="buyer-seat-map" aria-label="Choose an available seat" hidden></div>
-        <div class="ts-seat-view-preview mt-12" id="picker-seat-preview" hidden>
-          <div><strong id="picker-preview-label"></strong><p class="small muted mt-4" id="picker-preview-status" role="status"></p></div>
-          <button type="button" class="ts-btn ts-btn-secondary" id="picker-view-seat">View from this seat</button>
-        </div>
         <p class="small muted mt-12" id="picker-3d-note" hidden>Drag to rotate. Illustrative view: actual attendees, floor slopes and obstructions are not modelled.</p>
         <p class="small muted mt-8" id="picker-3d-fallback" hidden>3D preview is unavailable in this browser. Use the 2D plan or seat list.</p>
         <p class="small muted mt-12" id="picker-position-note" hidden>Exact positions are unavailable for this layout. Choose by seat identifier below.</p>

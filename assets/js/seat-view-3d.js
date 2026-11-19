@@ -338,7 +338,7 @@
             },
             setPage(value) { if (!Model.pages(model).includes(Number(value))) return; page = Number(value); scene = Model.createScene(model, page); state.orbit = {}; state.focusId = null; options.onFocus?.(null); overview(); },
             focus, viewFrom, overview, zoom, resize: schedule,
-            reset() { state.orbit = {}; state.look = {}; schedule(); },
+            reset() { state.orbit = {}; state.focusId = null; options.onFocus?.(null); overview(); },
             dispose() { disposed = true; stopMotion(); resize?.disconnect(); visibility?.disconnect(); listeners.forEach(remove => remove()); container.replaceChildren(); }
         };
     }

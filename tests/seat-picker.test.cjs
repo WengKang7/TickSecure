@@ -40,13 +40,13 @@ function page(options = {}) {
         const info = {pages:[1],page:1,viewSeatId:null,peopleAvailable:true,showPeople:false,peopleMotion:!options.reducedMotion,reducedMotion:!!options.reducedMotion};
         const notify = () => controls.onViewChange({...info});
         return {
-            update(model, selected) { updates3D.push({ model, selected: [...selected] }); notify(); },
+            update(model, selected, disabled) { updates3D.push({ model, selected: [...selected], disabled }); notify(); },
             viewFrom(id) { previews.push(id); controls.onFocus(id); info.viewSeatId=id; notify(); },
             overview() { info.viewSeatId=null; notify(); },
             setPeople(value) { info.showPeople=value; notify(); },
             setPeopleMotion(value) { info.peopleMotion=value; notify(); },
             setVisible(value) { visibility3D.push(value); },
-            dispose() { disposals++; }, zoom() {}, reset() {}, setPage() {}
+            dispose() { disposals++; }, zoom() {}, reset() { controls.onFocus(null); info.viewSeatId=null; notify(); }, setPage() {}
         };
     } };
     const context = vm.createContext({ window, document: { getElementById: id => elements.get(id), createElement: () => new Element(), hidden: false }, URLSearchParams,
@@ -104,7 +104,7 @@ test('waiting-list controls join, display position, leave and claim a single off
 test('a failed release retains the hold and blocks navigation', async () => {
     const p = page({ failRelease: true, wallet: true }); await p.ready(); p.select('seat0'); p.select('seat1'); await p.click('picker-reserve');
     assert.ok(p.elements.get('picker-continue').href.startsWith('checkout.php?'));
-    await p.click('picker-auto');
+    await p.click('picker-release'); await p.click('picker-auto');
     assert.equal(p.window.location.href, ''); assert.equal(p.elements.get('picker-error').textContent, 'Release unavailable');
     assert.equal(p.elements.get('picker-continue').attributes['aria-disabled'], 'false');
 });
@@ -160,7 +160,7 @@ test('cancelling seat release keeps the hold and prevents leaving the picker', a
     const p = page({ cancelDecision: true }); await p.ready();
     p.select('seat0'); p.select('seat1'); await p.click('picker-reserve');
     const writesBefore = p.writes.length;
-    await p.click('picker-back');
+    await p.click('picker-release'); await p.click('picker-back');
     assert.equal(p.writes.length, writesBefore);
     assert.equal(p.window.location.href, '');
     assert.equal(p.elements.get('picker-continue').attributes['aria-disabled'], 'false');
@@ -221,4 +221,57 @@ test('DESIGN2 2D plan includes context chairs without making them selectable or 
     p.select('real-seat'); await p.click('picker-reserve');
     assert.deepEqual(p.writes[0].ids, ['real-seat']);
     assert.equal(JSON.stringify(data), before, 'source geometry and availability are unchanged');
+});
+
+
+test('reservation locks exact selection and category navigation while pending and after success, until explicit release', async () => {
+    let finish;
+    const p=page({threeD:true,hold:ids=>new Promise(resolve=>{finish=()=>resolve({
+        seats:ids.map(id=>({id,seatLabel:'Main-'+id})),reservationExpiry:new Date(Date.now()+600000).toISOString()
+    });})});await p.ready();
+    p.select3D('seat0');p.select3D('seat1');
+    const pending=p.click('picker-reserve');
+    assert.equal(p.updates3D.at(-1).disabled,true);
+    assert.equal(p.elements.get('picker-reserve').textContent,'Reserving seats...');
+    for(const stage of ['pending','held']) {
+        await p.click('picker-mode-2d');p.select('seat0');
+        p.elements.get('picker-seat-list').children[1].listeners.click();
+        await p.click('picker-mode-3d');p.select3D('seat1');
+        await p.click('picker-auto');await p.click('picker-back');await p.click('picker-reserve');
+        assert.deepEqual(p.updates3D.at(-1).selected,['seat0','seat1'],stage);
+        assert.equal(p.updates3D.at(-1).disabled,true,stage);
+        assert.ok(p.elements.get('picker-seat-list').children.every(button=>button.disabled));
+        assert.equal(p.elements.get('picker-back').attributes['aria-disabled'],'true');
+        assert.equal(p.window.location.href,'');assert.equal(p.writes.length,1);
+        if(stage==='pending'){finish();await pending;}
+    }
+    assert.equal(p.elements.get('picker-continue').attributes['aria-disabled'],'false');
+    await p.click('picker-release');
+    assert.deepEqual(p.writes[1].release,['seat0','seat1']);
+    assert.equal(p.updates3D.at(-1).disabled,false);
+    assert.equal(p.elements.get('picker-back').attributes['aria-disabled'],'false');
+    p.select3D('seat1');assert.deepEqual(p.updates3D.at(-1).selected,['seat1']);
+    await p.click('picker-back');assert.ok(p.window.location.href.includes('event-detail.php'));
+});
+
+test('failed reservation and expired hold unlock selection without releasing server seats automatically',async()=>{
+    const failed=page({threeD:true,hold:async()=>{throw Error('Seat unavailable');}});await failed.ready();
+    failed.select3D('seat0');failed.select3D('seat1');await failed.click('picker-reserve');
+    assert.equal(failed.updates3D.at(-1).disabled,false);
+    assert.equal(failed.elements.get('picker-back').attributes['aria-disabled'],'false');
+    failed.select3D('seat0');assert.deepEqual(failed.updates3D.at(-1).selected,['seat1']);
+    const expired=page({threeD:true});await expired.ready();expired.select3D('seat0');expired.select3D('seat1');await expired.click('picker-reserve');
+    expired.advance(601000);await expired.ready();
+    assert.equal(expired.updates3D.at(-1).disabled,false);
+    assert.equal(expired.elements.get('picker-back').attributes['aria-disabled'],'false');
+    assert.equal(expired.writes.length,1);
+});
+
+test('Reset view exits the seated preview without changing the chosen seats or making a reservation',async()=>{
+    const p=page({threeD:true});await p.ready();p.select3D('seat0');
+    await p.click('picker-view-seat');assert.equal(p.elements.get('picker-view-status').textContent,'View from Main-A1');
+    await p.click('picker-fit');assert.equal(p.elements.get('picker-view-status').textContent,'Venue overview');
+    assert.equal(p.elements.get('picker-overview').hidden,true);
+    assert.equal(p.elements.get('picker-view-seat').hidden,true);
+    assert.deepEqual(p.updates3D.at(-1).selected,['seat0']);assert.equal(p.writes.length,0);
 });

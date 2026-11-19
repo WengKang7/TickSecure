@@ -7,6 +7,8 @@
     let view3D = null, viewMode = '3d', focusedSeatId = null, viewInfo = {}, failed3D = false;
     const error = message => { el('picker-error').hidden = !message; el('picker-error').textContent = message || ''; };
     const sameSelection = () => hold && hold.seats.length === selected.size && hold.seats.every(seat => selected.has(seat.id)) && Date.parse(hold.reservationExpiry) > Date.now();
+    // Keep the exact reservation selection fixed until the hold is released or expires.
+    const selectionLocked = () => busy || (!!hold && Date.parse(hold.reservationExpiry) > Date.now());
     const mapSeats = () => new Map((model?.seats || []).map(seat => [seat.id, seat]));
     const seatName = seat => window.tsTicketDisplay?.seatLabel({seatLabel:seat.seatLabel,categoryName:model?.categoryName}) || seat.seatLabel;
     const owns = () => hold?.seats.map(seat => seat.id) || (model?.seats || []).filter(seat => seat.status === 'MINE').map(seat => seat.id);
@@ -19,13 +21,13 @@
             const option=create('option','',seatName(seat));option.value=seat.id;choice.appendChild(option);
         });
         if([...choice.children].some(option=>option.value===previous))choice.value=previous;
-        choice.disabled=busy || !!member || !supported;
+        choice.disabled=selectionLocked() || !!member || !supported;
         el('picker-waitlist-join').hidden=!!member;
-        el('picker-waitlist-join').disabled=busy || !supported || !choice.children.length;
+        el('picker-waitlist-join').disabled=selectionLocked() || !supported || !choice.children.length;
         el('picker-waitlist-leave').hidden=!member;
         el('picker-waitlist-leave').disabled=busy;
         el('picker-waitlist-claim').hidden=!member?.waitlistOffer;
-        el('picker-waitlist-claim').disabled=busy || !(Date.parse(member?.reservationExpiry||'')>Date.now());
+        el('picker-waitlist-claim').disabled=selectionLocked() || !(Date.parse(member?.reservationExpiry||'')>Date.now());
         el('picker-waitlist-position').textContent=!supported?'Choose a quantity of 1 to join a seat waiting list on the hosted website.'
             :member?.waitlistOffer?`Seat ${seatName(member)} is offered to you until ${new Date(member.reservationExpiry).toLocaleTimeString()}. Claim it to start checkout.`
             :member?`Seat ${seatName(member)}: your waiting-list position is ${member.waitlistPosition}. You will be notified if offered this seat.`
@@ -33,7 +35,7 @@
         if(member || params.get('waitlist')==='1')root.open=true;
     }
     async function waitlistAction(leave=false) {
-        if(busy || quantity!==1 || !uid)return;
+        if(busy || (!leave && selectionLocked()) || quantity!==1 || !uid)return;
         const member=model?.seats.find(seat=>seat.waitlistPosition || seat.waitlistOffer);
         const id=leave?member?.id:el('picker-waitlist-seat').value;if(!id)return;
         const actionVersion=version;busy=true;renderWaitlist();
@@ -44,6 +46,7 @@
     function renderPreview() {
         const seat = mapSeats().get(focusedSeatId);
         el('picker-seat-preview').hidden = !seat;
+        el('picker-view-seat').hidden = !seat;
         if (!seat) return;
         el('picker-preview-label').textContent = `Seat ${seatName(seat)}`;
         el('picker-preview-status').textContent = `${selected.has(seat.id) ? 'Selected · ' : ''}${seat.status === 'MINE' ? 'Held by you' : seat.status.toLowerCase()}`;
@@ -94,7 +97,14 @@
         });
         el('picker-count').textContent = `${selected.size} of ${quantity} seats selected`;
         el('picker-total').textContent = model ? `RM${(model.unitPrice * selected.size + (selected.size ? 20 : 0)).toFixed(2)}` : '—';
-        el('picker-reserve').disabled = busy || !model || selected.size !== quantity;
+        ['picker-back', 'picker-auto'].forEach(id => {
+            const link = el(id), locked = selectionLocked();
+            link.setAttribute('aria-disabled', String(locked));
+            link.setAttribute('tabindex', locked ? '-1' : '0');
+            link.style.pointerEvents = locked ? 'none' : '';
+        });
+        el('picker-reserve').textContent = busy ? 'Reserving seats...' : 'Reserve selected seats';
+        el('picker-reserve').disabled = selectionLocked() || !model || selected.size !== quantity;
         el('picker-release').disabled = busy || !owns().length;
         el('picker-release').hidden = !owns().length;
         const next = el('picker-continue'), ready = !busy && sameSelection();
@@ -128,7 +138,7 @@
         ];
     }
     function toggle(id) {
-        if (busy) return;
+        if (selectionLocked()) return;
         const seat = mapSeats().get(id); if (!seat) return;
         focusedSeatId = id; renderPreview();
         if(seat.status==='HELD' && quantity===1 && el('picker-waitlist-details')){
@@ -155,7 +165,7 @@
                 }); } catch (_) { view3D = null; }
                 if (!view3D) { failed3D = true; viewMode = '2d'; }
             }
-            view3D?.update(model, [...selected], busy);
+            view3D?.update(model, [...selected], selectionLocked());
         }
         const show3D = positioned.length && viewMode === '3d' && !!view3D;
         threeBoard.hidden = !show3D; board.hidden = !positioned.length || show3D;
@@ -172,7 +182,7 @@
         const filter = el('picker-search').value.trim().toLowerCase(), list = el('picker-seat-list'); list.replaceChildren();
         model.seats.filter(seat => !filter || seatName(seat).toLowerCase().includes(filter) || seat.seatLabel.toLowerCase().includes(filter) || seat.row.toLowerCase().includes(filter)).forEach(seat => {
             const button = create('button', 'ts-picker-seat-option', seatName(seat)); button.type = 'button';
-            button.disabled = !['AVAILABLE', 'MINE'].includes(seat.status) || busy;
+            button.disabled = !['AVAILABLE', 'MINE'].includes(seat.status) || selectionLocked();
             button.setAttribute('aria-pressed', String(selected.has(seat.id))); button.setAttribute('aria-label', `${seatName(seat)}, ${seat.status.toLowerCase()}`);
             button.addEventListener('click', () => toggle(seat.id)); list.appendChild(button);
         });
@@ -199,8 +209,8 @@
         finally { if (requestVersion === version) loading = false; }
     }
     async function reserve() {
-        if (busy || !model || selected.size !== quantity) return;
-        busy = true; revision++; error(''); renderSummary(); const requestUid = uid, requestVersion = version; let failed = false;
+        if (selectionLocked() || !model || selected.size !== quantity) return;
+        busy = true; revision++; error(''); render(); const requestUid = uid, requestVersion = version; let failed = false;
         try {
             const result = await window.tsSeats.holdSelectedSeats(eventId, sectionId, [...selected]);
             if (requestVersion !== version || requestUid !== window.tsCurrentUser?.uid) return;
@@ -236,12 +246,12 @@
     el('picker-waitlist-join')?.addEventListener('click',()=>waitlistAction());
     el('picker-waitlist-leave')?.addEventListener('click',()=>waitlistAction(true));
     el('picker-waitlist-claim')?.addEventListener('click',async()=>{
-        const offered=model?.seats.find(seat=>seat.waitlistOffer);if(busy || quantity!==1 || !offered)return;
+        const offered=model?.seats.find(seat=>seat.waitlistOffer);if(selectionLocked() || quantity!==1 || !offered)return;
         selected.clear();selected.add(offered.id);await reserve();
     });
     const autoQuery = new URLSearchParams({ eventId, sectionId, qty: String(quantity) }); el('picker-auto').href = `seat-assignment.php?${autoQuery}`;
     const categoryQuery = new URLSearchParams({ id: eventId, sectionId, qty: String(quantity) }); el('picker-back').href = `../public/event-detail.php?${categoryQuery}`;
-    ['picker-back', 'picker-auto'].forEach(id => el(id).addEventListener('click', async event => { event.preventDefault(); if (!busy && await release()) window.location.href = el(id).href; }));
+    ['picker-back', 'picker-auto'].forEach(id => el(id).addEventListener('click', async event => { event.preventDefault(); if (!selectionLocked() && await release()) window.location.href = el(id).href; }));
     el('picker-continue').addEventListener('click', event => { if (busy || !sameSelection()) event.preventDefault(); });
     async function ready() {
         const current = window.tsCurrentUser?.uid;
