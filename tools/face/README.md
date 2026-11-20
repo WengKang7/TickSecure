@@ -117,3 +117,28 @@ node --test tests/face-ui.test.cjs tests/ticket-pages.test.cjs tests/ticket-tran
 ```
 
 Tests use synthetic in-memory records and do not create buyers, enroll real faces or consume live tickets. Run a supervised end-to-end rehearsal using your own demo buyer and camera before the FYP presentation.
+
+
+## Duplicate-face registration policy
+
+Enrollment compares fresh SFace descriptors against current encrypted registrations
+on other VALID tickets marked REGISTERED for the same event, across buyer accounts.
+It uses a separate `FACE_DUPLICATE_THRESHOLD` (initially 0.5) and requires all three
+samples to match in both directions. This is a similarity-based duplicate check;
+it is not a measured false-positive/false-negative guarantee. Rehearse with consenting
+participants and the actual cameras before claiming detection accuracy.
+
+The server returns only `face-already-linked` and a general message, with no other
+owner, ticket ID, template or similarity score. A per-event transaction guard
+serializes enrollment commits so concurrent registrations recheck the current
+candidates. Legacy registrations are included through their existing ticket marker;
+no template migration or deletion is required. Removed, transferred/stale, cancelled
+and used registrations do not count as active bindings. Existing duplicate pairs
+are not automatically deleted by this change.
+
+Registration starts the camera after an authenticated eligibility check. Browsers
+still require camera permission; template storage still needs explicit consent and
+Register my face. Camera tracks stop on success, hidden pages and navigation.
+Movement instructions remain above the camera instead of being mirrored into
+bottom-right toast notifications. The duplicate alert offers Scan again and a link
+to transfer the current ticket; a transfer still follows the normal ownership rules.

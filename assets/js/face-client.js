@@ -19,7 +19,10 @@
                 body: JSON.stringify({ ...data, action }) });
             const result = await response.json();
             if (window.tsFirebase?.auth?.currentUser?.uid !== user.uid) throw Error('Your sign-in changed. Reload this page.');
-            if (!response.ok || result.error) throw Error(result.error?.message || 'Face verification is unavailable.');
+            if (!response.ok || result.error) {
+                const error = Error(result.error?.message || 'Face verification is unavailable.');
+                error.code = result.error?.code || ''; throw error;
+            }
             return result.data;
         })(), 45000, 'The server took too long to respond. Check the ticket status before retrying; do not assume check-in succeeded.', () => controller.abort());
     }

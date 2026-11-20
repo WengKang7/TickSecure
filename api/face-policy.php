@@ -61,7 +61,8 @@ function face_vectors(mixed $vectors): array {
     }
     return $vectors;
 }
-function face_matches(array $reference, array $capture): bool {
+const FACE_DUPLICATE_THRESHOLD = 0.5; // Separate enrollment policy; requires device/population evaluation.
+function face_matches(array $reference, array $capture, float $threshold = FACE_THRESHOLD): bool {
     $reference = face_vectors($reference); $capture = face_vectors($capture);
     // All three fresh captures must match at least one enrollment sample.
     foreach ($capture as $sample) {
@@ -71,7 +72,7 @@ function face_matches(array $reference, array $capture): bool {
             foreach ($sample as $i => $value) $score += $value * $saved[$i];
             $best = max($best, $score);
         }
-        if ($best < FACE_THRESHOLD) return false;
+        if ($best < $threshold) return false;
     }
     return true;
 }

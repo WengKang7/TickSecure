@@ -5,10 +5,15 @@
   <div class="ts-alert ts-alert-error" id="face-error" role="alert" hidden></div>
   <div class="ts-face-layout">
     <section class="ts-card ts-face-card" aria-label="Face registration">
+      <p id="face-status" class="ts-face-instructions" data-ts-inline-feedback role="status" aria-live="polite">Checking your ticket…</p>
       <div class="ts-face-camera"><video id="face-video" autoplay muted playsinline aria-label="Face registration camera preview"></video></div>
-      <p id="face-status" role="status" aria-live="polite">Checking your ticket…</p>
       <label class="ts-face-consent"><input type="checkbox" id="face-consent"> <span>I agree to store my encrypted face template for ticket entry.</span></label>
-      <div class="ts-face-actions"><button class="ts-btn ts-btn-secondary" id="face-start" disabled>Start camera</button><button class="ts-btn ts-btn-primary" id="face-save" disabled>Register my face</button><button class="ts-btn ts-btn-secondary" id="face-stop" type="button">Stop camera</button></div>
+      <div class="ts-face-actions"><button class="ts-btn ts-btn-primary" id="face-save" disabled>Register my face</button></div>
+      <section id="face-duplicate" class="ts-face-duplicate" hidden aria-labelledby="face-duplicate-title">
+        <h2 id="face-duplicate-title">Face already linked to another ticket</h2>
+        <p>One face can be registered to one active ticket per event. Scan again if this result is unexpected, or transfer this ticket so the recipient can register their own face.</p>
+        <div class="ts-face-actions"><button class="ts-btn ts-btn-secondary" type="button" id="face-retry">Scan again</button><a class="ts-btn ts-btn-primary" id="face-transfer">Transfer this ticket</a></div>
+      </section>
       <a class="ts-btn ts-btn-primary" id="face-ticket" hidden href="tickets.php">Open my ticket</a>
       <button class="ts-btn ts-btn-secondary" id="face-remove" type="button" hidden>Remove registration</button>
       <details class="ts-face-privacy"><summary>Privacy details</summary><p>Register your own face. Camera images are discarded after processing. Your encrypted template is deleted after transfer, resale, entry, or removal. Removing it locks the ticket QR until you register again.</p></details>

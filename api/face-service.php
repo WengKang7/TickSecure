@@ -68,7 +68,7 @@ final class TicketFaceService {
             $challengeId = bin2hex(random_bytes(24));
             $movements = $this->movements();
             $tx->create('FaceChallenges', $challengeId, ['kind' => 'enrollment', 'scannerUid' => $claims['sub'],
-                'ticketId' => $id, 'revision' => face_revision($ticket), 'movements' => $movements,
+                'ticketId' => $id, 'eventId' => $ticket['eventId'], 'revision' => face_revision($ticket), 'movements' => $movements,
                 'expiresAt' => time() + 90, 'used' => false]);
             return ['challengeId' => $challengeId, 'movements' => $movements, 'expiresIn' => 90];
         });
@@ -87,18 +87,37 @@ final class TicketFaceService {
             }
             face_movements($challenge['movements'] ?? null);
             $tx->update('FaceChallenges', $challengeId, ['used' => true]);
-            return $challenge;
+            return $challenge + ['eventId' => $ticket['eventId']];
         });
         $before = $captureRequest['revision'];
         $vectors = face_vectors(($this->recognize)($frames, $captureRequest['movements']));
         $version = bin2hex(random_bytes(16));
-        $record = ['ownerUid' => $claims['sub'], 'revision' => $before, 'version' => $version,
+        $record = ['eventId' => $captureRequest['eventId'], 'ownerUid' => $claims['sub'], 'revision' => $before, 'version' => $version,
             'model' => FACE_MODEL, 'consentVersion' => 'fyp-face-v1', 'movementCheck' => 'head-turn-v1', 'registeredAt' => gmdate('c')];
         $record += face_encrypt($vectors, $this->key, $this->binding($id, $record));
-        return $this->db->transaction(function ($tx) use ($claims, $id, $record, $before, $captureRequest, $challengeId) {
+        return $this->db->transaction(function ($tx) use ($claims, $id, $record, $before, $captureRequest, $challengeId, $vectors) {
             [$ticket, $event, $existing] = $this->context($tx, $claims, $id);
             face_entry_eligible($ticket, $event);
             if ($captureRequest['expiresAt'] < time() || face_revision($ticket) !== $before || face_registered($existing, $ticket)) face_fail('The ticket or request changed. Reload before registering.');
+            // Serialize enrollment per event so two concurrent tickets cannot both
+            // pass an empty duplicate check. All biometric reads stay server-side.
+            $eventId = (string)$ticket['eventId'];
+            $guard = $tx->get('FaceEventEnrollmentLocks', $eventId);
+            $candidates = $tx->query('NFTTickets', ['eventId' => $eventId, 'faceRegistrationStatus' => 'REGISTERED']);
+            foreach ($candidates as $candidate) {
+                $otherId = (string)$candidate['id'];
+                if ($otherId === $id || ($candidate['status'] ?? '') !== 'VALID') continue;
+                $other = $tx->get('TicketFaces', $otherId);
+                if (!face_registered($other, $candidate)) continue;
+                $reference = face_decrypt($other, $this->key, $this->binding($otherId, $other));
+                if (face_matches($reference, $vectors, FACE_DUPLICATE_THRESHOLD)
+                    && face_matches($vectors, $reference, FACE_DUPLICATE_THRESHOLD)) {
+                    face_fail('This face appears to be registered to another active ticket for this event. Scan again, or transfer this ticket to another attendee.', 'face-already-linked', 409);
+                }
+            }
+            $lock = ['revision' => (int)($guard['revision'] ?? 0) + 1];
+            if ($guard === null) $tx->create('FaceEventEnrollmentLocks', $eventId, $lock);
+            else $tx->update('FaceEventEnrollmentLocks', $eventId, $lock);
             if ($existing === null) $tx->create('TicketFaces', $id, $record);
             else $tx->update('TicketFaces', $id, $record);
             $tx->update('NFTTickets', $id, ['faceRegistrationStatus' => 'REGISTERED']);

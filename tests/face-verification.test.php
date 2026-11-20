@@ -19,11 +19,12 @@ final class FaceMemoryTx {
     }
     public function query(string $collection, array $filters): array {
         if ($this->writing) throw new RuntimeException('Read after write');
-        return array_values(array_filter($this->rows, function ($row, $key) use ($collection, $filters) {
+        $matches = array_filter($this->rows, function ($row, $key) use ($collection, $filters) {
             if (!str_starts_with($key, "$collection/")) return false;
             foreach ($filters as $field => $value) if (($row[$field] ?? null) !== $value) return false;
             return true;
-        }, ARRAY_FILTER_USE_BOTH));
+        }, ARRAY_FILTER_USE_BOTH);
+        $out = []; foreach ($matches as $key => $row) $out[] = ['id' => substr($key, strlen($collection)+1)] + $row; return $out;
     }
     public function create(string $collection, string $id, array $data): void {
         $this->writing = true;
@@ -235,6 +236,50 @@ $tests['frontal checkin is server bound and enrollment still requires turns'] = 
     $result = $s->complete(claims('organizer'), $c['challengeId'], ['mock']);
     ensure($result['valid'] === true, 'matching frontal capture admits');
     ensure($db->rows['NFTTickets/ticket']['status'] === 'USED', 'single use retained');
+};
+
+function add_face_test_ticket(FaceMemoryDb $db, string $id, string $owner='buyer', string $event='event'): void {
+    $db->rows['NFTTickets/'.$id] = array_replace($db->rows['NFTTickets/ticket'], ['ownerUid'=>$owner,'eventId'=>$event,'faceRegistrationStatus'=>'REQUIRED']);
+    $db->rows['BlockchainTransactions/'.$id] = ['ticketId'=>$id,'status'=>'CONFIRMED','verificationVersion'=>2];
+    if ($event !== 'event') $db->rows['Events/'.$event] = $db->rows['Events/event'];
+}
+$tests['same face on another active ticket in the same event is blocked across accounts'] = function () {
+    foreach (['buyer','other'] as $owner) {
+        [$db,$s,$key]=enrolled(); add_face_test_ticket($db,'second',$owner);
+        $existing=$db->rows['TicketFaces/ticket'];
+        denied(fn()=>enroll_test($s,claims($owner),'second',['mock'],true),'face-already-linked');
+        ensure(!isset($db->rows['TicketFaces/second']), 'duplicate not saved');
+        ensure($db->rows['TicketFaces/ticket'] === $existing, 'existing enrollment retained');
+        ensure($db->rows['NFTTickets/second']['faceRegistrationStatus'] === 'REQUIRED','ticket stays locked');
+    }
+};
+$tests['different faces and different events remain eligible; enrollment lock serializes same-event writes'] = function () {
+    [$db,$s,$key]=enrolled(); add_face_test_ticket($db,'second');
+    $different=new TicketFaceService($db,$key,fn()=>vectors(1));
+    enroll_test($different,claims(),'second',['mock'],true);
+    ensure(isset($db->rows['TicketFaces/second']), 'different face accepted');
+    ensure($db->rows['FaceEventEnrollmentLocks/event']['revision'] === 2,'event enrollment guard advanced');
+    add_face_test_ticket($db,'another-event','buyer','event2');
+    enroll_test($s,claims(),'another-event',['mock'],true);
+    ensure(isset($db->rows['TicketFaces/another-event']), 'same face allowed at another event');
+};
+$tests['removed, used and stale-owner registrations do not prevent a new active enrollment'] = function () {
+    foreach (['removed','used','stale','cancelled'] as $case) {
+        [$db,$s]=enrolled();add_face_test_ticket($db,'second');
+        if($case==='removed') $s->remove(claims(),'ticket');
+        elseif($case==='stale') $db->rows['NFTTickets/ticket']['ownerUid']='other';
+        else $db->rows['NFTTickets/ticket']['status']=$case==='used'?'USED':'CANCELLED';
+        enroll_test($s,claims(),'second',['mock'],true);
+        ensure(isset($db->rows['TicketFaces/second']), $case.' is not an active binding');
+    }
+};
+$tests['duplicate failure consumes the capture challenge and leaks no other ticket reference'] = function () {
+    [$db,$s]=enrolled();add_face_test_ticket($db,'second','other');
+    $challenge=$s->beginEnrollment(claims('other'),'second');
+    try {$s->enroll(claims('other'),'second',['mock'],true,$challenge['challengeId']);throw new RuntimeException('Expected duplicate');}
+    catch(FirebaseBackendException $e){ensure($e->errorCode==='face-already-linked','structured duplicate code');ensure(!str_contains($e->getMessage(),'buyer'),'no other owner');}
+    ensure($db->rows['FaceChallenges/'.$challenge['challengeId']]['used'] === true,'retry requires new capture');
+    denied(fn()=>$s->enroll(claims('other'),'second',['mock'],true,$challenge['challengeId']));
 };
 foreach ($tests as $name => $run) { $run(); echo "PASS $name\n"; }
 echo count($tests) . " face security checks passed.\n";

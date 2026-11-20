@@ -108,7 +108,7 @@
   const previous = new WeakMap();
   function syncFeedback(source, initial = false) {
     if (!(source instanceof HTMLElement) || !source.matches(selector) ||
-        source.closest('.ts-feedback-region,.ts-toast,.ts-decision-backdrop,.ts-modal-backdrop') ||
+        source.closest('.ts-feedback-region,.ts-toast,.ts-decision-backdrop,.ts-modal-backdrop,[data-ts-inline-feedback]') ||
         source.matches('.ts-error-msg,.ts-field-error,[id^="val-"],[id^="ai-review-"],#category-selected-count,#event-location-status') ||
         source.closest('.ts-field,.ts-input-wrap') ||
         source.querySelector('button,a,input,select,textarea')) return;

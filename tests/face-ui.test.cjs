@@ -11,24 +11,25 @@ class Element {
     addEventListener(name,fn){this.listeners[name]=fn;}
     click(){return this.listeners.click?.();}
 }
-function page(kind,request){
+function page(kind,request,options={}){
     const file=kind==='registration'?'buyer/face-registration.php':'verification/scanner.php';
     const html=fs.readFileSync(path.join(root,file),'utf8');
     const els=Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(m=>[m[1],new Element()]));
-    const events={},calls=[],camera={start:async()=>{},stop(){},frames:async()=>['a','b','c']};
+    let starts=0;const docEvents={},doc={hidden:false};
+    const events={},calls=[],camera={start:async()=>{starts++;if(options.start)await options.start();},stop(){},frames:async()=>['a','b','c']};
     const window={tsCurrentUser:{uid:kind==='registration'?'buyer':'organizer',role:kind==='registration'?'buyer':'organizer',status:'active'},
         addEventListener:(name,fn)=>events[name]=fn,
         tsFace:{camera:()=>camera,request:async(action,data)=>{calls.push([action,data]);const result = await request(action,data); return action==='beginEnrollment' ? {challengeId:'enrollment',movements:['center','left','center','right','center'],...result} : action==='beginCheckIn' ? {movements:['center','left','center','right','center'],...result} : result;}}};
-    const context=vm.createContext({window,document:{getElementById:id=>els[id],addEventListener(){},hidden:false},
+    const context=vm.createContext({window,document:Object.assign(doc,{getElementById:id=>els[id],addEventListener:(name,fn)=>docEvents[name]=fn}),
         location:{search:'?ticketId=ticket'},URLSearchParams,confirm:()=>true,setTimeout,console});
     vm.runInContext(fs.readFileSync(path.join(root,'assets/js/face-'+(kind==='registration'?'registration':'checkin')+'.js'),'utf8'),context);
-    return {els,window,events,calls,camera,tick:()=>new Promise(resolve=>setImmediate(resolve))};
+    return {els,window,events,calls,camera,docEvents,doc,starts:()=>starts,tick:()=>new Promise(resolve=>setImmediate(resolve))};
 }
 test('registration requires a ready camera and consent; shows ticket only after backend confirmation',async()=>{
     let saved=false;
     const p=page('registration',action=>{if(action==='enroll'){saved=true;return{registered:true};}return{registered:saved,eligible:true,message:saved?'Registered':'Register'};});
     await p.tick(); assert.equal(p.els['face-save'].disabled,true);
-    await p.els['face-start'].click();assert.equal(p.els['face-save'].disabled,true);
+    await p.tick();assert.equal(p.els['face-save'].disabled,true);
     p.els['face-consent'].checked=true;p.els['face-consent'].listeners.change();assert.equal(p.els['face-save'].disabled,false);
     await p.els['face-save'].click();assert.equal(p.els['face-ticket'].hidden,false);assert.equal(p.els['face-ticket'].href,'ticket-detail.php?id=ticket');
     assert.equal(p.calls.filter(([a])=>a==='enroll').length,1);
@@ -36,14 +37,14 @@ test('registration requires a ready camera and consent; shows ticket only after 
 test('capture failure does not enroll and camera is stopped',async()=>{
     const p=page('registration',()=>({registered:false,eligible:true}));await p.tick();
     let stopped=0;p.camera.stop=()=>stopped++;p.camera.frames=async()=>{throw Error('No face');};
-    await p.els['face-start'].click();p.els['face-consent'].checked=true;p.els['face-consent'].listeners.change();
+    await p.tick();p.els['face-consent'].checked=true;p.els['face-consent'].listeners.change();
     await p.els['face-save'].click();assert.equal(p.calls.some(([a])=>a==='enroll'),false);assert.ok(stopped>0);
-    assert.equal(p.els['face-error'].hidden,false);assert.equal(p.els['face-save'].disabled,true);
+    assert.equal(p.els['face-error'].hidden,false);assert.equal(p.els['face-ticket'].hidden,true);assert.equal(p.els['face-save'].disabled,false);
 });
 test('sign-out during capture prevents enrollment under another account',async()=>{
     const p=page('registration',()=>({registered:false,eligible:true}));await p.tick();
     let finish;p.camera.frames=()=>new Promise(resolve=>finish=resolve);
-    await p.els['face-start'].click();p.els['face-consent'].checked=true;p.els['face-consent'].listeners.change();
+    await p.tick();p.els['face-consent'].checked=true;p.els['face-consent'].listeners.change();
     const pending=p.els['face-save'].click();await p.tick();p.window.tsCurrentUser=null;await p.events['ts-auth-ready']();finish(['a','b','c']);await pending;
     assert.equal(p.calls.some(([a])=>a==='enroll'),false);
 });
@@ -120,4 +121,34 @@ test('camera stops tracks obtained after a closed page; no audio is requested',a
     vm.runInContext(fs.readFileSync(path.join(root,'assets/js/face-client.js'),'utf8'),ctx);
     const camera=window.tsFace.camera(video),pending=camera.start();handlers.pagehide();resolve({getTracks:()=>[{stop:()=>stops++}]});
     await assert.rejects(pending,/closed/);assert.equal(captureOptions.audio,false);assert.equal(stops,1);assert.equal(video.srcObject,null);
+});
+
+
+test('eligible registration starts the camera automatically, but still requires consent and explicit capture',async()=>{
+    const p=page('registration',()=>({registered:false,eligible:true}));await p.tick();
+    assert.equal(p.starts(),1);assert.equal(p.els['face-start'],undefined);assert.equal(p.els['face-stop'],undefined);
+    assert.equal(p.els['face-ticket'].hidden,true);assert.equal(p.calls.some(([a])=>a==='beginEnrollment'),false);
+    assert.equal(p.els['face-save'].disabled,true);
+    p.doc.hidden=true;p.docEvents.visibilitychange();p.doc.hidden=false;await p.docEvents.visibilitychange();await p.tick();assert.equal(p.starts(),2);
+});
+test('registered or ineligible tickets do not open the camera; permission failures stay locked',async()=>{
+    for(const result of [{registered:true,eligible:true},{registered:false,eligible:false}]) {
+        const p=page('registration',()=>result);await p.tick();assert.equal(p.starts(),0);assert.equal(p.els['face-ticket'].hidden,!result.registered);
+    }
+    const denied=page('registration',()=>({registered:false,eligible:true}),{start:async()=>{throw Error('Camera permission denied');}});
+    await denied.tick();assert.equal(denied.starts(),1);assert.equal(denied.els['face-ticket'].hidden,true);assert.equal(denied.els['face-save'].disabled,true);
+    assert.match(denied.els['face-error'].textContent,/permission denied/);
+});
+test('duplicate face shows retry and own-ticket transfer actions without unlocking the ticket',async()=>{
+    const p=page('registration',action=>{if(action==='enroll')throw Object.assign(Error('Face already linked'),{code:'face-already-linked'});return{registered:false,eligible:true};});await p.tick();
+    p.els['face-consent'].checked=true;p.els['face-consent'].listeners.change();await p.els['face-save'].click();
+    assert.equal(p.els['face-duplicate'].hidden,false);assert.equal(p.els['face-duplicate'].revealed,1);
+    assert.equal(p.els['face-transfer'].href,'ticket-transfer.php?ticketId=ticket');assert.equal(p.els['face-ticket'].hidden,true);
+    await p.els['face-retry'].click();assert.equal(p.els['face-duplicate'].hidden,true);assert.equal(p.starts(),2);
+});
+test('movement guidance is above the video and excluded from bottom-right feedback toasts',()=>{
+    const html=fs.readFileSync(path.join(root,'buyer/face-registration.php'),'utf8');
+    assert.ok(html.indexOf('id="face-status"')<html.indexOf('id="face-video"'));
+    assert.match(html,/id="face-status"[^>]*data-ts-inline-feedback/);
+    assert.match(fs.readFileSync(path.join(root,'assets/js/ui.js'),'utf8'),/\[data-ts-inline-feedback\]/);
 });
