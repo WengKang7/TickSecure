@@ -11,9 +11,15 @@
         const user = window.tsFirebase?.auth?.currentUser;
         if (!user) throw Error('Sign in before using face verification.');
         const controller = new AbortController();
+        let submitted = false;
+        const enrollment = action === 'enroll';
+        const timeoutMessage = enrollment
+            ? 'Face registration is taking longer than expected. Check registration status before starting another scan.'
+            : 'The server took too long to respond. Check the ticket status before retrying; do not assume check-in succeeded.';
         return deadline((async () => {
             const token = await user.getIdToken();
             if (controller.signal.aborted) throw Error('Face verification timed out.');
+            submitted = true;
             const response = await fetch(endpoint, { method: 'POST', credentials: 'same-origin', signal: controller.signal,
                 headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
                 body: JSON.stringify({ ...data, action }) });
@@ -24,7 +30,12 @@
                 error.code = result.error?.code || ''; throw error;
             }
             return result.data;
-        })(), 45000, 'The server took too long to respond. Check the ticket status before retrying; do not assume check-in succeeded.', () => controller.abort());
+        })(), enrollment ? 150000 : 45000, timeoutMessage, () => controller.abort()).catch(error => {
+            if (enrollment && submitted && (controller.signal.aborted || !error.code)) {
+                error.uncertain = true; error.code = 'face-request-uncertain';
+            }
+            throw error;
+        });
     }
     function camera(video) {
         let stream = null, generation = 0;

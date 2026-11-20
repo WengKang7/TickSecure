@@ -14,6 +14,7 @@
         <p>One face can be registered to one active ticket per event. Scan again if this result is unexpected, or transfer this ticket so the recipient can register their own face.</p>
         <div class="ts-face-actions"><button class="ts-btn ts-btn-secondary" type="button" id="face-retry">Scan again</button><a class="ts-btn ts-btn-primary" id="face-transfer">Transfer this ticket</a></div>
       </section>
+      <button class="ts-btn ts-btn-secondary" type="button" id="face-recheck" hidden>Check registration status</button>
       <a class="ts-btn ts-btn-primary" id="face-ticket" hidden href="tickets.php">Open my ticket</a>
       <button class="ts-btn ts-btn-secondary" id="face-remove" type="button" hidden>Remove registration</button>
       <details class="ts-face-privacy"><summary>Privacy details</summary><p>Register your own face. Camera images are discarded after processing. Your encrypted template is deleted after transfer, resale, entry, or removal. Removing it locks the ticket QR until you register again.</p></details>

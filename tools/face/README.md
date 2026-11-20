@@ -50,7 +50,7 @@ Model licenses are included beside the files. QR scanning uses vendored jsQR 1.4
 
 ## Guided movement upgrade (10 November 2026)
 
-The buyer registration page and both staff web scanner pages now load a local MediaPipe Face Landmarker. The preview shows estimated face landmarks; green dots indicate an acceptable angle. Each step requires about 450ms of stable pose before automatic capture. Missing/multiple faces, wrong direction, excessive tilt or a 12-second step timeout stop capture. Total server challenge lifetime remains 90 seconds. Refresh open pages after deployment.
+The buyer registration page and both staff web scanner pages now load a local MediaPipe Face Landmarker. The preview shows estimated face landmarks; green dots indicate an acceptable angle. Each step requires about 450ms of stable pose before automatic capture. Missing/multiple faces, wrong direction, excessive tilt or a 12-second step timeout stop capture. The enrollment challenge allows 240 seconds for guided capture and server work; check-in challenges remain 90 seconds. Refresh open pages after deployment.
 
 The five-step sequence is center → randomly left/right → center → opposite side → center. Left/right means the attendee's own left/right. Turn gently (roughly 20 degrees), keep eyes and face visible, and return fully forward when prompted. The browser preview is unmirrored. Android 1.1.0 uses three-second countdown prompts for each pose instead of a local landmark overlay; staff should read directions to the attendee. Install the updated APK: the earlier three-frame app fails closed against this backend.
 
@@ -142,3 +142,18 @@ Register my face. Camera tracks stop on success, hidden pages and navigation.
 Movement instructions remain above the camera instead of being mirrored into
 bottom-right toast notifications. The duplicate alert offers Scan again and a link
 to transfer the current ticket; a transfer still follows the normal ownership rules.
+
+
+## Registration timeout handling
+
+Face enrollment waits up to 150 seconds in the browser; server model processing
+has a 120-second wall-clock limit including cold startup and pipe I/O. Enrollment
+challenges last 240 seconds, while check-in keeps its existing 90-second challenge
+and 45-second browser request window. No recognition threshold is reduced.
+
+After an uncertain enrollment response, the browser keeps capture locked and offers
+Check registration status. It preserves the pending window across refreshes in
+session storage, scoped to the account and ticket. Confirmed registration unlocks
+the ticket; otherwise a fresh capture waits for the pending window to expire.
+The worker logs only inference duration, never face frames, templates or scores.
+This bounds slow requests; it does not guarantee Render Free CPU availability.

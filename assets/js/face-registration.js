@@ -1,16 +1,23 @@
 (function () {
     const el = id => document.getElementById(id), id = new URLSearchParams(location.search).get('ticketId') || '';
     const camera = window.tsFace.camera(el('face-video'));
-    let state = null, busy = false, starting = false, cameraReady = false, version = 0;
+    let state = null, busy = false, starting = false, cameraReady = false, version = 0, retryAfter = 0;
+    const pendingKey = () => `ts-face-pending:${window.tsCurrentUser?.uid || ''}:${id}`;
+    function pending(until) {
+        retryAfter = until;
+        try { if(until)window.sessionStorage?.setItem(pendingKey(),String(until));else window.sessionStorage?.removeItem(pendingKey()); } catch (_) {}
+    }
     function buttons() {
-        el('face-save').disabled = busy || starting || !cameraReady || !el('face-consent').checked || !state?.eligible || state?.registered;
+        el('face-save').disabled = Date.now() < retryAfter || busy || starting || !cameraReady || !el('face-consent').checked || !state?.eligible || state?.registered;
         el('face-save').hidden = !!state?.registered;
         el('face-remove').disabled = busy;
+        el('face-recheck').hidden = !retryAfter || !!state?.registered;
+        el('face-recheck').disabled = busy || starting;
         el('face-retry').disabled = busy || starting;
     }
     function error(e) { el('face-error').textContent = e.message || 'Face registration is unavailable.'; el('face-error').hidden = false; }
     async function startCamera(current = version) {
-        if (current !== version || busy || starting || cameraReady || document.hidden || !state?.eligible || state.registered) return;
+        if (Date.now() < retryAfter || current !== version || busy || starting || cameraReady || document.hidden || !state?.eligible || state.registered) return;
         starting = true; buttons(); el('face-status').textContent = 'Starting camera. Allow camera access if your browser asks.';
         try {
             await camera.start(); if (current !== version) return;
@@ -19,7 +26,10 @@
             if (current === version) { cameraReady = false; error(e); el('face-status').textContent = 'Allow camera access in your browser, then reload this page to try again.'; }
         } finally { if (current === version) { starting = false; buttons(); } }
     }
+    let pendingOwnerKey = '';
     async function load() {
+        if (pendingOwnerKey !== pendingKey()) { retryAfter = 0; pendingOwnerKey = pendingKey(); }
+        try { retryAfter = Number(window.sessionStorage?.getItem(pendingKey()) || retryAfter || 0); } catch (_) {}
         const current = ++version; state = null; busy = starting = cameraReady = false; camera.stop(); buttons();
         el('face-ticket').hidden = el('face-remove').hidden = true;
         el('face-duplicate').hidden = true; el('face-error').hidden = true;
@@ -27,7 +37,9 @@
         try {
             const result = await window.tsFace.request('status', { ticketId: id });
             if (version !== current) return;
-            state = result; el('face-status').textContent = state.message;
+            state = result;
+            if (state.registered || retryAfter && Date.now() >= retryAfter) pending(0);
+            el('face-status').textContent = Date.now() < retryAfter ? 'The previous registration result is not confirmed yet. Use Check registration status before starting another scan.' : state.message;
             el('face-ticket').href = 'ticket-detail.php?id=' + encodeURIComponent(id);
             el('face-transfer').href = 'ticket-transfer.php?ticketId=' + encodeURIComponent(id);
             el('face-ticket').hidden = !state.registered; el('face-remove').hidden = !state.registered;
@@ -37,6 +49,7 @@
     }
     el('face-consent').addEventListener('change', buttons);
     el('face-retry').addEventListener('click', load);
+    el('face-recheck').addEventListener('click', load);
     el('face-save').addEventListener('click', async () => {
         if (busy || el('face-save').disabled) return;
         const current = version;
@@ -51,13 +64,15 @@
             }, challenge.movements);
             if (current !== version) return;
             camera.stop(); cameraReady = false;
-            el('face-status').textContent = 'Saving your face registration…';
+            el('face-status').textContent = 'Checking and saving your face registration. This may take up to two minutes; please keep this page open.';
+            pending(Date.now() + Math.max(240, challenge.expiresIn || 0) * 1000);
             await window.tsFace.request('enroll', { ticketId: id, challengeId: challenge.challengeId, frames, consent: el('face-consent').checked });
             if (current !== version) return;
-            await load();
+            pending(0); await load();
         } catch (e) {
             if (current === version) {
-                error(e); el('face-status').textContent = 'Registration was not completed. Please try again.';
+                if (!e.uncertain) pending(0);
+                error(e); el('face-status').textContent = e.uncertain ? 'Registration has not been confirmed. Select Check registration status; do not start another scan yet.' : 'Registration was not completed. Please try again.';
                 if (e.code === 'face-already-linked') {
                     el('face-duplicate').hidden = false;
                     el('face-duplicate').scrollIntoView?.({block:'center', behavior:'smooth'});

@@ -69,8 +69,8 @@ final class TicketFaceService {
             $movements = $this->movements();
             $tx->create('FaceChallenges', $challengeId, ['kind' => 'enrollment', 'scannerUid' => $claims['sub'],
                 'ticketId' => $id, 'eventId' => $ticket['eventId'], 'revision' => face_revision($ticket), 'movements' => $movements,
-                'expiresAt' => time() + 90, 'used' => false]);
-            return ['challengeId' => $challengeId, 'movements' => $movements, 'expiresIn' => 90];
+                'expiresAt' => time() + 240, 'used' => false]);
+            return ['challengeId' => $challengeId, 'movements' => $movements, 'expiresIn' => 240];
         });
     }
     public function enroll(array $claims, string $id, array $frames, bool $consent, string $challengeId = ''): array {

@@ -38,9 +38,16 @@ test('stalled request aborts and gives an uncertain-result warning without retry
 });
 test('stalled authentication also times out without submitting images later',async()=>{
     let finish,calls=0;const c=client({timeout:true,getIdToken:()=>new Promise(resolve=>finish=resolve),fetch:async()=>{calls++;}});
-    await assert.rejects(c.api.request('enroll'),/too long/);finish('late-token');await new Promise(setImmediate);assert.equal(calls,0);
+    await assert.rejects(c.api.request('enroll'),/taking longer/);finish('late-token');await new Promise(setImmediate);assert.equal(calls,0);
 });
 test('specific backend quality guidance reaches the caller',async()=>{
     const c=client({fetch:async()=>({ok:false,json:async()=>({error:{message:'Your face is too dark.'}})})});
     await assert.rejects(c.api.request('enroll'),/too dark/);
+});
+
+
+test('enrollment gets a bounded longer wait and reports uncertain submission without repeating it',async()=>{
+    let calls=0;const c=client({timeout:true,fetch:async()=>{calls++;return new Promise(()=>{});}});
+    await assert.rejects(c.api.request('enroll'),error=>error.code==='face-request-uncertain' && error.uncertain===true && /registration/i.test(error.message));
+    assert.ok(c.delays.includes(150000));assert.equal(calls,1);
 });

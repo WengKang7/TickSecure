@@ -30,6 +30,7 @@ try {
     if (!face_is_loopback($remote) && !in_array($input['action'] ?? '', ['session', 'beginCheckIn', 'completeCheckIn'], true)) {
         face_fail('Only staff check-in is available over Wi-Fi.', 'permission-denied', 403);
     }
+    if (in_array($input['action'] ?? '', ['enroll','completeCheckIn','testFace'], true)) set_time_limit(180);
     $runtime = face_runtime_config();
     $service = new TicketFaceService($firebase, $runtime['key'], fn ($frames, $movements) => face_extract($frames, $runtime['python'], $movements));
     $result = match ($input['action'] ?? '') {

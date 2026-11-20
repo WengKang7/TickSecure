@@ -152,3 +152,15 @@ test('movement guidance is above the video and excluded from bottom-right feedba
     assert.match(html,/id="face-status"[^>]*data-ts-inline-feedback/);
     assert.match(fs.readFileSync(path.join(root,'assets/js/ui.js'),'utf8'),/\[data-ts-inline-feedback\]/);
 });
+
+
+test('uncertain enrollment keeps capture locked until registration status is checked',async()=>{
+    let saved=false;const p=page('registration',action=>{
+        if(action==='enroll')throw Object.assign(Error('Registration is taking longer'),{code:'face-request-uncertain',uncertain:true});
+        return {registered:saved,eligible:true,message:'Check registration'};
+    });await p.tick();p.els['face-consent'].checked=true;p.els['face-consent'].listeners.change();
+    await p.els['face-save'].click();assert.equal(p.els['face-recheck'].hidden,false);assert.equal(p.els['face-save'].disabled,true);
+    assert.equal(p.starts(),1);await p.els['face-save'].click();assert.equal(p.calls.filter(([action])=>action==='enroll').length,1);
+    await p.els['face-recheck'].click();assert.equal(p.els['face-ticket'].hidden,true);assert.equal(p.starts(),1);
+    saved=true;await p.els['face-recheck'].click();assert.equal(p.els['face-ticket'].hidden,false);assert.equal(p.els['face-recheck'].hidden,true);
+});

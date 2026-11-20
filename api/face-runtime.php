@@ -29,8 +29,9 @@ function face_extract(array $frames, string $python, array $movements): array {
     foreach ($frames as $frame) if (!is_string($frame) || strlen($frame) > 1000000 || !preg_match('/^[A-Za-z0-9+\/=]+$/D', $frame)) {
         face_fail('Invalid camera image.', 'invalid-argument', 400);
     }
+    $started = microtime(true);
     $pipes = [];
-    $process = proc_open([$python, __DIR__ . '/../tools/face/recognize.py'],
+    $process = proc_open([$python, __DIR__ . '/../tools/face/run_with_timeout.py'],
         [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['file', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'a']],
         $pipes, __DIR__, null, ['bypass_shell' => true, 'create_no_window' => true]);
     if (!is_resource($process)) face_fail('Face recognition could not start.', 'unavailable', 503);
@@ -43,8 +44,9 @@ function face_extract(array $frames, string $python, array $movements): array {
     }
     fclose($pipes[0]);
     $output = stream_get_contents($pipes[1], 40000); fclose($pipes[1]); proc_close($process);
+    error_log('TickSecure face processing duration: ' . round(microtime(true)-$started,2) . ' seconds');
     $result = json_decode($output, true);
-    if (isset($result['error'])) face_fail((string)$result['error'], 'face-capture-failed');
+    if (isset($result['error'])) face_fail((string)$result['error'], ($result['code'] ?? '') === 'face-processing-timeout' ? 'face-processing-timeout' : 'face-capture-failed');
     if (($result['data']['model'] ?? '') !== FACE_MODEL || ($result['data']['movementCheck'] ?? '') !== ($movements === array_fill(0, 5, 'center') ? 'frontal-v1' : 'head-turn-v1')) face_fail('Face models are unavailable. Ask the organizer to check the setup.', 'unavailable', 503);
     return face_vectors($result['data']['vectors'] ?? null);
 }
