@@ -17,7 +17,7 @@ RUN ldconfig
 WORKDIR /var/www/html
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libcurl4-openssl-dev libgl1 libglib2.0-0 libgomp1 libportaudio2 \
+    && apt-get install -y --no-install-recommends libcurl4-openssl-dev libgl1 libglib2.0-0 libgomp1 libportaudio2 util-linux \
     && docker-php-ext-install curl \
     && a2enmod rewrite \
     && rm -rf /var/lib/apt/lists/*
@@ -29,7 +29,10 @@ RUN cd functions && npm ci --omit=dev --no-audit --no-fund
 RUN /usr/local/bin/python3.12 -c "import json,subprocess; result=subprocess.run(['/usr/local/bin/python3.12','tools/face/recognize.py'],input='{\"action\":\"health\"}',text=True,capture_output=True,check=True); assert json.loads(result.stdout).get('data',{}).get('ready'), 'Face model health check failed'"
 
 # Render secret files are mounted at runtime and never included in the image.
-ENV TICKSECURE_HOSTED_CHECKOUT=1 \
+ENV TICKSECURE_FACE_WARM_WORKER=1 \
+    OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    TICKSECURE_HOSTED_CHECKOUT=1 \
     TICKSECURE_HOSTED_RESALE=1 \
     TICKSECURE_HOSTED_TRANSFER=1 \
     TICKSECURE_HOSTED_FACE=1 \
@@ -50,4 +53,4 @@ RUN if ! getent group 1000 >/dev/null; then groupadd --gid 1000 render-secrets; 
     && chown -R www-data:www-data /var/www/html
 
 EXPOSE 80
-CMD ["sh", "-c", "php /var/www/html/api/notification-worker.php --watch & exec apache2-foreground"]
+CMD ["sh", "-c", "su -s /bin/sh www-data -c 'while true; do /usr/local/bin/python3.12 /var/www/html/tools/face/server.py; sleep 2; done' & php /var/www/html/api/notification-worker.php --watch & exec apache2-foreground"]

@@ -157,3 +157,21 @@ session storage, scoped to the account and ticket. Confirmed registration unlock
 the ticket; otherwise a fresh capture waits for the pending window to expire.
 The worker logs only inference duration, never face frames, templates or scores.
 This bounds slow requests; it does not guarantee Render Free CPU availability.
+
+
+## Warm recognition on Render
+
+Render starts a single recognition worker as www-data. It loads YuNet, SFace and
+MediaPipe once, then serves requests serially over a private mode-0600 Unix socket.
+PHP uses this worker only with TICKSECURE_FACE_WARM_WORKER=1. Local Windows keeps
+the existing bounded subprocess path. No camera images, descriptors or templates
+are cached by the worker; only model instances are reused. Five input frames,
+server pose checks, identity consistency, three selected descriptors and thresholds
+are unchanged. CPU math thread counts are bounded to avoid oversubscription.
+
+A 120-second watchdog covers startup and every accepted request. The supervisor
+restarts a failed worker. PHP never falls back to launching another model process
+on Render, avoiding concurrent heavyweight models. A short startup wait produces
+a retryable error if the worker is not yet ready. A busy server can still be slow;
+this optimization removes repeat model-loading overhead, with no promised latency
+or accuracy percentage. Render logs separate model startup and request durations.

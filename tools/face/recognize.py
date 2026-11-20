@@ -11,6 +11,8 @@ import struct
 import sys
 
 os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 import cv2
 import numpy as np
 
@@ -117,18 +119,26 @@ def extract(encoded, detector, recognizer, movement=None, poses=None, quality_sc
     return (vector / norm).tolist()
 
 
-def main():
+def load_models():
     cv2.setNumThreads(1)
     detector = cv2.FaceDetectorYN.create(str(ROOT / "models/yunet.onnx"), "", (640, 480), 0.9, 0.3, 5000)
     recognizer = cv2.FaceRecognizerSF.create(str(ROOT / "models/sface.onnx"), "")
-    raw = sys.stdin.buffer.read(5100001)
-    if len(raw) > 5100000:
-        raise ValueError("Too many camera images.")
-    request = json.loads(raw)
-    from movement import MovementDetector, valid_sequence, verify_sequence
+    from movement import MovementDetector
+    return detector, recognizer, MovementDetector()
+
+
+def main(request=None, models=None):
+    from movement import valid_sequence, verify_sequence
+    if request is None:
+        raw = sys.stdin.buffer.read(5100001)
+        if len(raw) > 5100000:
+            raise ValueError("Too many camera images.")
+        request = json.loads(raw)
+    own_models = models is None
+    detector, recognizer, movement = models if models is not None else load_models()
     if request.get("action") == "health":
-        movement = MovementDetector()
-        movement.close()
+        if own_models:
+            movement.close()
         return {"ready": True, "model": MODEL, "movementCheck": "head-turn-v1"}
     frames = request.get("frames")
     steps = request.get("movements")
@@ -139,7 +149,6 @@ def main():
         raise CaptureError("Repeated camera images detected. Start a new scan with a live camera.")
     poses = []
     quality_scores = []
-    movement = MovementDetector()
     try:
         vectors = [extract(frame, detector, recognizer, movement, poses, quality_scores) for frame in frames]
         if frontal:
@@ -153,7 +162,8 @@ def main():
             raise
         raise CaptureError(str(error)) from error
     finally:
-        movement.close()
+        if own_models:
+            movement.close()
     if min(float(np.dot(a, b)) for a in vectors for b in vectors) < 0.5:
         raise CaptureError("The captures are inconsistent. Keep the same face visible throughout the guided scan.")
     # Preserve existing encrypted three-vector enrollment format and thresholds.

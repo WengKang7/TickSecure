@@ -29,24 +29,55 @@ function face_extract(array $frames, string $python, array $movements): array {
     foreach ($frames as $frame) if (!is_string($frame) || strlen($frame) > 1000000 || !preg_match('/^[A-Za-z0-9+\/=]+$/D', $frame)) {
         face_fail('Invalid camera image.', 'invalid-argument', 400);
     }
-    $started = microtime(true);
-    $pipes = [];
-    $process = proc_open([$python, __DIR__ . '/../tools/face/run_with_timeout.py'],
-        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['file', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'a']],
-        $pipes, __DIR__, null, ['bypass_shell' => true, 'create_no_window' => true]);
-    if (!is_resource($process)) face_fail('Face recognition could not start.', 'unavailable', 503);
-    $payload = json_encode(['frames' => $frames, 'movements' => $movements], JSON_THROW_ON_ERROR);
-    $offset = 0;
-    while ($offset < strlen($payload)) {
-        $written = fwrite($pipes[0], substr($payload, $offset));
-        if (!$written) break;
-        $offset += $written;
+    if (getenv('TICKSECURE_FACE_WARM_WORKER') === '1') {
+        $output = face_warm_request(json_encode(['frames'=>$frames,'movements'=>$movements], JSON_THROW_ON_ERROR));
+    } else {
+        $started = microtime(true);
+        $pipes = [];
+        $process = proc_open([$python, __DIR__ . '/../tools/face/run_with_timeout.py'],
+            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['file', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'a']],
+            $pipes, __DIR__, null, ['bypass_shell' => true, 'create_no_window' => true]);
+        if (!is_resource($process)) face_fail('Face recognition could not start.', 'unavailable', 503);
+        $payload = json_encode(['frames' => $frames, 'movements' => $movements], JSON_THROW_ON_ERROR);
+        $offset = 0;
+        while ($offset < strlen($payload)) {
+            $written = fwrite($pipes[0], substr($payload, $offset));
+            if (!$written) break;
+            $offset += $written;
+        }
+        fclose($pipes[0]);
+        $output = stream_get_contents($pipes[1], 40000); fclose($pipes[1]); proc_close($process);
+        error_log('TickSecure face processing duration: ' . round(microtime(true)-$started,2) . ' seconds');
     }
-    fclose($pipes[0]);
-    $output = stream_get_contents($pipes[1], 40000); fclose($pipes[1]); proc_close($process);
-    error_log('TickSecure face processing duration: ' . round(microtime(true)-$started,2) . ' seconds');
     $result = json_decode($output, true);
     if (isset($result['error'])) face_fail((string)$result['error'], ($result['code'] ?? '') === 'face-processing-timeout' ? 'face-processing-timeout' : 'face-capture-failed');
     if (($result['data']['model'] ?? '') !== FACE_MODEL || ($result['data']['movementCheck'] ?? '') !== ($movements === array_fill(0, 5, 'center') ? 'frontal-v1' : 'head-turn-v1')) face_fail('Face models are unavailable. Ask the organizer to check the setup.', 'unavailable', 503);
     return face_vectors($result['data']['vectors'] ?? null);
+}
+
+
+/** Unix socket is private to the Apache user; never fall back to a second model process. */
+function face_warm_request(string $payload): string {
+    $started = microtime(true); $socket = false;
+    // Allow the single worker to become ready after restart, with a bounded wait.
+    do {
+        $socket = @stream_socket_client('unix:///tmp/ticksecure-face.sock', $errno, $message, 1);
+        if ($socket) break;
+        usleep(200000);
+    } while (microtime(true)-$started < 15);
+    if (!$socket) face_fail('Face models are starting or restarting. Please wait briefly, then try again.', 'unavailable', 503);
+    stream_set_timeout($socket, 125);
+    try {
+        $offset=0;
+        while ($offset<strlen($payload)) {
+            $written=fwrite($socket,substr($payload,$offset,65536));
+            if (!$written) face_fail('Face processing connection was interrupted.', 'unavailable',503);
+            $offset+=$written;
+        }
+        stream_socket_shutdown($socket, STREAM_SHUT_WR);
+        $output=stream_get_contents($socket,40001);
+        if (stream_get_meta_data($socket)['timed_out']) face_fail('Face processing exceeded its time limit. Check registration status before retrying.', 'face-processing-timeout',503);
+        if (!$output || strlen($output)>40000) face_fail('Face processing was interrupted. Please check registration status before retrying.', 'unavailable',503);
+        return $output;
+    } finally { fclose($socket); }
 }
