@@ -5653,3 +5653,11 @@ body {
   .ts-venue-location-search { flex-wrap: wrap; }
   .ts-venue-location-search .ts-input { flex-basis: 100%; }
 }
+
+/* Shared loading feedback across public, buyer, organizer, admin and auth pages. */
+.ts-app-loading { position:fixed; z-index:10020; top:12px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:10px; max-width:calc(100vw - 32px); padding:11px 16px; border:1px solid #e0dce9; border-radius:12px; background:#fff; color:#111827; box-shadow:0 5px 24px #11182722; font:500 14px/1.4 Arial,sans-serif; pointer-events:none; }
+.ts-app-loading[hidden] { display:none!important; }
+.ts-loading-spinner,body :is(button,input[type=submit],a[role=button])[data-ts-loading=true]::before { display:inline-block; box-sizing:border-box; width:18px; height:18px; flex-shrink:0; border:2px solid #d5d9e0; border-top-color:#7028f4; border-radius:50%; animation:ts-loading-spin .8s linear infinite; }
+body :is(button,a[role=button])[data-ts-loading=true]::before { content:""; margin-right:8px; vertical-align:middle; border-color:currentColor; border-top-color:transparent; }
+@keyframes ts-loading-spin { to { transform:rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .ts-loading-spinner,body [data-ts-loading=true]::before { animation:none!important; } }

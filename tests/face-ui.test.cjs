@@ -5,7 +5,8 @@ const vm=require('node:vm');
 const path=require('node:path');
 const root=path.join(__dirname,'..');
 class Element {
-    constructor(){this.hidden=false;this.disabled=false;this.checked=false;this.textContent='';this.listeners={};this.value='';this.revealed=0;}
+    constructor(){this.hidden=false;this.disabled=false;this.checked=false;this.textContent='';this.listeners={};this.value='';this.revealed=0;this.attributes={};}
+    setAttribute(name,value){this.attributes[name]=value;}
     scrollIntoView(){this.revealed++;}
     focus(){}
     addEventListener(name,fn){this.listeners[name]=fn;}
@@ -163,4 +164,26 @@ test('uncertain enrollment keeps capture locked until registration status is che
     assert.equal(p.starts(),1);await p.els['face-save'].click();assert.equal(p.calls.filter(([action])=>action==='enroll').length,1);
     await p.els['face-recheck'].click();assert.equal(p.els['face-ticket'].hidden,true);assert.equal(p.starts(),1);
     saved=true;await p.els['face-recheck'].click();assert.equal(p.els['face-ticket'].hidden,false);assert.equal(p.els['face-recheck'].hidden,true);
+});
+
+
+test('loading spinner covers camera startup and enrollment, then clears on confirmed success',async()=>{
+    let startCamera,saveFace,saved=false;
+    const p=page('registration',action=>{
+        if(action==='enroll')return new Promise(resolve=>{saveFace=()=>{saved=true;resolve({registered:true});};});
+        return {registered:saved,eligible:true,message:saved?'Registered':'Register'};
+    },{start:()=>new Promise(resolve=>{startCamera=resolve;})});
+    await p.tick();assert.equal(p.els['face-loading'].hidden,false);assert.match(p.els['face-progress'].textContent,/Starting camera/);
+    startCamera();await p.tick();assert.equal(p.els['face-loading'].hidden,true);
+    p.els['face-consent'].checked=true;p.els['face-consent'].listeners.change();
+    const pending=p.els['face-save'].click();await p.tick();
+    assert.equal(p.els['face-loading'].hidden,false);assert.equal(p.els['face-status'].attributes['aria-busy'],'true');
+    assert.match(p.els['face-progress'].textContent,/Checking and saving/);
+    saveFace();await pending;assert.equal(p.els['face-loading'].hidden,true);assert.equal(p.els['face-status'].attributes['aria-busy'],'false');
+    assert.equal(p.els['face-ticket'].hidden,false);
+});
+test('failed status request stops the spinner and shows a retry message',async()=>{
+    const p=page('registration',()=>{throw Error('Network unavailable');});await p.tick();
+    assert.equal(p.els['face-loading'].hidden,true);assert.equal(p.els['face-status'].attributes['aria-busy'],'false');
+    assert.match(p.els['face-progress'].textContent,/Could not check/);assert.equal(p.els['face-ticket'].hidden,true);
 });

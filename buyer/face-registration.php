@@ -5,7 +5,7 @@
   <div class="ts-alert ts-alert-error" id="face-error" role="alert" hidden></div>
   <div class="ts-face-layout">
     <section class="ts-card ts-face-card" aria-label="Face registration">
-      <p id="face-status" class="ts-face-instructions" data-ts-inline-feedback role="status" aria-live="polite">Checking your ticket…</p>
+      <div id="face-status" class="ts-face-instructions" data-ts-inline-feedback role="status" aria-live="polite" aria-busy="true"><span id="face-loading" class="ts-face-loading" aria-hidden="true"></span><span id="face-progress">Checking your ticket…</span></div>
       <div class="ts-face-camera"><video id="face-video" autoplay muted playsinline aria-label="Face registration camera preview"></video></div>
       <label class="ts-face-consent"><input type="checkbox" id="face-consent"> <span>I agree to store my encrypted face template for ticket entry.</span></label>
       <div class="ts-face-actions"><button class="ts-btn ts-btn-primary" id="face-save" disabled>Register my face</button></div>
