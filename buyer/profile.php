@@ -16,6 +16,7 @@ ob_start();
         <div class="ts-grid-2">
             <div class="ts-card ts-card-pad" id="profile-form-container">
                 <div class="ts-card-title">Personal Information</div>
+                <?=ts_profile_photo()?>
                 <div class="ts-auth-fields mt-20" id="profile-form">
                     <div class="ts-field"><label class="ts-label">Full Name</label><input class="ts-input"
                             name="fullName" id="val-fullname" value=""></div>
@@ -39,8 +40,7 @@ ob_start();
             </div>
             <div class="ts-card ts-card-pad">
                 <div class="ts-card-title">Password & Security</div>
-                <p class="secondary">Update your account password and review account security status.</p><a
-                    class="ts-btn ts-btn-secondary" href="../auth/reset-password.php">Change Password</a>
+                <?=ts_profile_password_form()?>
             </div>
             <div class="ts-card ts-card-pad">
                 <div class="ts-card-title">Account Status</div>
@@ -55,6 +55,7 @@ ob_start();
     </div>
 </main>
 
+<?=ts_profile_assets()?>
 <script type="module">
 window.addEventListener('ts-auth-ready', async () => {
     try {

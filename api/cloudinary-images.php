@@ -37,7 +37,7 @@ function cloudinary_image_url(mixed $url, string $cloud): string {
 
 // Public ID is based on event and image bytes: safe retries reuse the same asset.
 function cloudinary_store_image(string $path, string $eventId, array $image, string $scope = 'events'): string {
-    if (!in_array($scope, ['events', 'venues'], true)) throw new InvalidArgumentException('Invalid asset scope.');
+    if (!in_array($scope, ['events', 'venues', 'profiles'], true)) throw new InvalidArgumentException('Invalid asset scope.');
     $config = cloudinary_config();
     $publicId = 'ticksecure/' . $scope . '/' . poster_require_event_id($eventId) . '/' . hash_file('sha256', $path);
     $fields = ['overwrite' => 'false', 'public_id' => $publicId, 'timestamp' => (string)time()];

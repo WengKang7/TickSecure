@@ -435,6 +435,12 @@ export const UserService = {
         return profile();
     },
 
+    // The authenticated photo endpoint already saved this field. Keep the
+    // in-memory profile in sync without another Firestore read or client write.
+    setProfilePhotoCache(url) {
+        if (_profileCache && _profileCache._uid === auth.currentUser?.uid) _profileCache.profilePhotoUrl = url;
+    },
+
     async getFavoriteEventIds() {
         const user = await profile();
         return Array.isArray(user.favoriteEventIds) ? user.favoriteEventIds : [];

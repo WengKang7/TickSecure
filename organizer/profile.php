@@ -7,6 +7,7 @@ ob_start();
 <div class="ts-grid-2">
     <div class="ts-card ts-card-pad">
         <div class="ts-card-title">Shared User Identity</div>
+        <?=ts_profile_photo()?>
         <div class="ts-auth-fields mt-20">
             <div class="ts-field"><label class="ts-label">Full Name</label><input class="ts-input" id="sharedName" disabled>
             </div>
@@ -41,6 +42,8 @@ ob_start();
     </div>
 </div>
 
+<div class="ts-card ts-card-pad mt-24"><div class="ts-card-title">Password &amp; Security</div><?=ts_profile_password_form()?></div>
+<?=ts_profile_assets()?>
 <script type="module">
 const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
 window.addEventListener('ts-auth-ready', async () => {

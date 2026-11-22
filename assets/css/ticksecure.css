@@ -612,6 +612,28 @@ img {
   font-weight: 700
 }
 
+.ts-avatar:has(.ts-profile-avatar-image) {
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ts-avatar .ts-profile-avatar-image {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+  border-radius: inherit;
+  grid-area: 1 / 1;
+}
+
+.ts-avatar .ts-profile-avatar-image + span {
+  grid-area: 1 / 1;
+}
+
+body .ts-sidebar .ts-profile-card > .ts-avatar.ts-has-profile-photo {
+  display: grid;
+}
+
 .ts-mobile-menu-btn {
   display: none
 }

@@ -6,7 +6,10 @@ import {
     signOut,
     onAuthStateChanged,
     sendEmailVerification,
-    reload
+    reload,
+    EmailAuthProvider,
+    reauthenticateWithCredential,
+    updatePassword
 } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 import {
     doc, setDoc, getDoc, collection, getDocs, query, where
@@ -90,6 +93,15 @@ export const AuthService = {
         return true;
     },
     
+    changePassword: async (currentPassword, newPassword) => {
+        const user = auth.currentUser;
+        if (!user?.email) throw new Error('Sign in before changing your password.');
+        if (!currentPassword || !newPassword) throw new Error('Enter your current and new passwords.');
+        await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, currentPassword));
+        if (auth.currentUser !== user) throw new Error('Your sign-in changed. Reload your profile before continuing.');
+        await updatePassword(user, newPassword);
+    },
+
     logout: () => signOut(auth),
     
     onAuthStateChanged: (callback) => onAuthStateChanged(auth, callback)
