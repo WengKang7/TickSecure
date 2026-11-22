@@ -3,46 +3,45 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<?=ts_page_head('Organization Profile', 'Manage organization-specific information while shared account identity remains inherited from your TickSecure user account.', '<button class="ts-btn ts-btn-primary" id="save-profile-btn">Save Changes</button>')?>
-<div class="ts-grid-2">
-    <div class="ts-card ts-card-pad">
-        <div class="ts-card-title">Shared User Identity</div>
-        <?=ts_profile_photo()?>
-        <div class="ts-auth-fields mt-20">
-            <div class="ts-field"><label class="ts-label">Full Name</label><input class="ts-input" id="sharedName" disabled>
-            </div>
-            <div class="ts-field"><label class="ts-label">Email</label><input class="ts-input" id="sharedEmail" disabled></div>
+<div class="ts-profile-page ts-profile-staff">
+    <?=ts_profile_page_head('Organization Profile', 'Manage your profile picture, organization details and account security.', 'Organizer')?>
+    <div class="ts-profile-layout">
+        <div class="ts-profile-column">
+            <section class="ts-card ts-settings-card">
+                <?=ts_profile_card_head('Your account', 'Your profile picture and registered account details.', 'user')?>
+                <?=ts_profile_photo()?>
+                <div class="ts-auth-fields ts-profile-fields">
+                    <div class="ts-field"><label class="ts-label" for="sharedName">Full name</label><input class="ts-input" id="sharedName" disabled></div>
+                    <div class="ts-field"><label class="ts-label" for="sharedEmail">Email address</label><input class="ts-input" id="sharedEmail" disabled></div>
+                </div>
+            </section>
+            <section class="ts-card ts-settings-card" id="org-profile-form">
+                <?=ts_profile_card_head('Organization information', 'Update the details used for your organizer account.', 'layout')?>
+                <div class="ts-profile-organization-fields">
+                    <div class="ts-field"><label class="ts-label" for="orgName">Organization name</label><input class="ts-input" id="orgName" name="orgName"></div>
+                    <div class="ts-field"><label class="ts-label" for="orgPhone">Phone number</label><input class="ts-input" id="orgPhone" name="orgPhone" autocomplete="tel"></div>
+                    <div class="ts-field ts-profile-full"><label class="ts-label" for="orgDesc">Organization description</label><textarea class="ts-textarea" id="orgDesc" name="orgDesc" rows="4"></textarea></div>
+                    <div class="ts-field ts-profile-full"><label class="ts-label" for="orgAddress">Organization address</label><input class="ts-input" id="orgAddress" name="orgAddress" autocomplete="street-address"></div>
+                </div>
+                <div class="ts-profile-card-footer"><span class="small muted">Save after editing your organization details.</span><button class="ts-btn ts-btn-primary" id="save-profile-btn" type="button">Save Changes</button></div>
+            </section>
         </div>
-    </div>
-    <div class="ts-card ts-card-pad">
-        <div class="flex justify-between items-center">
-            <div class="ts-card-title">Approval Status</div>
-            <div id="org-status-chip"></div>
+        <div class="ts-profile-column">
+            <section class="ts-card ts-settings-card">
+                <?=ts_profile_card_head('Password &amp; security', 'Use your current password to choose a new one.', 'lock')?>
+                <?=ts_profile_password_form()?>
+            </section>
+            <section class="ts-card ts-settings-card">
+                <?=ts_profile_card_head('Approval status', 'Organizer approval is managed by the administrator.', 'shield')?>
+                <dl class="ts-profile-status-list">
+                    <div><dt>Current status</dt><dd id="org-status-chip">Checking...</dd></div>
+                    <div><dt>Approved date</dt><dd id="org-approved-date">-</dd></div>
+                </dl>
+            </section>
         </div>
-        <p class="secondary mt-16">Your organization is approved to create and submit events. Approval status is managed
-            by the Administrator.</p>
-        <div class="ts-detail-item">
-            <div class="ts-detail-label">Approved Date</div>
-            <div class="ts-detail-value" id="org-approved-date">-</div>
-        </div>
-    </div>
-</div>
-<div class="ts-card ts-card-pad mt-24" id="org-profile-form">
-    <div class="ts-card-title">Organization Information</div>
-    <div class="ts-form-grid mt-20">
-        <div class="ts-field"><label class="ts-label">Organization Name</label><input class="ts-input"
-                id="orgName" name="orgName"></div>
-        <div class="ts-field"><label class="ts-label">Organization Phone</label><input class="ts-input"
-                id="orgPhone" name="orgPhone"></div>
-        <div class="ts-field span-2"><label class="ts-label">Organization Description</label><textarea
-                class="ts-textarea" id="orgDesc" name="orgDesc"></textarea>
-        </div>
-        <div class="ts-field span-2"><label class="ts-label">Organization Address</label><input class="ts-input"
-                id="orgAddress" name="orgAddress"></div>
     </div>
 </div>
 
-<div class="ts-card ts-card-pad mt-24"><div class="ts-card-title">Password &amp; Security</div><?=ts_profile_password_form()?></div>
 <?=ts_profile_assets()?>
 <script type="module">
 const esc = s => (s||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');

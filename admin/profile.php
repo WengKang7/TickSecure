@@ -3,26 +3,34 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<?=ts_page_head('Administrator Profile', 'Manage your Administrator account details and security settings.', '<button id="btn-save" class="ts-btn ts-btn-primary">Save Changes</button>')?>
-<div class="ts-grid-2">
-    <div class="ts-card ts-card-pad">
-        <div class="ts-card-title">Profile Information</div>
-        <?=ts_profile_photo()?>
-        <div class="ts-auth-fields mt-20">
-            <div class="ts-field"><label class="ts-label">Full Name</label><input id="inp-name" class="ts-input"
-                    value=""></div>
-            <div class="ts-field"><label class="ts-label">Email</label><input id="inp-email" class="ts-input"
-                    value="" disabled></div>
-            <div class="ts-field"><label class="ts-label">Role</label><input id="inp-role" class="ts-input" value=""
-                    disabled></div>
+<div class="ts-profile-page ts-profile-staff">
+    <?=ts_profile_page_head('Administrator Profile', 'Manage your profile picture, account details and password.', 'Administrator')?>
+    <div class="ts-profile-layout">
+        <div class="ts-profile-column">
+            <section class="ts-card ts-settings-card">
+                <?=ts_profile_card_head('Personal information', 'Keep your administrator profile up to date.', 'user')?>
+                <?=ts_profile_photo()?>
+                <div class="ts-auth-fields ts-profile-fields">
+                    <div class="ts-field"><label class="ts-label" for="inp-name">Full name</label><input id="inp-name" class="ts-input" autocomplete="name" value=""></div>
+                    <div class="ts-field"><label class="ts-label" for="inp-email">Email address</label><input id="inp-email" class="ts-input" value="" disabled></div>
+                    <div class="ts-field"><label class="ts-label" for="inp-role">Account role</label><input id="inp-role" class="ts-input" value="" disabled></div>
+                </div>
+                <div class="ts-profile-card-footer"><span class="small muted">Your account role is managed by the system.</span><button id="btn-save" class="ts-btn ts-btn-primary" type="button">Save Changes</button></div>
+            </section>
         </div>
-    </div>
-    <div class="ts-card ts-card-pad">
-        <div class="ts-card-title">Security</div>
-        <div class="flex justify-between items-center mt-20"><span>Account Status</span><div id="val-status"></div>
+        <div class="ts-profile-column">
+            <section class="ts-card ts-settings-card">
+                <?=ts_profile_card_head('Password &amp; security', 'Use your current password to choose a new one.', 'lock')?>
+                <?=ts_profile_password_form()?>
+            </section>
+            <section class="ts-card ts-settings-card">
+                <?=ts_profile_card_head('Account status', 'Review your account and email verification.', 'shield')?>
+                <dl class="ts-profile-status-list">
+                    <div><dt>Account status</dt><dd id="val-status">Checking...</dd></div>
+                    <div><dt>Email verification</dt><dd id="val-verified">Checking...</dd></div>
+                </dl>
+            </section>
         </div>
-        <div class="flex justify-between items-center mt-16"><span>Email Verification</span><div id="val-verified"></div>
-        </div><?=ts_profile_password_form()?>
     </div>
 </div>
 

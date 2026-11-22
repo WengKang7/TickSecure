@@ -3,53 +3,42 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
-<main class="ts-section-tight">
-    <div class="ts-container" style="max-width:1050px">
-        <div class="ts-section-title-row">
-            <div>
-                <div class="ts-section-eyebrow">Account</div>
-                <h1 class="ts-section-title">Profile & Security</h1>
-                <p class="ts-section-copy">Manage personal information, password security and connected wallet status.
-                </p>
-            </div><button class="ts-btn ts-btn-primary" id="btn-save">Save Changes</button>
-        </div>
-        <div class="ts-grid-2">
-            <div class="ts-card ts-card-pad" id="profile-form-container">
-                <div class="ts-card-title">Personal Information</div>
-                <?=ts_profile_photo()?>
-                <div class="ts-auth-fields mt-20" id="profile-form">
-                    <div class="ts-field"><label class="ts-label">Full Name</label><input class="ts-input"
-                            name="fullName" id="val-fullname" value=""></div>
-                    <div class="ts-field"><label class="ts-label">Email</label><input class="ts-input"
-                            id="val-email" value="" readonly style="background-color:#f8f9fa"></div>
-                    <div class="ts-alert" id="email-verification-alert">
-                        <?=ts_icon('mail')?>
-                        Checking email verification...</div>
-                </div>
-            </div>
-            <div class="ts-card ts-card-pad">
-                <div class="ts-card-title">Connected Wallet</div>
-                <div class="ts-wallet-card mt-20">
-                    <div><strong id="val-wallet-name">MetaMask</strong>
-                        <div class="ts-wallet-id mt-8" id="val-wallet-id">Loading...</div>
+<main class="ts-section-tight ts-profile-page ts-profile-buyer">
+    <div class="ts-container ts-profile-container">
+        <?=ts_profile_page_head('Profile &amp; Security', 'Manage your personal details, profile picture and account security.', 'Buyer')?>
+        <div class="ts-profile-layout">
+            <div class="ts-profile-column">
+                <section class="ts-card ts-settings-card" id="profile-form-container">
+                    <?=ts_profile_card_head('Personal information', 'Keep your name and profile picture up to date.', 'user')?>
+                    <?=ts_profile_photo()?>
+                    <div class="ts-auth-fields ts-profile-fields" id="profile-form">
+                        <div class="ts-field"><label class="ts-label" for="val-fullname">Full name</label><input class="ts-input" name="fullName" id="val-fullname" autocomplete="name" value=""></div>
+                        <div class="ts-field"><label class="ts-label" for="val-email">Email address</label><input class="ts-input" id="val-email" value="" readonly></div>
+                        <div class="ts-alert" id="email-verification-alert"><?=ts_icon('mail')?>Checking email verification...</div>
                     </div>
-                    <div id="val-wallet-status"></div>
-                </div><button class="ts-btn ts-btn-secondary w-full mt-16" id="btn-wallet-action">Loading...</button>
-                <div class="small muted mt-12">Wallet ownership is shown separately from personal identity information.
-                </div>
+                    <div class="ts-profile-card-footer"><span class="small muted">Your email address is linked to your sign-in.</span><button class="ts-btn ts-btn-primary" id="btn-save" type="button">Save Changes</button></div>
+                </section>
+                <section class="ts-card ts-settings-card">
+                    <?=ts_profile_card_head('Connected wallet', 'Manage the wallet used for your ticket NFTs.', 'wallet')?>
+                    <div class="ts-profile-wallet">
+                        <div><strong id="val-wallet-name">MetaMask</strong><div class="ts-wallet-id" id="val-wallet-id">Loading...</div></div>
+                        <div id="val-wallet-status"></div>
+                    </div>
+                    <div class="ts-profile-card-footer"><span class="small muted">Wallet ownership is separate from your profile details.</span><button class="ts-btn ts-btn-secondary" id="btn-wallet-action" type="button">Loading...</button></div>
+                </section>
             </div>
-            <div class="ts-card ts-card-pad">
-                <div class="ts-card-title">Password & Security</div>
-                <?=ts_profile_password_form()?>
-            </div>
-            <div class="ts-card ts-card-pad">
-                <div class="ts-card-title">Account Status</div>
-                <div class="flex justify-between items-center mt-20"><span>Buyer
-                        Account</span><span id="account-status-chip">Checking...</span>
-                </div>
-                <div class="flex justify-between items-center mt-16"><span>Email
-                        Verification</span><span id="email-status-chip">Checking...</span>
-                </div>
+            <div class="ts-profile-column">
+                <section class="ts-card ts-settings-card">
+                    <?=ts_profile_card_head('Password &amp; security', 'Use your current password to choose a new one.', 'lock')?>
+                    <?=ts_profile_password_form()?>
+                </section>
+                <section class="ts-card ts-settings-card">
+                    <?=ts_profile_card_head('Account status', 'Your account and email verification at a glance.', 'shield')?>
+                    <dl class="ts-profile-status-list">
+                        <div><dt>Buyer account</dt><dd id="account-status-chip">Checking...</dd></div>
+                        <div><dt>Email verification</dt><dd id="email-status-chip">Checking...</dd></div>
+                    </dl>
+                </section>
             </div>
         </div>
     </div>
@@ -137,5 +126,5 @@ window.addEventListener('ts-auth-ready', async () => {
 
 <?php
 $content = ob_get_clean();
-render_public_page('Buyer Profile', 'tickets', $content, '..', true);
+render_public_page('Buyer Profile', 'profile', $content, '..', true);
 ?>
