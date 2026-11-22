@@ -31,7 +31,12 @@ class FirebaseFirestoreTransaction {
     }
     public function getMany(string $collection, array $ids): array {
         $result = [];
-        foreach ($ids as $id) $result[$id] = $this->get($collection, $id);
+        foreach ($ids as $id) {
+            $record = $this->get($collection, $id);
+            // Match FirebaseAdminRest::getDocuments: document IDs are read
+            // metadata, not extra fields written into the persisted record.
+            $result[$id] = $record === null ? null : ['id' => $id] + $record;
+        }
         return $result;
     }
     public function query(string $collection, array $filters = [], array $orderBy = [], ?int $limit = null): array {

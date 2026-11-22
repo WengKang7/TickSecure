@@ -541,9 +541,12 @@ function backend_checkout(FirebaseAdminRest $firebase, string $uid, array $data)
     $eventId = backend_require_id($data['eventId'] ?? null, 'Event ID');
     $sectionId = backend_require_id($data['sectionId'] ?? null, 'Section ID');
     $requestedSeatIds = backend_optional_seat_ids($data['seatDocIds'] ?? null);
+    if ($requestedSeatIds === []) {
+        backend_fail(412, 'Select and reserve your seats before checkout.', 'failed-precondition');
+    }
     $quantityInput = $data['quantity'] ?? $data['qty'] ?? count($requestedSeatIds);
     $quantity = backend_require_positive_integer($quantityInput, 'Quantity');
-    if ($requestedSeatIds !== [] && count($requestedSeatIds) !== $quantity) {
+    if (count($requestedSeatIds) !== $quantity) {
         backend_fail(400, 'Seat selection does not match the requested quantity.', 'invalid-argument');
     }
 
@@ -581,7 +584,7 @@ function backend_checkout(FirebaseAdminRest $firebase, string $uid, array $data)
         if ($quantity > $maxPerBuyer) {
             backend_fail(400, "A maximum of {$maxPerBuyer} tickets is allowed.", 'invalid-argument');
         }
-        $seatMap = $requestedSeatIds !== [] ? $transaction->getMany('EventSeats', $requestedSeatIds) : [];
+        $seatMap = $transaction->getMany('EventSeats', $requestedSeatIds);
         // A retried response for the same sold seats returns the original booking.
         // It never creates another booking or sells the seats twice.
         $firstSeat = $seatMap[$requestedSeatIds[0] ?? ''] ?? null;
@@ -594,7 +597,7 @@ function backend_checkout(FirebaseAdminRest $firebase, string $uid, array $data)
             if ($existing !== null && ($existing['buyerUid'] ?? '') === $uid
                 && ($existing['eventId'] ?? '') === $eventId && ($existing['sectionId'] ?? '') === $sectionId
                 && ($existing['status'] ?? '') === 'CONFIRMED' && $existingIds === $requestIds) {
-                return ['id' => $existing['id'], 'bookingNumber' => $existing['bookingNumber'],
+                return ['id' => (string)$firstSeat['bookingId'], 'bookingNumber' => $existing['bookingNumber'],
                     'seatLabels' => $existing['seats'], 'totalAmount' => $existing['totalAmount'],
                     'paymentStatus' => $existing['paymentStatus']];
             }
@@ -605,29 +608,20 @@ function backend_checkout(FirebaseAdminRest $firebase, string $uid, array $data)
             backend_fail(412, "You may hold {$remaining} more ticket(s) for this event.", 'failed-precondition');
         }
 
-        if ($requestedSeatIds !== []) {
-            $selectedSeats = [];
-            foreach ($requestedSeatIds as $seatId) {
-                $seat = $seatMap[$seatId] ?? null;
-                if ($seat === null
-                    || ($seat['eventId'] ?? '') !== $eventId
-                    || ($seat['venueId'] ?? '') !== ($event['venueId'] ?? '')
-                    || ($seat['sectionId'] ?? '') !== $sectionId
-                    || ($seat['status'] ?? '') !== 'RESERVED'
-                    || ($seat['reservedBy'] ?? '') !== $uid
-                    || (($seat['reservationEventId'] ?? '') !== '' && ($seat['reservationEventId'] ?? '') !== $eventId)
-                    || !backend_reservation_is_active($seat)) {
-                    backend_fail(412, 'Your reservation has expired. Choose seats again.', 'failed-precondition');
-                }
-                $selectedSeats[] = $seat;
+        $selectedSeats = [];
+        foreach ($requestedSeatIds as $seatId) {
+            $seat = $seatMap[$seatId] ?? null;
+            if ($seat === null
+                || ($seat['eventId'] ?? '') !== $eventId
+                || ($seat['venueId'] ?? '') !== ($event['venueId'] ?? '')
+                || ($seat['sectionId'] ?? '') !== $sectionId
+                || ($seat['status'] ?? '') !== 'RESERVED'
+                || ($seat['reservedBy'] ?? '') !== $uid
+                || (($seat['reservationEventId'] ?? '') !== '' && ($seat['reservationEventId'] ?? '') !== $eventId)
+                || !backend_reservation_is_active($seat)) {
+                backend_fail(412, 'Your reservation has expired. Choose seats again.', 'failed-precondition');
             }
-        } else {
-            $selectedSeats = array_slice(array_values(array_filter(backend_event_seats($transaction, $eventId),
-                static fn (array $seat): bool => ($seat['venueId'] ?? '') === ($event['venueId'] ?? '')
-                    && ($seat['sectionId'] ?? '') === $sectionId && ($seat['status'] ?? '') === 'AVAILABLE' && empty($seat['hasWaitlist']))), 0, $quantity);
-            if (count($selectedSeats) !== $quantity) {
-                backend_fail(412, 'The requested number of seats is no longer available.', 'failed-precondition');
-            }
+            $selectedSeats[] = $seat;
         }
 
         $seatLabels = array_map(static fn (array $seat): string => (string)($seat['seatLabel'] ?? ''), $selectedSeats);

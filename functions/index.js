@@ -423,7 +423,7 @@ function simulatedBlockchainRecord(transactionType, ticketId, walletAddress, rel
 }
 
 /**
- * Atomically allocate the next available seats, create a confirmed booking, and
+ * Atomically purchase the explicitly selected reserved seats, create a confirmed booking, and
  * issue ticket records. Replace the simulated payment state with a verified
  * payment-provider webhook before using this in production.
  */
@@ -448,11 +448,14 @@ exports.checkout = onCall({ region, enforceAppCheck: false }, async (request) =>
     const eventId = requireId(data.eventId, 'Event ID');
     const sectionId = requireId(data.sectionId, 'Section ID');
     const requestedSeatDocIds = optionalSeatIds(data.seatDocIds);
+    if (!requestedSeatDocIds.length) {
+        throw new HttpsError('failed-precondition', 'Select and reserve your seats before checkout.');
+    }
     const requestedQuantity = requirePositiveInteger(
         data.quantity ?? data.qty ?? requestedSeatDocIds.length,
         'Quantity'
     );
-    if (requestedSeatDocIds.length && requestedSeatDocIds.length !== requestedQuantity) {
+    if (requestedSeatDocIds.length !== requestedQuantity) {
         throw new HttpsError('invalid-argument', 'Seat selection does not match the requested quantity.');
     }
 
@@ -479,44 +482,38 @@ exports.checkout = onCall({ region, enforceAppCheck: false }, async (request) =>
             throw new HttpsError('invalid-argument', `A maximum of ${maxPerBuyer} tickets is allowed.`);
         }
 
+        const reservedSnaps = await Promise.all(requestedSeatDocIds.map(seatId =>
+            tx.get(db.collection('EventSeats').doc(seatId))
+        ));
+        // Retry the same completed selection safely, even at the buyer limit.
+        // Seat and booking identity are server records, never client totals.
+        const firstSeat = reservedSnaps[0].data();
+        if (firstSeat?.status === 'SOLD' && firstSeat.bookingId) {
+            const previous = await tx.get(db.collection('Bookings').doc(firstSeat.bookingId));
+            const booking = previous.data();
+            const previousIds = Array.isArray(booking?.seatDocIds) ? [...booking.seatDocIds].sort() : [];
+            if (previous.exists && booking.buyerUid === uid && booking.eventId === eventId
+                && booking.sectionId === sectionId && booking.status === 'CONFIRMED'
+                && JSON.stringify(previousIds) === JSON.stringify([...requestedSeatDocIds].sort())) {
+                return { id: previous.id, bookingNumber: booking.bookingNumber, seatLabels: booking.seats,
+                    totalAmount: booking.totalAmount, paymentStatus: booking.paymentStatus };
+            }
+        }
         const alreadyHeld = await ownedTicketCount(tx, eventId, uid);
         if (alreadyHeld + requestedQuantity > maxPerBuyer) {
             throw new HttpsError('failed-precondition', `You may hold ${Math.max(0, maxPerBuyer - alreadyHeld)} more ticket(s) for this event.`);
         }
 
-        let selectedSeats;
-        if (requestedSeatDocIds.length) {
-            const reservedSnaps = await Promise.all(requestedSeatDocIds.map((seatId) =>
-                tx.get(db.collection('EventSeats').doc(seatId))
-            ));
-            const currentTime = Date.now();
-            selectedSeats = reservedSnaps.map((seat) => ({ id: seat.id, ...seat.data() }));
-            const invalidReservation = selectedSeats.some((seat) =>
-                !seat.id ||
-                seat.eventId !== eventId ||
-                seat.venueId !== event.venueId ||
-                seat.sectionId !== sectionId ||
-                seat.status !== 'RESERVED' ||
-                seat.reservedBy !== uid ||
-                (seat.reservationEventId && seat.reservationEventId !== eventId) ||
-                !reservationIsActive(seat, currentTime)
-            );
-            if (invalidReservation) {
-                throw new HttpsError('failed-precondition', 'Your reservation has expired. Choose seats again.');
-            }
-        } else {
-            const seatsQuery = db.collection('EventSeats')
-                .where('eventId', '==', eventId)
-                .where('venueId', '==', event.venueId)
-                .where('sectionId', '==', sectionId)
-                .where('status', '==', 'AVAILABLE')
-                .orderBy('seatLabel', 'asc')
-                .limit(requestedQuantity);
-            const seatsSnap = await tx.get(seatsQuery);
-            if (seatsSnap.size !== requestedQuantity) {
-                throw new HttpsError('failed-precondition', 'The requested number of seats is no longer available.');
-            }
-            selectedSeats = seatsSnap.docs.map((seat) => ({ id: seat.id, ...seat.data() }));
+        const currentTime = Date.now();
+        const selectedSeats = reservedSnaps.map(seat => ({ id: seat.id, ...seat.data() }));
+        const invalidReservation = reservedSnaps.some(seat => !seat.exists) || selectedSeats.some(seat =>
+            !seat.id || seat.eventId !== eventId || seat.venueId !== event.venueId
+            || seat.sectionId !== sectionId || seat.status !== 'RESERVED' || seat.reservedBy !== uid
+            || (seat.reservationEventId && seat.reservationEventId !== eventId)
+            || !reservationIsActive(seat, currentTime)
+        );
+        if (invalidReservation) {
+            throw new HttpsError('failed-precondition', 'Your reservation has expired. Choose seats again.');
         }
         if(selectedSeats.some(seat=>seat.hasWaitlist && !(seat.status==='RESERVED' && seat.reservedBy===uid && reservationIsActive(seat))))throw new HttpsError('already-exists','A selected seat has waiting-list priority.');
         const seatLabels = selectedSeats.map((seat) => seat.seatLabel);
