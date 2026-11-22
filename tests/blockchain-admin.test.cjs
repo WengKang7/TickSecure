@@ -21,7 +21,7 @@ function page(options={}){
         tsConfirmDecision:async request=>{calls.confirm.push(request);return options.decision?options.decision(request):options.cancel?null:{};}};
     const sepolia={listOrganizer:async()=>{calls.history++;return {records:structuredClone(rows)};},getSettings:async()=>settings,prepare:async id=>{calls.prepare.push(id);return {operatorAddress:issuer,contractAddress:contract,walletAddress:receiver,calldata:'0x5678'};},
         verify:async(id,txHash)=>{calls.verify.push({id,hash:txHash});const status=options.verifyStatus||'CONFIRMED';rows=rows.map(r=>({...r,transactionHash:txHash,status,chainId:11155111,contractAddress:contract,verificationVersion:status==='CONFIRMED'?1:0}));return {status};},
-        configure:async txHash=>{calls.configure.push(txHash);return {configured:true,contractAddress:contract,operatorAddress:issuer};}};
+        configure:async (txHash,signature)=>{calls.configure.push(txHash);if(options.configure)return options.configure(txHash,signature);return {configured:true,contractAddress:contract,operatorAddress:issuer};}};
     const context=vm.createContext({window,sepolia,document:{getElementById:id=>elements.get(id),createElement:()=>new Element()},
         localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},
         setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},console});
@@ -48,6 +48,25 @@ test('organizer monitoring has no controls to publish or verify buyer ticket ope
 test('organizer deployment requires its own confirmation and uses only the deployment hash',async()=>{
     const cancelled=page({undeployed:true,cancel:true});await cancelled.ready();await cancelled.click('chain-deploy');assert.equal(cancelled.calls.send.length,0);
     const p=page({undeployed:true});await p.ready();await p.click('chain-deploy');assert.equal(p.calls.send.length,1);assert.equal(p.calls.send[0].to,undefined);assert.deepEqual(p.calls.configure,[hash]);assert.equal(p.calls.prepare.length,0);assert.equal(p.calls.verify.length,0);
+});
+
+test('changing the setup wallet retries registration with a fresh proof instead of the rejected signature',async()=>{
+    for(const code of ['permission-denied','unavailable']){
+        const signatures=[],p=page({undeployed:true,configure:async(_hash,signature)=>{
+            signatures.push(signature);
+            if(signature!=='correct-proof')throw Object.assign(Error('Wrong wallet proof'),{code});
+            return {configured:true,contractAddress:contract,operatorAddress:issuer};
+        }});
+        let wallet='0x'+'9'.repeat(40);
+        p.window.tsChainWallet.connect=async()=>wallet;
+        p.window.tsChainWallet.signMessage=async()=>wallet===issuer?'correct-proof':'wrong-proof';
+        await p.ready();p.elements.get('chain-deployment-hash').value=hash;
+        await p.click('chain-register');
+        wallet=issuer;await p.click('chain-register');
+        assert.deepEqual(signatures,['wrong-proof','correct-proof']);
+        assert.match(p.elements.get('chain-message').textContent,/Contract registered/);
+        assert.equal(p.calls.send.length,0);
+    }
 });
 test('losing organizer access during deployment confirmation prevents submission',async()=>{
     let finish,opened;const decisionOpened=new Promise(resolve=>{opened=resolve;});

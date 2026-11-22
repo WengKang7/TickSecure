@@ -1,7 +1,7 @@
 import { sepolia } from './blockchain-client.js?v=20261115-hosted-chain-v2';
 import { fundDemoWallet } from './demo-funding-client.js?v=20261115-hosted-chain-v2';
 const el=id=>document.getElementById(id),D=window.tsBlockchainDisplay,role=document.querySelector('[data-chain-role]').dataset.chainRole;
-const params=new URLSearchParams(window.location.search),filters={};for(const key of ['ticketId','bookingId'])if(params.get(key))filters[key]=params.get(key);
+const params=new URLSearchParams(window.location.search),filters={};for(const key of ['ticketId','bookingId','recordId'])if(params.get(key))filters[key]=params.get(key);
 let uid='',version=0,busy=false,records=[],configured=false,timer;
 const active=()=>window.tsCurrentUser?.uid===uid&&window.tsCurrentUser?.role===role&&window.tsCurrentUser?.status==='active';
 const storageKey=r=>`ticksecure:buyer-chain:${uid}:${r.id}`;
@@ -49,14 +49,51 @@ function render(){
     el('buyer-chain-list').replaceChildren(...(tickets.length?tickets:[D.node('p','ts-transfer-empty','No matching blockchain records for your account.')]));
     const select=el('buyer-chain-recovery-id');if(select){const value=select.value;select.replaceChildren(...records.filter(r=>r.performedByYou).map(r=>{const option=D.node('option','',r.transactionType+' · '+r.ticketId+' · '+r.id);option.value=r.id;return option;}));if(records.some(r=>r.id===value))select.value=value;el('buyer-chain-recover').disabled=busy||!select.children.length;}
 }
-async function refresh(v=version){const result=await(role==='organizer'?sepolia.listOrganizer(filters):sepolia.listBuyer(filters));if(v!==version||!active())return;records=result.records||[];configured=result.configured;render();if(!configured)message('The event organizer must finish their Sepolia contract setup before transactions can be submitted.');}
-async function load(){const v=++version;clearTimeout(timer);uid=window.tsCurrentUser?.uid||'';busy=false;records=[];configured=false;message('');message('',true);render();el('buyer-chain-loading').hidden=!active();if(!active())return;
-    try{await refresh(v);}catch(error){if(v===version)message(error.message||'Blockchain activity could not be loaded.',true);}finally{if(v===version)el('buyer-chain-loading').hidden=true;}}
+async function refresh(v=version){
+    const result=await(role==='organizer'?sepolia.listOrganizer(filters):sepolia.listBuyer(filters));
+    if(v!==version||!active())return;
+    records=result.records||[];configured=result.configured;
+    for(const record of records)if(D.confirmed(record))stored(storageKey(record),'');
+    render();
+    if(!configured)message('The event organizer must finish their Sepolia contract setup before transactions can be submitted.');
+    else if(result.recoveryWarning)message(result.recoveryWarning);
+}
+async function load(){
+    const v=++version;clearTimeout(timer);uid=window.tsCurrentUser?.uid||'';busy=true;records=[];configured=false;
+    message('');message('',true);render();el('buyer-chain-loading').hidden=!active();
+    if(!active()){busy=false;render();return;}
+    try{
+        await refresh(v);
+        if(v!==version||!active())return;
+        // A hash saved before a failed first server response is recoverable in
+        // this browser. Verify it; never send another MetaMask transaction.
+        const local=records.filter(r=>r.performedByYou&&!D.confirmed(r)&&D.hash(knownHash(r))
+            &&knownHash(r)!==r.transactionHash).slice(0,2);
+        for(const record of local){if(v!==version||!active())return;await verify(record,knownHash(record),v);}
+    }catch(error){if(v===version)message(error.message||'Blockchain activity could not be loaded.',true);}
+    finally{if(v===version){busy=false;el('buyer-chain-loading').hidden=true;render();}}
+}
 async function run(action){if(busy||!active()||role!=='buyer')return;const v=version;busy=true;message('');message('',true);render();try{await action(v);}catch(error){if(v===version)message(error.code===4001?'The MetaMask request was cancelled. Your NFT operation is still pending.':error.message||'Could not complete the transaction.',true);}finally{if(v===version){busy=false;render();}}}
-async function verify(record,hash,v,attempt=0){const result=await sepolia.verify(record.id,hash);if(v!==version||!active())return;await refresh(v);
-    if(result.status==='CONFIRMED'){stored(storageKey(record),'');message('Confirmed on Sepolia. Your transaction hash is saved in Firebase.');}
-    else if(result.status==='FAILED'){stored(storageKey(record),'');message('The transaction reverted. Inspect its hash before trying again.',true);}
-    else{message('Submitted. Waiting for two Sepolia confirmations. You can keep this page open or return and verify the same hash.');clearTimeout(timer);if(attempt<24)timer=setTimeout(()=>{if(v===version&&active()&&!busy)run(next=>verify(record,hash,next,attempt+1));},5000);}
+async function verify(record,hash,v,attempt=0){
+    const result=await sepolia.verify(record.id,hash);if(v!==version||!active())return;
+    // Verification is the authoritative mutation. A later history-read failure
+    // must not turn a confirmed transaction into an apparent failed submission.
+    const confirmed=result.status==='CONFIRMED',failed=result.status==='FAILED';
+    records=records.map(row=>row.id===record.id?{...row,...result,transactionHash:hash,chainId:11155111,
+        verificationVersion:confirmed?2:0}:row);
+    if(confirmed||failed)stored(storageKey(record),'');
+    render();
+    let refreshed=true;
+    try{await refresh(v);}catch(_){refreshed=false;}
+    if(v!==version||!active())return;
+    if(confirmed)message('Confirmed on Sepolia. Your transaction hash is saved in Firebase.'
+        +(refreshed?'':' The history could not refresh; refresh it later.'));
+    else if(failed)message('The transaction reverted. Inspect its hash before trying again.',true);
+    else{
+        message('Submitted. Waiting for two Sepolia confirmations. You can keep this page open or return and verify the same hash.');
+        clearTimeout(timer);
+        if(attempt<24)timer=setTimeout(()=>{if(v===version&&active()&&!busy)run(next=>verify(record,hash,next,attempt+1));},5000);
+    }
 }
 async function publish(record,v){
     const locks=window.navigator?.locks;

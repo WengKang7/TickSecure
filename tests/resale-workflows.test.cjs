@@ -10,20 +10,20 @@ const policy = require('../assets/js/resale-policy');
 const wallet = '0x' + '1'.repeat(40);
 const actor = role => ({ role, status: 'active', emailVerified: true, walletAddress: wallet });
 function records() {
-    return {
+    return require('./confirmed-ticket-fixture.cjs')({
         'Users/buyer': actor('buyer'), 'Users/other': actor('buyer'), 'Users/seller': actor('buyer'), 'Users/admin': actor('admin'), 'Users/organizer': actor('organizer'), 'Users/otherOrganizer': actor('organizer'),
         'Events/event': { status: 'PUBLISHED', organizerUid: 'organizer', resaleEnabled: true, resaleStartDate: '2000-01-01', resaleDeadline: '2099-12-31', maxTicketsPerBuyer: 2, maxResaleMarkup: 10, categories: { A: { name: 'VIP', price: 100 } } },
         'NFTTickets/ticket': { eventId: 'event', sectionId: 'A', categoryName: 'VIP', ownerUid: 'seller', status: 'LISTED_FOR_RESALE', seatId: 'A1', walletAddress: wallet },
         'TicketFaces/ticket': {ownerUid:'seller',ciphertext:'old-template'},
         'ResaleListings/listing': { organizerUid: 'organizer', eventId: 'event', sectionId: 'A', ticketId: 'ticket', sellerUid: 'seller', buyerUid: '', originalPrice: 100, resalePrice: 105, maxAllowedPrice: 110, status: 'ACTIVE', ruleCompliance: 'COMPLIANT' }
-    };
+    });
 }
 function backend(initial) {
     const data = structuredClone(initial), versions = new Map();
     let serial = 0;
     const ref = (collection, id) => ({ key: collection + '/' + (id || 'generated-' + ++serial), id: id || 'generated-' + serial });
     const collection = (name, filters = []) => ({ name, filters, doc: id => ref(name, id),
-        where: (field, op, value) => collection(name, [...filters, [field, value]]) });
+        where: (field, op, value) => collection(name, [...filters, [field, value]]), limit: () => collection(name, filters) });
     const db = { collection, async runTransaction(action) {
         for (let attempt = 0; attempt < 10; attempt++) {
             const reads = new Map(), writes = [];
@@ -76,6 +76,13 @@ scenario('archived seller cannot sell', 'purchaseResale', 'buyer', s => { s['Use
 scenario('buyer holding limit', 'purchaseResale', 'buyer', s => { for (let i=0; i<2; i++) s['NFTTickets/owned'+i] = { ownerUid: 'buyer', eventId: 'event' }; }, 'failed-precondition');
 scenario('repeat purchase returns the same receipt', 'purchaseResale', 'buyer', s => { Object.assign(s['ResaleListings/listing'], { status: 'SOLD', buyerUid: 'buyer' }); });
 scenario('create listing', 'createResaleListing', 'seller', s => { s['NFTTickets/ticket'].status = 'VALID'; delete s['ResaleListings/listing']; });
+for (const action of ['createResaleListing','purchaseResale']) {
+    const edit = (state, mutate) => { if(action==='createResaleListing')state['NFTTickets/ticket'].status='VALID';mutate(state); };
+    scenario(action+' blocks unminted ticket',action,action==='purchaseResale'?'buyer':'seller',s=>edit(s,s=>{s['NFTTickets/ticket'].mintingStatus='PENDING';}),'failed-precondition');
+    scenario(action+' blocks pending history',action,action==='purchaseResale'?'buyer':'seller',s=>edit(s,s=>{s['BlockchainTransactions/pending']={ticketId:'ticket',transactionType:'TRANSFER',status:'PENDING'};}),'failed-precondition');
+    scenario(action+' blocks missing history',action,action==='purchaseResale'?'buyer':'seller',s=>edit(s,s=>{delete s['BlockchainTransactions/confirmed-mint-ticket'];}),'failed-precondition');
+    scenario(action+' blocks mismatched chain owner',action,action==='purchaseResale'?'buyer':'seller',s=>edit(s,s=>{s['NFTTickets/ticket'].blockchainWalletAddress='0x'+'9'.repeat(40);}),'failed-precondition');
+}
 scenario('duplicate listing rejected', 'createResaleListing', 'seller', null, 'permission-denied');
 scenario('invalid decimal price rejected', 'createResaleListing', 'seller', null, 'invalid-argument', { resalePrice: 100.001 });
 scenario('seller reprices listing', 'updateResalePrice', 'seller', null, null, { resalePrice: 108 });
@@ -147,6 +154,26 @@ test('concurrent resale purchases have exactly one winner and retries do not cre
     await b.call('purchaseResale', winner, { listingId: 'listing', expectedPrice: 105 });
     assert.equal(Object.keys(b.data).length, count);
     assert.equal(b.data['NFTTickets/ticket'].transferHistory.length, 1);
+});
+
+test('PHP and Firebase both prevent forwarding a ticket before its preceding handover confirms',async()=>{
+    const state=records();state['NFTTickets/ticket'].status='VALID';
+    const recipient='0x'+'2'.repeat(40),next='0x'+'3'.repeat(40);
+    state['Users/buyer'].walletAddress=recipient;state['Users/other'].walletAddress=next;
+    state['Events/event'].transferEnabled=true;
+    const php=process.platform==='win32'?'C:/xampp/php/php.exe':'php';
+    const invoke=(records,uid,to)=>JSON.parse(execFileSync(php,['tests/resale-backend-fixture.php'],{
+        input:JSON.stringify([{action:'transferTicket',uid,data:{ticketId:'ticket',recipientWallet:to},records}]),encoding:'utf8'
+    }))[0];
+    const node=backend(state);await node.call('transferTicket','seller',{ticketId:'ticket',recipientWallet:recipient});
+    const first=invoke(state,'seller',recipient);
+    assert.equal(first.error,undefined);
+    assert.equal(node.data['NFTTickets/ticket'].blockchainStatus,'PENDING');
+    const before=structuredClone(node.data);
+    await assert.rejects(node.call('transferTicket','buyer',{ticketId:'ticket',recipientWallet:next}),e=>e.code==='failed-precondition');
+    assert.deepEqual(JSON.parse(JSON.stringify(node.data)),JSON.parse(JSON.stringify(before)));
+    const second=invoke(first.records,'buyer',next);
+    assert.equal(second.error,'failed-precondition');assert.deepEqual(second.records,first.records);
 });
 test('buyer eligibility uses inclusive UTC+8 dates, cent prices, and fixed or percentage caps', () => {
     const event = { ...records()['Events/event'], resaleStartDate: '2026-10-29', resaleDeadline: '2026-10-29' };

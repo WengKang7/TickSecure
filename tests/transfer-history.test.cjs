@@ -59,6 +59,7 @@ test('history requires an active verified buyer and preserves recorded identitie
 test('a completed transfer stores a durable safe receipt in the same transaction for both participants',async()=>{
     const state=records();state['NFTTickets/ticket']={...state['NFTTickets/ticket'],ownerUid:'alice',status:'VALID',walletAddress:wa,transferHistory:[]};
     state['Events/event']={...state['Events/event'],status:'PUBLISHED',transferEnabled:true,maxTicketsPerBuyer:4};state['Users/bob'].walletAddress=wb;
+    require('./confirmed-ticket-fixture.cjs')(state);
     const [result]=JSON.parse(execFileSync(php,[path.join(__dirname,'resale-backend-fixture.php')],{input:JSON.stringify([{action:'transferTicket',uid:'alice',data:{ticketId:'ticket',recipientWallet:wb},records:state}]),encoding:'utf8'}));
     const id=result.result.transferId,snapshot=result.records['AuditLogs/'+id].details.transfer;
     assert.equal(snapshot.fromName,'ALICE');assert.equal(snapshot.toName,'BOB');assert.equal(snapshot.seatId,'B03');assert.equal(snapshot.venueName,'Hall');

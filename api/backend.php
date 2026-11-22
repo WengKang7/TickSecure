@@ -343,6 +343,30 @@ function backend_assert_active_account(array $actor): void
     }
 }
 
+function backend_require_confirmed_ticket(FirebaseFirestoreTransaction $transaction, string $ticketId, array $ticket): void
+{
+    $contract = strtolower((string)($ticket['contractAddress'] ?? ''));
+    $wallet = strtolower((string)($ticket['walletAddress'] ?? ''));
+    $ready = ($ticket['mintingStatus'] ?? '') === 'MINTED'
+        && ($ticket['blockchainStatus'] ?? '') === 'CONFIRMED' && ($ticket['chainId'] ?? 0) === 11155111
+        && preg_match('/^0x[0-9a-f]{40}$/D', $contract) === 1
+        && preg_match('/^0x[0-9a-f]{40}$/D', $wallet) === 1
+        && $contract !== '0x' . str_repeat('0', 40) && $wallet !== '0x' . str_repeat('0', 40)
+        && $wallet === strtolower((string)($ticket['blockchainWalletAddress'] ?? ''))
+        && preg_match('/^0x[0-9a-fA-F]{64}$/D', $ticket['transactionHash'] ?? '') === 1;
+    $operations = $transaction->query('BlockchainTransactions', ['ticketId' => $ticketId]);
+    $minted = false;
+    foreach ($operations as $operation) {
+        $minted = $minted || ($operation['transactionType'] ?? '') === 'MINT';
+        if (($operation['status'] ?? '') !== 'CONFIRMED' || ($operation['verificationVersion'] ?? 0) !== 2
+            || ($operation['chainId'] ?? 0) !== 11155111
+            || strtolower((string)($operation['contractAddress'] ?? '')) !== $contract
+            || preg_match('/^0x[0-9a-fA-F]{64}$/D', $operation['transactionHash'] ?? '') !== 1) $ready = false;
+    }
+    if (!$ready || !$minted) backend_fail(412,
+        'Complete and verify all NFT transactions for this ticket before transferring or selling it.', 'failed-precondition');
+}
+
 function backend_owned_ticket_count(FirebaseFirestoreTransaction $transaction, string $eventId, string $ownerUid): int
 {
     return count(array_filter($transaction->query('NFTTickets', ['ownerUid' => $ownerUid]),
@@ -1017,6 +1041,7 @@ function backend_transfer_ticket(FirebaseAdminRest $firebase, string $uid, array
             backend_fail(412, 'The recipient already holds the maximum number of tickets for this event.', 'failed-precondition');
         }
 
+        backend_require_confirmed_ticket($transaction, $ticketId, $ticket);
         $timestamp = backend_now();
         $history = backend_transfer_history($ticket);
         $history[] = [
@@ -1029,6 +1054,7 @@ function backend_transfer_ticket(FirebaseAdminRest $firebase, string $uid, array
         $transaction->delete('TicketFaces', $ticketId);
         $transaction->update('NFTTickets', $ticketId, [
             'faceRegistrationStatus' => 'REQUIRED',
+            'blockchainStatus' => 'PENDING',
             'ownerUid' => (string)$recipient['uid'],
             'walletAddress' => $recipientWallet,
             'status' => 'VALID',
@@ -1117,6 +1143,7 @@ function backend_create_resale_listing(FirebaseAdminRest $firebase, string $uid,
             );
         }
 
+        backend_require_confirmed_ticket($transaction, $ticketId, $ticket);
         $listingId = backend_new_document_id();
         $timestamp = backend_now();
         $transaction->create('ResaleListings', $listingId, [
@@ -1358,6 +1385,7 @@ function backend_purchase_resale(FirebaseAdminRest $firebase, string $uid, array
             backend_fail(412, 'The ticket is no longer available.', 'failed-precondition');
         }
 
+        backend_require_confirmed_ticket($transaction, $ticketId, $ticket);
         $timestamp = backend_now();
         $history = backend_transfer_history($ticket);
         $history[] = [
@@ -1379,6 +1407,7 @@ function backend_purchase_resale(FirebaseAdminRest $firebase, string $uid, array
         $transaction->delete('TicketFaces', $ticketId);
         $transaction->update('NFTTickets', $ticketId, [
             'faceRegistrationStatus' => 'REQUIRED',
+            'blockchainStatus' => 'PENDING',
             'ownerUid' => $uid,
             'walletAddress' => $buyerWallet,
             'status' => 'VALID',

@@ -29,10 +29,10 @@ function createBlockchainService(db,{projectId,rpc=sepoliaRpc,fail,signer=signin
             if(!policy.runtimeMatches(code,artifact)||policy.lower(owner)!=='0x'+policy.word(config.operatorAddress)||policy.lower(authorizer)!=='0x'+policy.word(config.signerAddress))
                 fail('failed-precondition','The ticket contract or signer does not match the registered deployment.');}
     }
-    async function actor(record,ticket){
+    async function actor(record,ticket,readRecord=read){
         if(record.actorUid&&policy.address(record.actorWallet))return {uid:record.actorUid,wallet:policy.lower(record.actorWallet)};
         if(record.transactionType==='MINT'){
-            const booking=record.relatedEntityType==='booking'?await read('Bookings',record.relatedEntityId):null;
+            const booking=record.relatedEntityType==='booking'?await readRecord('Bookings',record.relatedEntityId):null;
             return booking?.buyerUid?{uid:booking.buyerUid,wallet:policy.lower(record.walletAddress)}:null;
         }
         if(record.transactionType==='TRANSFER'){
@@ -40,7 +40,7 @@ function createBlockchainService(db,{projectId,rpc=sepoliaRpc,fail,signer=signin
             return step?.fromUid?{uid:step.fromUid,wallet:policy.lower(step.fromWallet)}:null;
         }
         if(record.transactionType==='RESALE'){
-            const listing=record.relatedEntityType==='resale'?await read('ResaleListings',record.relatedEntityId):null;
+            const listing=record.relatedEntityType==='resale'?await readRecord('ResaleListings',record.relatedEntityId):null;
             return listing?.buyerUid&&listing.ticketId===record.ticketId?{uid:listing.buyerUid,wallet:policy.lower(record.walletAddress)}:null;
         }
         return null;
@@ -68,35 +68,123 @@ function createBlockchainService(db,{projectId,rpc=sepoliaRpc,fail,signer=signin
         if(tx&&policy.lower(tx.hash)!==hash)fail('invalid-argument','The provider returned a different transaction hash.');
         const block=receipt?await rpc('eth_getBlockByNumber',[receipt.blockNumber,false]):null;return {tx,receipt,height,block};
     }
+    async function verify(uid,data){
+            await account(uid,['buyer']);
+            await responsible(uid,data.recordId);
+            const hash=txHash(data.transactionHash);
+            const {tx,receipt,block,height}=await canonicalReceipt(hash);if(!tx)fail('unavailable','This hash is not visible yet. Verify it again without resubmitting.');
+            const authorization=await read('BlockchainAuthorizations',policy.hash(policy.lower(tx.input||tx.data)).slice(2));
+            if(!authorization||authorization.actorUid!==uid||authorization.recordId!==data.recordId)fail('permission-denied','This transaction was not authorized for your ticket operation.');
+            const {config,record,expected,settingsId,organizerUid,ticket:originalTicket}=await context(uid,data.recordId,{hash,contractAddress:authorization.contractAddress});await chain(config);
+            if(authorization.recordHash!==expected.recordHash
+                ||authorization.actorWallet!==expected.actorWallet||authorization.contractAddress!==config.contractAddress)fail('invalid-argument','The hash does not match an authorization issued to this buyer.');
+            expected.calldata=authorization.calldata;
+            const result=policy.verifyTransaction(tx,receipt,block,height,expected,config,artifact,fail);
+            const patch={...expected,...result,transactionHash:hash,network:'Sepolia',actorUid:uid,actorWallet:expected.actorWallet,
+                verificationVersion:result.status==='CONFIRMED'?2:0,lastCheckedAt:stamp()};delete patch.calldata;
+            if(result.status==='CONFIRMED')patch.confirmedAt=record.confirmedAt||stamp();
+            await db.runTransaction(async transaction=>{
+                const ref=db.collection('BlockchainTransactions').doc(record.id),ticketRef=db.collection('NFTTickets').doc(record.ticketId);
+                const [user,current,ticket,setting,event]=await Promise.all([transaction.get(db.collection('Users').doc(uid)),transaction.get(ref),transaction.get(ticketRef),transaction.get(db.collection('BlockchainSettings').doc(settingsId)),transaction.get(db.collection('Events').doc(originalTicket.eventId))]);
+                assertAccount(user.exists?user.data():null,['buyer']);if(!current.exists||!ticket.exists||setting.data()?.contractAddress!==config.contractAddress)fail('failed-precondition','The operation changed. Refresh before retrying.');
+                if(ticket.data().eventId!==originalTicket.eventId||event.data()?.organizerUid!==organizerUid||(ticket.data().organizerUid&&ticket.data().organizerUid!==organizerUid))fail('failed-precondition','The event organizer changed. Refresh before retrying.');
+                const fresh=current.data();for(const key of ['ticketId','transactionType','walletAddress','timestamp','actorUid','actorWallet'])if(fresh[key]!==record[key])fail('failed-precondition','The blockchain operation changed.');
+                if(policy.verified(fresh,config)){if(policy.lower(fresh.transactionHash)!==hash)fail('failed-precondition','The operation is already confirmed with a different hash.');return;}
+                if(fresh.status==='SUBMITTED'&&fresh.transactionHash&&fresh.transactionHash!==hash&&result.status!=='CONFIRMED')fail('failed-precondition','A replacement must confirm before replacing the submitted hash.');
+                transaction.update(ref,patch);
+                if(result.status==='CONFIRMED'){
+                    const ticketPatch={blockchainLastTransactionHash:hash,blockchainLastOperationId:record.id,blockchainWalletAddress:expected.walletAddress,
+                        blockchainStatus:'CONFIRMED',blockchainNetwork:'Sepolia',chainId:11155111,contractAddress:config.contractAddress,tokenId:expected.tokenId};
+                    if(record.transactionType==='MINT')Object.assign(ticketPatch,{mintingStatus:'MINTED',transactionHash:hash});transaction.update(ticketRef,ticketPatch);
+                }
+            });
+            return {recordId:record.id,transactionHash:hash,...result};
+    }
+
     async function list(uid,data,organizer=false){
         await account(uid,[organizer?'organizer':'buyer']);
-        const filter=data.ticketId?id(data.ticketId):'',bookingId=data.bookingId?id(data.bookingId):'';
-        const tickets=new Map(),candidates=new Map(),cache=new Map();
+        let filter=data.ticketId?id(data.ticketId):'';
+        const bookingId=data.bookingId?id(data.bookingId):'',recordId=data.recordId?id(data.recordId):'';
+        const tickets=new Map(),candidates=new Map(),cache=new Map(),documents=new Map();
+        const readCached=(collection,key)=>{
+            const path=collection+'/'+key;
+            if(!documents.has(path))documents.set(path,read(collection,key));
+            return documents.get(path);
+        };
         const add=rows=>rows.forEach(row=>{if(!filter||row.ticketId===filter)candidates.set(row.id,row);});
-        async function ticketRows(ticketId){if(!cache.has(ticketId))cache.set(ticketId,await query('BlockchainTransactions','ticketId',ticketId));add(cache.get(ticketId));}
-        if(organizer){
+        async function ticketRows(ticketId){
+            if(!cache.has(ticketId))cache.set(ticketId,await query('BlockchainTransactions','ticketId',ticketId));
+            add(cache.get(ticketId));
+        }
+        if(recordId){
+            const record=await readCached('BlockchainTransactions',recordId);
+            if(!record||filter&&record.ticketId!==filter)fail('not-found','Blockchain record not found.');
+            filter=id(record.ticketId);
+        }
+        if(bookingId){
+            const booking=await readCached('Bookings',bookingId);
+            if(organizer||booking?.buyerUid!==uid)fail('not-found','Booking not found for your account.');
+        }
+        if(filter){
+            const ticket=await readCached('NFTTickets',filter);
+            if(ticket&&(!bookingId||ticket.bookingId===bookingId)){
+                if(organizer){
+                    const event=await readCached('Events',ticket.eventId);
+                    if(event?.organizerUid!==uid)fail('not-found','Ticket not found for your events.');
+                }
+                tickets.set(filter,ticket);
+                await ticketRows(filter);
+            }
+        }else if(bookingId){
+            // A booking page needs only this booking's records, not every ticket,
+            // audit log, resale purchase and booking belonging to the account.
+            const issued=await query('BlockchainTransactions','relatedEntityId',bookingId);
+            for(const record of issued)await ticketRows(record.ticketId);
+        }else if(organizer){
             for(const event of await query('Events','organizerUid',uid))for(const ticket of await query('NFTTickets','eventId',event.id)){
-                tickets.set(ticket.id,ticket);if(!filter||ticket.id===filter)await ticketRows(ticket.id);
+                tickets.set(ticket.id,ticket);await ticketRows(ticket.id);
             }
         }else{
-            if(bookingId){const booking=await read('Bookings',bookingId);if(booking?.buyerUid!==uid)fail('not-found','Booking not found for your account.');}
+            // Keep legacy receipts discoverable in the full account history.
             const [owned,performed,bookings,logs,resales]=await Promise.all([query('NFTTickets','ownerUid',uid),query('BlockchainTransactions','actorUid',uid),
                 query('Bookings','buyerUid',uid),query('AuditLogs','actorUid',uid),query('ResaleListings','buyerUid',uid)]);
             add(performed);
-            for(const ticket of owned){tickets.set(ticket.id,ticket);if(!filter||ticket.id===filter)await ticketRows(ticket.id);}
-            for(const booking of bookings)if(!bookingId||booking.id===bookingId)add(await query('BlockchainTransactions','relatedEntityId',booking.id));
-            for(const log of logs)if(log.action==='ticket_transferred'&&(!filter||log.entityId===filter))await ticketRows(log.entityId);
-            for(const listing of resales)if(!filter||listing.ticketId===filter)add(await query('BlockchainTransactions','relatedEntityId',listing.id));
+            for(const ticket of owned){tickets.set(ticket.id,ticket);await ticketRows(ticket.id);}
+            for(const booking of bookings)add(await query('BlockchainTransactions','relatedEntityId',booking.id));
+            for(const log of logs)if(log.action==='ticket_transferred')await ticketRows(log.entityId);
+            for(const listing of resales)add(await query('BlockchainTransactions','relatedEntityId',listing.id));
+        }
+        // Reconcile a bounded number of already-submitted hashes. This verifies
+        // receipts only: it never signs, authorizes or broadcasts a transaction.
+        const pending=[...candidates.values()].filter(record=>['PENDING','SUBMITTED'].includes(record.status)
+            && /^0x[0-9a-fA-F]{64}$/.test(record.transactionHash||''))
+            .sort((a,b)=>String(a.lastCheckedAt||'').localeCompare(String(b.lastCheckedAt||'')));
+        const changed=new Set();let checked=0,recoveryFailed=false,morePending=false;
+        for(const record of pending){
+            let ticket=tickets.get(record.ticketId)||await readCached('NFTTickets',record.ticketId);
+            if(!ticket||bookingId&&ticket.bookingId!==bookingId)continue;
+            const performer=await actor(record,ticket,readCached);
+            if(!performer||!organizer&&performer.uid!==uid&&ticket.ownerUid!==uid)continue;
+            if(checked>=2){morePending=true;break;}
+            checked++;
+            try{await verify(performer.uid,{recordId:record.id,transactionHash:record.transactionHash});changed.add(record.ticketId);}
+            catch(_){recoveryFailed=true;}
+        }
+        for(const ticketId of changed){
+            documents.delete('NFTTickets/'+ticketId);
+            tickets.set(ticketId,await readCached('NFTTickets',ticketId));
+            const history=await query('BlockchainTransactions','ticketId',ticketId);cache.set(ticketId,history);
+            for(const record of history)if(candidates.has(record.id))candidates.set(record.id,record);
         }
         const records=[];let configured=true;
         for(const record of candidates.values()){
-            let ticket=tickets.get(record.ticketId);if(!ticket){ticket=await read('NFTTickets',record.ticketId);if(!ticket)continue;tickets.set(record.ticketId,ticket);}
+            let ticket=tickets.get(record.ticketId);if(!ticket){ticket=await readCached('NFTTickets',record.ticketId);if(!ticket)continue;tickets.set(record.ticketId,ticket);}
             if(bookingId&&ticket.bookingId!==bookingId)continue;
-            const performer=await actor(record,ticket),isCurrentOwner=ticket.ownerUid===uid;
+            const performer=await actor(record,ticket,readCached),isCurrentOwner=ticket.ownerUid===uid;
             if(!organizer&&performer?.uid!==uid&&!isCurrentOwner)continue;
             const history=cache.get(record.ticketId)||await query('BlockchainTransactions','ticketId',record.ticketId);cache.set(record.ticketId,history);
             let config=null,organizerUid='',blockedReason='';
-            try{const scope=await organizerChain.ticketSettings(db,ticket,record,history,fail);config=scope.config;organizerUid=scope.organizerUid;assertSetup(config);}catch(error){blockedReason=error.message;}
+            try{const scope=await organizerChain.ticketSettings(db,ticket,record,history,fail,(_,collection,key)=>readCached(collection,key));config=scope.config;organizerUid=scope.organizerUid;assertSetup(config);}catch(error){blockedReason=error.message;}
             if(!config?.contractAddress)configured=false;
             let canSubmit=!organizer&&performer?.uid===uid&&!policy.verified(record,config||{});
             if(canSubmit){try{if(blockedReason)throw Error(blockedReason);policy.operation(projectId,config,record,history,artifact,fail);}
@@ -108,7 +196,9 @@ function createBlockchainService(db,{projectId,rpc=sepoliaRpc,fail,signer=signin
                 confirmations:Number(record.confirmations)||0,isCurrentOwner,canSubmit,configured:!!config?.contractAddress&&config.contractVersion===2,blockedReason,performedByYou:performer?.uid===uid});
         }
         records.sort((a,b)=>a.timestamp<b.timestamp?-1:a.timestamp>b.timestamp?1:a.id<b.id?-1:1);
-        return {records,configured,network:'Sepolia'};
+        return {records,configured,network:'Sepolia',recoveryWarning:recoveryFailed
+            ?'Some submitted transactions could not be checked. Their hashes are saved; refresh shortly to check again.'
+            :morePending?'More submitted transactions remain. Refresh again to check the next saved hashes.':''};
     }
     return {
         async getSettings(uid){
@@ -162,38 +252,7 @@ function createBlockchainService(db,{projectId,rpc=sepoliaRpc,fail,signer=signin
             });
             return {...expected,...authorization,recordId:record.id,transactionHash:record.status==='FAILED'?'':record.transactionHash||'',alreadyRecorded:false};
         },
-        async verify(uid,data){
-            await account(uid,['buyer']);
-            await responsible(uid,data.recordId);
-            const hash=txHash(data.transactionHash);
-            const {tx,receipt,block,height}=await canonicalReceipt(hash);if(!tx)fail('unavailable','This hash is not visible yet. Verify it again without resubmitting.');
-            const authorization=await read('BlockchainAuthorizations',policy.hash(policy.lower(tx.input||tx.data)).slice(2));
-            if(!authorization||authorization.actorUid!==uid||authorization.recordId!==data.recordId)fail('permission-denied','This transaction was not authorized for your ticket operation.');
-            const {config,record,expected,settingsId,organizerUid,ticket:originalTicket}=await context(uid,data.recordId,{hash,contractAddress:authorization.contractAddress});await chain(config);
-            if(authorization.recordHash!==expected.recordHash
-                ||authorization.actorWallet!==expected.actorWallet||authorization.contractAddress!==config.contractAddress)fail('invalid-argument','The hash does not match an authorization issued to this buyer.');
-            expected.calldata=authorization.calldata;
-            const result=policy.verifyTransaction(tx,receipt,block,height,expected,config,artifact,fail);
-            const patch={...expected,...result,transactionHash:hash,network:'Sepolia',actorUid:uid,actorWallet:expected.actorWallet,
-                verificationVersion:result.status==='CONFIRMED'?2:0,lastCheckedAt:stamp()};delete patch.calldata;
-            if(result.status==='CONFIRMED')patch.confirmedAt=record.confirmedAt||stamp();
-            await db.runTransaction(async transaction=>{
-                const ref=db.collection('BlockchainTransactions').doc(record.id),ticketRef=db.collection('NFTTickets').doc(record.ticketId);
-                const [user,current,ticket,setting,event]=await Promise.all([transaction.get(db.collection('Users').doc(uid)),transaction.get(ref),transaction.get(ticketRef),transaction.get(db.collection('BlockchainSettings').doc(settingsId)),transaction.get(db.collection('Events').doc(originalTicket.eventId))]);
-                assertAccount(user.exists?user.data():null,['buyer']);if(!current.exists||!ticket.exists||setting.data()?.contractAddress!==config.contractAddress)fail('failed-precondition','The operation changed. Refresh before retrying.');
-                if(ticket.data().eventId!==originalTicket.eventId||event.data()?.organizerUid!==organizerUid||(ticket.data().organizerUid&&ticket.data().organizerUid!==organizerUid))fail('failed-precondition','The event organizer changed. Refresh before retrying.');
-                const fresh=current.data();for(const key of ['ticketId','transactionType','walletAddress','timestamp','actorUid','actorWallet'])if(fresh[key]!==record[key])fail('failed-precondition','The blockchain operation changed.');
-                if(policy.verified(fresh,config)){if(policy.lower(fresh.transactionHash)!==hash)fail('failed-precondition','The operation is already confirmed with a different hash.');return;}
-                if(fresh.status==='SUBMITTED'&&fresh.transactionHash&&fresh.transactionHash!==hash&&result.status!=='CONFIRMED')fail('failed-precondition','A replacement must confirm before replacing the submitted hash.');
-                transaction.update(ref,patch);
-                if(result.status==='CONFIRMED'){
-                    const ticketPatch={blockchainLastTransactionHash:hash,blockchainLastOperationId:record.id,blockchainWalletAddress:expected.walletAddress,
-                        blockchainStatus:'CONFIRMED',blockchainNetwork:'Sepolia',chainId:11155111,contractAddress:config.contractAddress,tokenId:expected.tokenId};
-                    if(record.transactionType==='MINT')Object.assign(ticketPatch,{mintingStatus:'MINTED',transactionHash:hash});transaction.update(ticketRef,ticketPatch);
-                }
-            });
-            return {recordId:record.id,transactionHash:hash,...result};
-        },
+        verify,
         listBuyer:(uid,data)=>list(uid,data),listOrganizer:(uid,data)=>list(uid,data,true)
     };
 }

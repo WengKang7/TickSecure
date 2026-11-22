@@ -55,3 +55,26 @@ test('earlier mint and current resale are grouped and a pending handover cannot 
  assert.match(text(list),/Ticket locked/);
  assert.ok(!descendants(list).some(node=>node.textContent==='View ticket'));
 });
+
+test('a successful verification stays confirmed if the following history read fails',async()=>{
+ let reads=0;
+ const p=page({load:async()=>{
+  if(++reads>1)throw Error('History unavailable');
+  return {configured:true,records:[{id:'mint',ticketId:'ticket',transactionType:'MINT',status:'PENDING',canSubmit:true,performedByYou:true,isCurrentOwner:true}]};
+ }});
+ await p.ready();await p.button().listeners.click();
+ assert.equal(p.calls.send.length,1);
+ assert.equal(p.storage.size,0);
+ assert.equal(p.elements.get('buyer-chain-error').hidden,true);
+ assert.match(p.elements.get('buyer-chain-message').textContent,/Confirmed on Sepolia/);
+ assert.match(text(p.elements.get('buyer-chain-list')),/Confirmed on Sepolia/);
+ assert.ok(!descendants(p.elements.get('buyer-chain-list')).some(node=>/Verify my transaction/.test(node.textContent||'')));
+});
+
+test('refresh recovers a locally saved hash without another wallet transaction',async()=>{
+ const p=page();
+ p.storage.set('ticksecure:buyer-chain:buyer:mint',hash);
+ await p.ready();
+ assert.equal(p.calls.send.length,0);assert.equal(p.calls.prepare.length,0);
+ assert.equal(p.calls.verify.length,1);assert.equal(p.storage.size,0);
+});

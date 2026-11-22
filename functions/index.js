@@ -17,6 +17,7 @@ const { allocateSeats } = require('./seat-allocation-policy');
 const { visibleSeat, checkSelected, layoutContext } = require('./seat-picker-policy');
 const { createHash } = require('node:crypto');
 const { transferReceipt, getTicketTransfers } = require('./ticket-transfer-history');
+const { requireConfirmedTicket } = require('./ticket-chain-policy');
 const { createBlockchainService } = require('./blockchain');
 const { defineSecret } = require('firebase-functions/params');
 const blockchainSignerSecret = defineSecret('TICKSECURE_BLOCKCHAIN_SIGNER_KEY');
@@ -897,10 +898,12 @@ exports.transferTicket = onCall({ region, enforceAppCheck: false }, async (reque
         }
 
         const timestamp = now();
+        await requireConfirmedTicket(tx, db, ticketId, ticket, (code, message) => { throw new HttpsError(code, message); });
         recipientUid = recipient.uid;
         tx.delete(db.collection('TicketFaces').doc(ticketId));
         tx.update(ticketRef, {
             faceRegistrationStatus: 'REQUIRED',
+            blockchainStatus: 'PENDING',
             ownerUid: recipient.uid,
             walletAddress: recipientWallet,
             status: 'VALID',
@@ -978,6 +981,7 @@ exports.createResaleListing = onCall({ region, enforceAppCheck: false }, async (
             throw new HttpsError('failed-precondition', `The maximum permitted resale price is RM${maxAllowedPrice.toFixed(2)}.`);
         }
 
+        await requireConfirmedTicket(tx, db, ticketId, ticket, (code, message) => { throw new HttpsError(code, message); });
         const listingRef = db.collection('ResaleListings').doc();
         const timestamp = now();
         tx.set(listingRef, {
@@ -1201,6 +1205,7 @@ exports.purchaseResale = onCall({ region, enforceAppCheck: false }, async (reque
             throw new HttpsError('failed-precondition', 'The ticket is no longer available.');
         }
 
+        await requireConfirmedTicket(tx, db, listing.ticketId, ticketSnap.data(), (code, message) => { throw new HttpsError(code, message); });
         const timestamp = now();
         tx.update(listingRef, {
             status: 'SOLD',
@@ -1213,6 +1218,7 @@ exports.purchaseResale = onCall({ region, enforceAppCheck: false }, async (reque
         tx.delete(db.collection('TicketFaces').doc(listing.ticketId));
         tx.update(ticketRef, {
             faceRegistrationStatus: 'REQUIRED',
+            blockchainStatus: 'PENDING',
             ownerUid: uid,
             walletAddress: buyerWallet,
             status: 'VALID',

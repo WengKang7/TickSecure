@@ -37,7 +37,7 @@ function render(){
 async function loadHistory(v=version){
     if(!active()||!historyVisible()||historyLoading)return;
     historyLoading=true;
-    try{const result=await sepolia.listOrganizer();if(v!==version||!active())return;records=result.records||[];historyLoaded=true;render();}
+    try{const result=await sepolia.listOrganizer();if(v!==version||!active())return;records=result.records||[];historyLoaded=true;render();if(result.recoveryWarning)message(result.recoveryWarning);}
     catch(error){if(v===version)message(error.message||'Blockchain history could not be loaded.',true);}
     finally{if(v===version)historyLoading=false;}
 }
@@ -54,16 +54,29 @@ async function load(){
 }
 async function run(action){if(busy||!active())return;busy=true;const v=version;message('');message('',true);render();try{await action(v);}catch(error){if(v===version)message(error.code===4001?'The MetaMask request was cancelled.':error.message||'Setup failed.',true);}finally{if(v===version){busy=false;render();}}}
 async function register(v,attempt=0){
-    const hash=el('chain-deployment-hash').value.trim();if(!validHash(hash))throw Error('Enter the deployment transaction hash.');saved(hash);
-    try{const key=uid+':'+hash.toLowerCase();
-        if(!registrationSignatures.has(key)){
-            const wallet=await window.tsChainWallet.connect();if(v!==version||!active())return;
-            el('chain-wallet').textContent=wallet;
+    const hash=el('chain-deployment-hash').value.trim();if(!validHash(hash))throw Error('Enter the deployment transaction hash.');
+    if(!settings?.registrationMessagePrefix)throw Error('Refresh contract setup before registering the deployment.');
+    saved(hash);let proofKey='';
+    try{
+        const wallet=await window.tsChainWallet.connect();if(v!==version||!active())return;
+        el('chain-wallet').textContent=wallet;
+        proofKey=uid+':'+hash.toLowerCase()+':'+wallet.toLowerCase();
+        if(!registrationSignatures.has(proofKey)){
             const signature=await window.tsChainWallet.signMessage({from:wallet,message:settings.registrationMessagePrefix+hash.toLowerCase()});
-            if(v!==version||!active())return;registrationSignatures.set(key,signature);
+            if(v!==version||!active())return;registrationSignatures.set(proofKey,signature);
         }
-        const result=await sepolia.configure(hash,registrationSignatures.get(key));if(v!==version||!active())return;saved('');settings={...result,configured:true};message('Contract registered. Buyers can now approve their own NFT operations in My blockchain.');}
-    catch(error){if(v===version&&['unavailable','functions/unavailable'].includes(error.code)){message(error.message);if(attempt<24)timer=setTimeout(()=>{if(v===version&&active()&&!busy)run(next=>register(next,attempt+1));},5000);}else throw error;}
+        const result=await sepolia.configure(hash,registrationSignatures.get(proofKey));if(v!==version||!active())return;
+        saved('');settings={...result,configured:true};message('Contract registered. Buyers can now approve their own NFT operations in My blockchain.');
+    }catch(error){
+        if(v===version&&['unavailable','functions/unavailable'].includes(error.code)){
+            message(error.message);
+            if(attempt<24)timer=setTimeout(()=>{if(v===version&&active()&&!busy)run(next=>register(next,attempt+1));},5000);
+        }else{
+            // A rejected proof must not poison retries after changing accounts.
+            if(proofKey)registrationSignatures.delete(proofKey);
+            throw error;
+        }
+    }
 }
 el('chain-connect').addEventListener('click',()=>run(async v=>{const wallet=await window.tsChainWallet.connect();if(v===version&&active())el('chain-wallet').textContent=wallet;}));
 el('chain-deploy').addEventListener('click',()=>run(async v=>{
