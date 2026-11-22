@@ -366,7 +366,7 @@ body .ts-bar{background:#111;border-radius:10px}body .ts-bar.dark{background:#88
 /* Reference navigation: booking records remain reachable through the account menu. */
 body .ts-public-nav [data-nav-key=bookings]{display:none}
 body .ts-header-search{display:none}
-body .ts-public-user:has(.ts-account-chevron:not([hidden]))>.ts-avatar{display:none}
+body .ts-public-user:has(.ts-account-chevron:not([hidden]))>.ts-avatar{display:grid;width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0}
 body .ts-header-notifications{border:0;width:32px;height:37px}
 body .ts-header-notifications{position:relative;overflow:visible}
 body .ts-buyer-notification-count{position:absolute;top:-3px;right:-7px;min-width:18px;height:18px;padding:0 4px;display:grid;place-items:center;border:2px solid #fff;border-radius:10px;background:#111;color:#fff;font:600 9px/1 var(--body);pointer-events:none}

@@ -181,19 +181,33 @@ test('avatars show the saved photo, preserve header hooks, recover from broken i
     const events = {}, window = { tsCurrentUser: { uid: 'buyer', fullName: 'Buyer One', profilePhotoUrl: 'https://res.cloudinary.com/demo/image/upload/one.png' },
         addEventListener: (type, callback) => { events[type] = callback; } };
     vm.runInNewContext(fs.readFileSync('assets/js/profile-avatar.js', 'utf8'), { window, URL,
-        document: { getElementById: id => avatars[id], createElement: tag => new AvatarElement(tag) } });
+        document: { currentScript: { src: 'https://ticksecure.onrender.com/assets/js/profile-avatar.js?v=123' },
+            getElementById: id => avatars[id], createElement: tag => new AvatarElement(tag) } });
     assert.equal(header.querySelector('img'), existingImage);
-    for (const avatar of Object.values(avatars)) {
+    for (const [id, avatar] of Object.entries(avatars)) {
         const img = avatar.querySelector('img'), label = avatar.querySelector('span');
         assert.match(img.src, /one.png$/); img.onload();
         assert.equal(label.hidden, true);
-        img.onerror(); assert.equal(label.hidden, false); assert.equal(label.style.display, '');
+        img.onerror();
+        if (id === 'header-avatar') {
+            assert.equal(img.src, 'https://ticksecure.onrender.com/assets/images/profile-placeholder.svg');
+            img.onload(); assert.equal(label.hidden, true);
+            img.onerror(); // A broken fallback must stop retrying.
+            assert.equal(img.style.display, 'none');
+        }
+        assert.equal(label.hidden, false); assert.equal(label.style.display, '');
         assert.equal(label.textContent, 'BO');
     }
     window.tsCurrentUser = null; events['ts-auth-ready']();
-    for (const avatar of Object.values(avatars)) {
-        assert.equal(avatar.querySelector('img').src, undefined);
-        assert.equal(avatar.querySelector('span').hidden, false);
+    for (const [id, avatar] of Object.entries(avatars)) {
+        if (id === 'header-avatar') {
+            assert.equal(avatar.querySelector('img').src, 'https://ticksecure.onrender.com/assets/images/profile-placeholder.svg');
+            avatar.querySelector('img').onload();
+            assert.equal(avatar.querySelector('span').hidden, true);
+        } else {
+            assert.equal(avatar.querySelector('img').src, undefined);
+            assert.equal(avatar.querySelector('span').hidden, false);
+        }
     }
 });
 

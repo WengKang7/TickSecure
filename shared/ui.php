@@ -179,8 +179,8 @@ function render_public_page(
               <a id="buyer-notifications-link" class="ts-icon-btn ts-header-notifications'.($active === 'notifications' ? ' active' : '').'" data-ts-buyer-only href="'.$base.'/buyer/notifications.php" aria-label="Notifications"'.($active === 'notifications' ? ' aria-current="page"' : '').'>'.ts_icon('bell').'<span class="ts-buyer-notification-count" id="buyer-notifications-count" aria-hidden="true" hidden></span></a>
               <div class="ts-public-account" id="public-account">
               <a id="public-user-link" class="ts-public-user'.$profileActive.'" href="'.$base.'/buyer/profile.php" aria-label="My profile"'.($active === 'profile' ? ' aria-current="page"' : '').'>
+                <span id="header-avatar" class="ts-avatar ts-header-avatar"><img id="header-avatar-img" class="ts-header-avatar-img" src="'.ts_asset_url('assets/images/profile-placeholder.svg', $base).'" alt=""><span id="header-avatar-initials" hidden>U</span></span>
                 <span id="public-user-name" class="ts-public-user-name">User</span>
-                <span id="header-avatar" class="ts-avatar ts-header-avatar"><img id="header-avatar-img" class="ts-header-avatar-img" alt="" style="display:none"><span id="header-avatar-initials">U</span></span>
                 <span id="public-account-chevron" class="ts-account-chevron" hidden>'.ts_icon('chevron-down').'</span>
               </a>
               <nav id="public-account-menu" class="ts-account-menu" aria-label="Buyer account" hidden>
