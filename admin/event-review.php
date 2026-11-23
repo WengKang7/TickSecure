@@ -3,7 +3,23 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 
+<style>
+.ts-event-review-header .ts-page-head { display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap; }
+.ts-event-review-header .ts-page-head > div:first-child { flex:1 1 480px; min-width:0; }
+.ts-event-review-header .ts-page-actions { display:flex; flex:0 0 auto; align-items:center; justify-content:flex-end; gap:10px; flex-wrap:nowrap; }
+.ts-event-review-header #action-buttons { display:flex; align-items:center; gap:10px; flex-wrap:nowrap; }
+.ts-event-review-header #action-buttons[hidden] { display:none; }
+.ts-event-review-header .ts-page-actions .ts-btn { margin:0; white-space:nowrap; min-height:48px; }
+@media(max-width:620px) {
+ .ts-event-review-header .ts-page-actions { width:100%; flex-wrap:wrap; justify-content:flex-start; }
+ .ts-event-review-header .ts-page-actions > a { flex:1 1 100%; }
+ .ts-event-review-header #action-buttons { width:100%; flex-wrap:wrap; }
+ .ts-event-review-header #action-buttons .ts-btn { flex:1 1 auto; }
+}
+</style>
+<div class="ts-event-review-header">
 <?=ts_page_head('Loading event...', 'Review the submitted details before making a decision.', '<a class="ts-btn ts-btn-secondary" href="events.php">Back to Events</a><div id="action-buttons" class="flex gap-8" hidden><button id="btn-restore" class="ts-btn ts-btn-primary" hidden>Make available</button><button id="btn-suspend" class="ts-btn ts-btn-secondary" hidden>Make unavailable</button><button id="btn-reject" class="ts-btn ts-btn-danger" hidden>Reject</button><button id="btn-approve" class="ts-btn ts-btn-success" hidden>Approve</button></div>')?>
+</div>
 <div id="review-error" class="ts-alert ts-alert-error mb-24" role="alert" tabindex="-1" hidden></div>
 <button id="review-retry" type="button" class="ts-btn ts-btn-secondary mb-24" hidden>Reload Event</button>
 <div id="review-notice" class="ts-alert ts-alert-warning mb-24" role="status" hidden></div>
