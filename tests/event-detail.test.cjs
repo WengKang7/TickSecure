@@ -254,7 +254,8 @@ test('signed-in visitors see real physical sections and category selection highl
     assert.equal(page.elements.get('ev-title').textContent, event.name);
     assert.equal(page.elements.get('event-poster').hidden, true, 'no empty tall poster');
     const board = page.elements.get('ven-board');
-    assert.equal(board.children[0].className, 'ts-generated-stage');
+    assert.match(board.children[0].textContent, /Stage position was not detected/);
+    assert.ok(!board.children.some(node => node.className === 'ts-generated-stage'), 'no stage is invented for section-only data');
     const sections = board.querySelectorAll('[data-section-id]');
     assert.equal(sections.length, venue.sections.length);
     assert.equal(sections[0].children[0].children[0].textContent, 'Section A');

@@ -210,13 +210,74 @@ test('clean admin/organizer maps draw equal-sized seat boxes and one rectangular
     assert.deepEqual(p.data, original, 'rendering must leave source measurements, positions, labels and seat counts unchanged');
 });
 
-test('clean legacy layouts also use a rectangular stage instead of a T-shaped stage', () => {
+test('layouts without OCR stage geometry do not invent a default stage', () => {
     const p = runtime(5);
     p.data.forEach(section => { section.geometry.layout = 'legacy'; });
     p.context.window.tsVenueLayoutEditor(p.data, 'Test hall', { cleanLayout: true });
-    assert.equal(p.board.querySelectorAll('.ts-map-stage').length, 1);
+    assert.equal(p.board.querySelectorAll('.ts-map-stage').length, 0);
     assert.equal(p.board.querySelectorAll('path').length, 0);
-    assert.ok(p.board.querySelectorAll('text').some(node => node.textContent === 'STAGE'));
+    assert.ok(!p.board.querySelectorAll('text').some(node => node.textContent === 'STAGE'));
+    assert.ok(p.board.querySelectorAll('p').some(node => /Stage position was not detected/.test(node.textContent)));
+});
+
+test('OCR stage bounds remain exact at the sides, bottom and among chairs', () => {
+    for (const [x, y, width, height] of [[1, 2, 9, 4], [85, 95, 18, 10], [38, 39, 12, 5]]) {
+        const p = runtime();
+        p.data[1].geometry.seatMarkers = [
+            { id: 'left', label: '1', x: 20, y: 35, width: 2, height: 2 },
+            { id: 'right', label: '2', x: 75, y: 70, width: 2, height: 2 }
+        ];
+        p.data[0].geometry.decorations = [{ name: 'STAGE', points: [
+            { x, y }, { x: x + width, y }, { x: x + width, y: y + height }, { x, y: y + height }
+        ] }];
+        const original = JSON.stringify(p.data);
+        p.context.window.tsVenueLayoutEditor(p.data, 'OCR hall', { cleanLayout: true });
+        const stage = p.board.querySelectorAll('.ts-map-stage')[0];
+        assert.deepEqual(['x', 'y', 'width', 'height'].map(key => Number(stage.attributes[key])), [x, y, width, height]);
+        const label = p.board.querySelectorAll('.ts-map-stage-label')[0];
+        assert.equal(Number(label.attributes.x), x + width / 2);
+        assert.equal(Number(label.attributes.y), y + height / 2);
+        assert.equal(JSON.stringify(p.data), original, 'rendering must not mutate saved seats or OCR bounds');
+    }
+});
+
+test('stage detection is page-scoped and ignores manual fallback points and invalid areas', () => {
+    const p = runtime();
+    p.data[0].geometry.decorations = [{ name: 'STAGE', points: [{ x: 5, y: 80 }, { x: 30, y: 80 }, { x: 30, y: 90 }] }];
+    p.data[1].geometry.page = p.data[2].geometry.page = 2;
+    p.data[1].geometry.numbering = { stagePoint: { x: 52, y: 5, page: 2 } };
+    p.data[1].geometry.decorations = [{ name: 'STAGE', points: [{ x: -1, y: 3 }, { x: 20, y: 3 }, { x: 20, y: 10 }] }];
+    p.data[1].geometry.decorations.push({ name: 'STAGE', points: [null, { x: 20, y: 3 }, { x: 20, y: 10 }] });
+    p.context.window.tsVenueRenderer.renderBoard(p.board.id, p.data, { cleanLayout: true, page: 2 });
+    assert.equal(p.board.querySelectorAll('.ts-map-stage').length, 0, 'another page, invalid OCR and a picked point cannot create a stage');
+    p.context.window.tsVenueRenderer.renderBoard(p.board.id, p.data, { cleanLayout: true, page: 1 });
+    assert.equal(Number(p.board.querySelectorAll('.ts-map-stage')[0].attributes.y), 80);
+});
+
+test('duplicate saved stage geometry renders once and section-only layouts have no generated stage', () => {
+    const p = runtime();
+    const decoration = { name: 'STAGE', points: [{ x: 70, y: 20 }, { x: 90, y: 20 }, { x: 90, y: 30 }] };
+    p.data[0].geometry.decorations = [decoration]; p.data[1].geometry.decorations = [decoration];
+    p.context.window.tsVenueRenderer.renderBoard(p.board.id, p.data, { cleanLayout: true });
+    assert.equal(p.board.querySelectorAll('.ts-map-stage').length, 1);
+    p.context.window.tsVenueRenderer.renderBoard(p.board.id, [{ sectionId: 'A', name: 'A', seatCount: 10 }], { cleanLayout: true });
+    assert.equal(p.board.querySelectorAll('.ts-generated-stage').length, 0);
+    assert.ok(p.board.querySelectorAll('p').some(node => /not detected/.test(node.textContent)));
+});
+
+test('OCR stage coordinates survive seat-shape import and render at the detected location', () => {
+    const detection = require('../assets/js/blueprint-detection.js'), importer = require('../assets/js/seat-import.js');
+    const image = { width: 200, height: 120, data: new Uint8ClampedArray(200 * 120 * 4).fill(255) };
+    const words = [{ text: 'STAGE', x0: 140, y0: 90, x1: 180, y1: 105, confidence: 90, line: 'stage' }];
+    const result = importer.combine(image, { seats: [
+        { x: 30, y: 30, w: 6, h: 6, shape: 'circle' }, { x: 50, y: 30, w: 6, h: 6, shape: 'circle' }
+    ] }, words, detection.detect(image, words), { mode: 'seats' });
+    const p = runtime();
+    const sections = result.sections.map(section => ({ ...section, letter: section.sectionId, seats: section.seatCount }));
+    p.context.window.tsVenueRenderer.renderBoard(p.board.id, sections, { cleanLayout: true, seatOnly: true });
+    const stage = p.board.querySelectorAll('.ts-map-stage')[0];
+    ['x', 'y', 'width', 'height'].forEach((key, i) => assert.ok(Math.abs(Number(stage.attributes[key]) - [72.8, 79.5, 20.8, 13.25][i]) < 1e-8));
+    assert.equal(sections[0].geometry.numbering.stageSource, 'detected');
 });
 
 test('dense clean maps keep four-digit numbers centered inside uniform seat boxes without changing seat identities', () => {

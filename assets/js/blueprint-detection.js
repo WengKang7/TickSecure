@@ -175,7 +175,14 @@
                 const list = rows.get(row) || []; list.push(word); rows.set(row, list); continue;
             }
             const region = findRegion(word);
-            if (word.kind === 'decoration') { decorations.push({ ...word, region }); continue; }
+            if (word.kind === 'decoration') {
+                const same = decorations.findIndex(previous => previous.text === word.text
+                    && Math.hypot((previous.x0 + previous.x1 - word.x0 - word.x1) / 2,
+                        (previous.y0 + previous.y1 - word.y0 - word.y1) / 2) < Math.max(5, (word.y1 - word.y0) * .8));
+                if (same < 0) decorations.push({ ...word, region });
+                else if (word.confidence > decorations[same].confidence) decorations[same] = { ...word, region };
+                continue;
+            }
             if (region) {
                 const list = matched.get(region.id) || [];
                 const same = list.findIndex(prev => {
@@ -250,8 +257,20 @@
                 x0: Math.min(...seats.map(s => s.x0)), y0: Math.min(...seats.map(s => s.y0)), x1: Math.max(...seats.map(s => s.x1)), y1: Math.max(...seats.map(s => s.y1)) }, markers);
         }
         if (sections.length > 300) throw new Error('More than 300 candidate sections were found. Crop the image to one floor and scan it again.');
-        const stageGeometry = decorations.map(item => ({ name: item.text,
-            points: (item.region?.points || [{ x: item.x0, y: item.y0 }, { x: item.x1, y: item.y0 }, { x: item.x1, y: item.y1 }, { x: item.x0, y: item.y1 }]).map(normalized) }));
+        const stageGeometry = decorations.map(item => {
+            const label = [{ x: item.x0, y: item.y0 }, { x: item.x1, y: item.y0 }, { x: item.x1, y: item.y1 }, { x: item.x0, y: item.y1 }];
+            const region = item.region;
+            // A label can share a connected background with the seating. That
+            // background is not the stage: retain the OCR label's actual bounds.
+            const containsLabel = region && region.minX <= item.x0 && region.maxX + 1 >= item.x1
+                && region.minY <= item.y0 && region.maxY + 1 >= item.y1;
+            const containsOtherLabels = region && words.some(word => word.kind !== 'decoration'
+                && (word.x0 + word.x1) / 2 >= region.minX && (word.x0 + word.x1) / 2 <= region.maxX
+                && (word.y0 + word.y1) / 2 >= region.minY && (word.y0 + word.y1) / 2 <= region.maxY);
+            const useRegion = containsLabel && !containsOtherLabels && region.points?.length >= 3;
+            return { name: item.text, source: 'ocr', boundarySource: useRegion ? 'color-region' : 'text-bounds',
+                labelBounds: label.map(normalized), points: (useRegion ? region.points : label).map(normalized) };
+        });
         if (sections.length && stageGeometry.length) sections[0].geometry.decorations = stageGeometry;
         return { sections, decorations: stageGeometry, words: inputWords.length, regions: blobs.items.length };
     }

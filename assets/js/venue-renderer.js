@@ -56,48 +56,41 @@ window.tsVenueRenderer = {
         if (outlineOnly) {
             svg.appendChild(node('image', { href: backgroundUrl, x: 0, y: 0, width: 104, height: 106, preserveAspectRatio: 'none' }));
         }
+        const validArea = item => Array.isArray(item?.points) && item.points.length >= 3
+            && item.points.every(p => p && Number.isFinite(p.x) && Number.isFinite(p.y) && p.x >= 0 && p.x <= 104 && p.y >= 0 && p.y <= 106);
+        const drawnStages = new Set();
         const drawStage = item => {
-            const points = item?.points || [];
-            const seatX = markers.map(marker => marker.x), seatY = markers.map(marker => marker.y);
-            const xs = points.map(point => point.x), ys = points.map(point => point.y);
-            const minX = xs.length ? Math.min(...xs) : 30, maxX = xs.length ? Math.max(...xs) : 74;
-            const minY = ys.length ? Math.min(...ys) : 2, maxY = ys.length ? Math.max(...ys) : 10;
-            const w = Math.max(44, Math.min(84, maxX - minX)), h = Math.max(7, Math.min(12, maxY - minY));
-            let x = (minX + maxX) / 2, y = (minY + maxY) / 2;
-            if (markers.length && y >= Math.min(...seatY) - sharedHeight && y <= Math.max(...seatY) + sharedHeight) {
-                const middle = (Math.min(...seatY) + Math.max(...seatY)) / 2;
-                y = y > middle ? Math.max(...seatY) + sharedHeight / 2 + h / 2 + 2 : Math.min(...seatY) - sharedHeight / 2 - h / 2 - 2;
-                x = (Math.min(...seatX) + Math.max(...seatX)) / 2;
-            }
-            x = Math.max(w / 2 + 2, Math.min(102 - w / 2, x));
-            y = Math.max(h / 2 + 1, Math.min(105 - h / 2, y));
-            svg.appendChild(node('rect', { class: 'ts-map-stage', x: x - w / 2, y: y - h / 2, width: w, height: h, rx: 1.1, fill: '#111111' }));
-            svg.appendChild(node('text', { class: 'ts-map-stage-label', x, y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', fill: '#ffffff', 'font-size': 1.5, 'font-weight': 700, 'letter-spacing': '.18' }, 'STAGE'));
+            if (!validArea(item)) return false;
+            const xs = item.points.map(p => p.x), ys = item.points.map(p => p.y);
+            const left = Math.min(...xs), top = Math.min(...ys), w = Math.max(...xs) - left, h = Math.max(...ys) - top;
+            if (w <= 0 || h <= 0) return false;
+            const key = [left, top, w, h].join('|');
+            if (drawnStages.has(key)) return true;
+            drawnStages.add(key);
+            // These are the saved OCR bounds. Never enlarge, clamp, or move a
+            // detected stage to a default position relative to the chairs.
+            const x = left + w / 2, y = top + h / 2;
+            svg.appendChild(node('rect', { class: 'ts-map-stage', x: left, y: top, width: w, height: h, rx: Math.min(w, h) * .08, fill: '#111111' }));
+            svg.appendChild(node('text', { class: 'ts-map-stage-label', x, y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', fill: '#ffffff', 'font-size': Math.min(1.5, h * .5, w / 4), 'font-weight': 700 }, 'STAGE'));
+            return true;
         };
         const standing = layout === 'standing-bowl';
-        if (!scanned) {
-        if (options.cleanLayout) drawStage();
-        else {
-        svg.appendChild(node('path', { d: standing ? 'M42 3 H60 V14 H54 L53 18 V33 H49 V18 L47 14 H42 Z' : 'M41 2 H63 V8 H54 V19 H51 V8 H41 Z', fill: '#9b9b9b', stroke: '#d8d8d8', 'stroke-width': '.3' }));
-        svg.appendChild(node('text', { x: 52, y: standing ? 9 : 5.5, 'text-anchor': 'middle', fill: '#171d24', 'font-size': 2.5, 'font-weight': 700 }, 'STAGE'));
-        }
-        if (standing) {
+        if (!scanned && standing) {
             svg.appendChild(node('path', { d: 'M5 40 Q22 97 51 91 Q83 97 98 40', fill: 'none', stroke: '#555c64', 'stroke-width': 5, 'stroke-dasharray': '7 1' }));
         }
-        } else if (!outlineOnly) {
-            let stageDrawn = false;
+        let stageDrawn = false;
+        if (!outlineOnly) {
             visible.flatMap(s => s.geometry?.decorations || []).forEach(item => {
-                if (options.cleanLayout && /^STAGE$/i.test(item.name || '')) { if (!stageDrawn) drawStage(item); stageDrawn = true; return; }
+                if (!validArea(item)) return;
+                if (options.cleanLayout && /^STAGE$/i.test(item.name || '')) { stageDrawn = drawStage(item) || stageDrawn; return; }
+                if (/^STAGE$/i.test(item.name || '')) stageDrawn = true;
                 svg.appendChild(node('polygon', { points: item.points.map(p => `${p.x},${p.y}`).join(' '), fill: '#929aa2', opacity: backgroundUrl ? .35 : 1 }));
                 const x = item.points.reduce((sum, p) => sum + p.x, 0) / item.points.length;
                 const y = item.points.reduce((sum, p) => sum + p.y, 0) / item.points.length;
                 svg.appendChild(node('text', { x, y, 'text-anchor': 'middle', fill: '#ffffff', 'font-size': 2 }, item.name));
             });
-            if (options.cleanLayout && !stageDrawn) {
-                const picked = visible.find(section => section.geometry?.numbering?.stagePoint)?.geometry.numbering.stagePoint;
-                drawStage(picked ? { points: [picked] } : undefined);
-            }
         }
+        if (options.cleanLayout && !stageDrawn && visible.length) this.showMissingStage(container);
         visible.forEach((section, index) => {
             if (options.seatOnly && section.geometry?.seatMarkers) return;
             const g = section.geometry;
@@ -175,6 +168,13 @@ window.tsVenueRenderer = {
         container.appendChild(svg);
         window.tsSeatMapInteractions?.attach(svg, options, page);
     },
+    showMissingStage: function(container) {
+        const message = document.createElement('p');
+        message.className = 'ts-stage-not-detected small secondary text-center';
+        message.setAttribute('role', 'status');
+        message.textContent = 'Stage position was not detected in the floor plan. Use a clear STAGE label and scan again.';
+        container.appendChild(message);
+    },
     getSectionPositions: function(count) {
         if (!Number.isInteger(count) || count < 1) return [];
         const columns = 2;
@@ -205,10 +205,7 @@ window.tsVenueRenderer = {
         }
         container.style.aspectRatio = '';
         if (!sectionsArray.length) return;
-        const stage = document.createElement('div');
-        stage.className = 'ts-generated-stage';
-        stage.textContent = 'STAGE';
-        container.appendChild(stage);
+        this.showMissingStage(container);
         const positions = this.getSectionPositions(sectionsArray.length);
         sectionsArray.forEach((section, index) => {
             const interactive = typeof options.onSectionSelect === 'function';

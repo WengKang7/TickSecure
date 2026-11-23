@@ -55,6 +55,39 @@ test('multi-page detections retain page indices and stage geometry comes from OC
     assert.equal(result.sections[0].geometry.decorations[0].name, 'STAGE');
 });
 
+test('stage detection uses an off-centre bottom label when no enclosed region exists', () => {
+    const im = image(300, 200);
+    const result = detection.detect(im, [word('A1', 100, 40, 110, 50), word('A2', 130, 40, 140, 50), word('STAGE', 20, 165, 80, 180)], 2);
+    const stage = result.decorations[0];
+    assert.equal(stage.source, 'ocr'); assert.equal(stage.boundarySource, 'text-bounds');
+    assert.deepEqual(stage.points, [{ x: 6.93, y: 87.45 }, { x: 27.73, y: 87.45 }, { x: 27.73, y: 95.4 }, { x: 6.93, y: 95.4 }]);
+    assert.equal(result.sections[0].geometry.page, 2);
+    assert.deepEqual(result.sections[0].geometry.decorations, result.decorations);
+});
+
+test('a shared background is not mistaken for stage bounds and repeated OCR labels are deduplicated', () => {
+    const im = image(300, 200);
+    const region = { id: 1, minX: 0, minY: 0, maxX: 299, maxY: 199, area: 60000, fill: '#ffffff',
+        points: [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 200 }, { x: 0, y: 200 }] };
+    const stageWord = { ...word('STAGE', 20, 165, 80, 180), regionId: 1 };
+    const result = detection.detect(im, [word('A1', 100, 40, 110, 50), word('A2', 130, 40, 140, 50),
+        stageWord, { ...stageWord, confidence: 95 }], 1, { items: [region], ids: new Int32Array(60000) });
+    assert.equal(result.decorations.length, 1);
+    assert.equal(result.decorations[0].boundarySource, 'text-bounds');
+    assert.ok(result.decorations[0].points.every(point => point.y > 85 && point.x < 30));
+});
+
+test('an enclosed stage region retains its measured footprint rather than a preset size', () => {
+    const im = image(); rect(im, 120, 85, 55, 25, [170, 170, 170]);
+    const result = detection.detect(im, [word('A1', 20, 30, 30, 40), word('A2', 50, 30, 60, 40), word('STAGE', 130, 90, 165, 100)]);
+    const stage = result.decorations[0];
+    assert.equal(stage.boundarySource, 'color-region');
+    assert.equal(Math.min(...stage.points.map(p => p.x)), 62.4);
+    assert.equal(Math.max(...stage.points.map(p => p.x)), 91);
+    assert.equal(Math.min(...stage.points.map(p => p.y)), 75.08);
+    assert.equal(Math.max(...stage.points.map(p => p.y)), 97.17);
+});
+
 function service(venue) {
     const writes = [], seats = [];
     const crud = fs.readFileSync(path.join(root, 'assets/js/firestore-crud.js'), 'utf8');
