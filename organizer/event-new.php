@@ -68,15 +68,15 @@ ob_start();
             <span class="ts-drop-icon">
                 <?=ts_icon('upload')?>
             </span>
-            <strong id="poster-name">Upload event poster</strong>
-            <div class="small muted mt-8">PNG or JPG · recommended portrait artwork</div>
+            <strong id="poster-name">Upload event poster (portrait)</strong>
+            <div class="small muted mt-8">Shown on event listing cards · PNG or JPG · portrait artwork recommended</div>
         </label>
         
         <label class="ts-dropzone mt-20">
             <input type="file" id="banner-upload" accept="image/png,image/jpeg" style="display:none">
             <span class="ts-drop-icon"><?=ts_icon('upload')?></span>
-            <strong id="banner-name">Upload horizontal event photo</strong>
-            <div class="small muted mt-8">PNG or JPG · up to 5 MB · recommended 16:9 for the event details banner</div>
+            <strong id="banner-name">Upload event banner (horizontal photo)</strong>
+            <div class="small muted mt-8">Shown at the top of the event details page · PNG or JPG · up to 5 MB · 16:9 recommended</div>
         </label>
         <div class="flex justify-between mt-24">
             <button class="ts-btn ts-btn-secondary" id="btn-prev-3">Back</button>

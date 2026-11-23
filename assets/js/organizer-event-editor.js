@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const bannerInput = document.getElementById('banner-upload');
     const bannerName = document.getElementById('banner-name');
     bannerInput?.addEventListener('change', () => {
-        bannerName.textContent = bannerInput.files?.[0]?.name || 'Upload horizontal event photo';
+        bannerName.textContent = bannerInput.files?.[0]?.name || 'Upload event banner (horizontal photo)';
     });
     const organizerNameInput = document.getElementById('organizerName');
     
@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 posterName.textContent = posterInput.files[0].name;
                 validatePoster();
             } else {
-                posterName.textContent = 'Upload event poster';
+                posterName.textContent = 'Upload event poster (portrait)';
             }
         });
     }
@@ -222,8 +222,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('eventTime').value = existingEvent.time || '';
                 venueSelect.value = existingEvent.venueId || '';
                 venueSelect.dispatchEvent(new Event('change'));
-                if (existingEvent.posterUrl) posterName.textContent = 'Current poster saved';
-                if (existingEvent.bannerUrl) bannerName.textContent = 'Current horizontal photo saved';
+                if (existingEvent.posterUrl) posterName.textContent = 'Event poster (portrait) saved';
+                if (existingEvent.bannerUrl) bannerName.textContent = 'Event banner (horizontal photo) saved';
             }
             ready = true;
         } catch(e) {
