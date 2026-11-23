@@ -288,6 +288,25 @@
     }
     function hitTest(hits, x, y) { for (let i = hits.length - 1; i >= 0; i--) if (inside(x, y, hits[i].points)) return hits[i].id; return null; }
 
+    // Lightweight labels stay sharp above WebGL, without repainting every chair on the CPU.
+    function drawOverlay(ctx, scene, state, camera, width, height) {
+        ctx.clearRect(0,0,width,height);
+        const hits=[];
+        if (!state.viewSeatId) for (const seat of scene.seats) {
+            if (!seat.id || ![...(state.selected||[]),state.focusId,state.hoverId].includes(seat.id)) continue;
+            const p=Model.project([seat.x,1.7,seat.z],camera,width,height);
+            if(!p || p.x<0 || p.x>width || p.y<0 || p.y>height)continue;
+            const label=`${state.selected.includes(seat.id)?'\u2713 ':''}${seat.label}`;
+            ctx.font='600 12px system-ui';const w=ctx.measureText(label).width+20;
+            const x=Model.clamp(p.x-w/2,4,Math.max(4,width-w-4)),y=Math.max(4,p.y-26);
+            roundedRect(ctx,x,y,w,27,7);ctx.fillStyle=state.selected.includes(seat.id)?'#216db1':'#172a38';ctx.fill();ctx.strokeStyle='#d5e7fa';ctx.lineWidth=1;ctx.stroke();
+            ctx.fillStyle='#ffffff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label,x+w/2,y+13.5);
+            hits.push({id:seat.id,points:[{x,y},{x:x+w,y},{x:x+w,y:y+27},{x,y:y+27}]});
+        }
+        if(state.minimap)hits.push(miniMap(ctx,scene,state,camera,width,height));
+        return hits;
+    }
+
     function mount(container, options = {}) {
         const canvas = document.createElement('canvas');
         let ctx; try { ctx = canvas.getContext('2d'); } catch (_) { return null; }
@@ -298,6 +317,17 @@
         const tooltip = document.createElement('div'); tooltip.className = 'ts-seat-3d-tooltip'; tooltip.hidden = true; tooltip.setAttribute('aria-hidden', 'true');
         const hint = document.createElement('div'); hint.className = 'ts-seat-3d-hint'; hint.setAttribute('aria-hidden', 'true');
         container.replaceChildren(canvas, tooltip, hint);
+        let gpu = null;
+        function fallback() {
+            gpu?.dispose(); gpu=null;
+            container.classList.remove('ts-seat-webgl-active');
+            delete container.dataset.renderer;
+            schedule();
+        }
+        if (options.concertTheme && window.tsSeatWebGL) {
+            gpu=window.tsSeatWebGL.create({onContextLost:fallback});
+            if(gpu){container.insertBefore(gpu.canvas,canvas);container.classList.add('ts-seat-webgl-active');container.dataset.renderer='webgl';}
+        }
         let model, scene, page, frame = 0, disposed = false, hits = [], drag = null, width = 0, height = 0;
         const state = { selected: [], focusId: null, hoverId: null, viewSeatId: null, orbit: {}, look: {}, showPeople: false, peopleMotion: true, peopleTime: 0, stageTime:0, stageMotion:true, camera:null,
             whiteBackground: options.whiteBackground === true, concertTheme: options.concertTheme === true, minimap:options.concertTheme === true, artwork:null };
@@ -331,7 +361,7 @@
             const stageAnimate = state.concertTheme && state.stageMotion && !reducedMotion;
             const animate = peopleAnimate || stageAnimate || !!transition;
             // Twelve frames per second is enough for breathing and gentle head turns.
-            if (animate && !dirty && timestamp - lastPaint < 1000 / (transition ? 30 : 12)) { schedule(false); return; }
+            if (animate && !dirty && timestamp - lastPaint < 1000 / (gpu ? 60 : transition ? 30 : 12) - (gpu ? 1 : 0)) { schedule(false); return; }
             const rect = canvas.getBoundingClientRect(); width = rect.width; height = rect.height;
             if (width < 1 || height < 1) { lastTime = null; return; }
             const elapsed=lastTime===null?0:Math.max(0,Math.min(timestamp-lastTime,200))/1000;
@@ -347,7 +377,14 @@
             const ratio = Math.min(window.devicePixelRatio || 1, 2), w = Math.round(width * ratio), h = Math.round(height * ratio);
             if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
             ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-            hits = draw(ctx, scene, state, width, height, audienceIndices);
+            if(gpu) {
+                try {
+                    const camera=state.camera||targetCamera();
+                    gpu.draw(scene,state,camera,width,height,audienceIndices);
+                    hits=drawOverlay(ctx,scene,state,camera,width,height);
+                } catch(error) { console.warn('WebGL preview unavailable; using canvas preview.',error);fallback(); }
+            }
+            if(!gpu)hits = draw(ctx, scene, state, width, height, audienceIndices);
             if (animate) schedule(false);
         }
         function schedule(invalidate = true) { if (invalidate) dirty = true; if (!frame && !disposed) frame = window.requestAnimationFrame(paint); }
@@ -373,6 +410,11 @@
             schedule();
         }
         const locate = event => { const rect = canvas.getBoundingClientRect(); return { x: event.clientX - rect.left, y: event.clientY - rect.top }; };
+        const pick = p => {
+            // Mini-map and visible labels take precedence; scenery never acquires a seat ID.
+            for(let i=hits.length-1;i>=0;i--)if(inside(p.x,p.y,hits[i].points))return hits[i].id;
+            return gpu ? gpu.pick(p.x,p.y) : null;
+        };
         listen(canvas, 'pointerdown', event => {
             if (event.button !== 0 || drag) return;
             const interrupted = !!transition;
@@ -395,7 +437,7 @@
                 }
                 drag.last = p; return;
             }
-            const id = state.viewSeatId ? null : hitTest(hits, p.x, p.y), seat = scene?.seats.find(s => s.id === id && id);
+            const id = state.viewSeatId ? null : pick(p), seat = scene?.seats.find(s => s.id === id && id);
             if (state.hoverId !== id) { state.hoverId = id; schedule(); }
             tooltip.hidden = !seat;
             if (seat) { tooltip.textContent = `${seat.label} · ${seat.status === 'MINE' ? 'Held by you' : seat.status.toLowerCase()}`; tooltip.style.left = `${Model.clamp(p.x, 90, width - 90)}px`; tooltip.style.top = `${Math.max(12, p.y - 42)}px`; }
@@ -405,7 +447,7 @@
             if (!drag || drag.pointerId !== event.pointerId) return;
             const moved = drag.moved || drag.interrupted; drag = null;
             if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-            if (!cancel && !moved && !state.viewSeatId && !transition) { const p = locate(event), id = hitTest(hits, p.x, p.y); if (id) { focus(id); if (!busy) options.onSeatSelect?.(id); } }
+            if (!cancel && !moved && !state.viewSeatId && !transition) { const p = locate(event), id = pick(p); if (id) { focus(id); if (!busy) options.onSeatSelect?.(id); } }
         }
         listen(canvas, 'pointerup', event => end(event));
         listen(canvas, 'pointercancel', event => end(event, true));
@@ -463,7 +505,7 @@
             setPage(value) { if (!Model.pages(model).includes(Number(value))) return; page = Number(value); scene = Model.createScene(model, page, options); state.orbit = {}; state.focusId = null; options.onFocus?.(null); overview(); },
             focus, viewFrom, overview, zoom, resize: schedule,
             reset() { state.orbit = {}; state.focusId = null; options.onFocus?.(null); overview(); },
-            dispose() { disposed = true; artworkVersion++;if(pendingImage)pendingImage.onload=pendingImage.onerror=null;state.artwork=null; stopMotion(); resize?.disconnect(); visibility?.disconnect(); listeners.forEach(remove => remove()); container.replaceChildren(); }
+            dispose() { disposed = true; artworkVersion++;if(pendingImage)pendingImage.onload=pendingImage.onerror=null;state.artwork=null; stopMotion(); gpu?.dispose();container.classList?.remove('ts-seat-webgl-active');if(container.dataset)delete container.dataset.renderer; resize?.disconnect(); visibility?.disconnect(); listeners.forEach(remove => remove()); container.replaceChildren(); }
         };
     }
     return { mount, draw, hitTest };

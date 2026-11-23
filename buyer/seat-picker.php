@@ -107,7 +107,9 @@ ob_start();
 <script src="<?= ts_asset_url('assets/js/seat-view-3d.js', '..') ?>"></script>
 <script src="<?= ts_asset_url('assets/js/seat-comparison.js', '..') ?>"></script>
 <script src="<?= ts_asset_url('assets/js/seat-explorer.js', '..') ?>"></script>
-<script type="module" src="<?= ts_asset_url('assets/js/seat-picker.js', '..') ?>"></script>
+<script type="module" id="seat-picker-boot" src="<?= ts_asset_url('assets/js/seat-picker-boot.js', '..') ?>"
+    data-renderer="<?= ts_asset_url('assets/js/seat-webgl.js', '..') ?>"
+    data-picker="<?= ts_asset_url('assets/js/seat-picker.js', '..') ?>"></script>
 <?php
 $content = ob_get_clean();
 render_public_page('Choose Seats', 'events', $content, '..', true);
