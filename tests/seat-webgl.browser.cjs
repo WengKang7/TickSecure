@@ -59,6 +59,14 @@ const html=`<!doctype html><style>#viewer{width:960px;height:650px;position:rela
         assert.deepEqual(await page.evaluate(()=>selectedCalls),[],'Busy/reserved selection stays locked');
         await page.evaluate(()=>control.update(fixture,[],false));await page.keyboard.press('Enter');
         assert.equal((await page.evaluate(()=>selectedCalls)).length,1);
+        const centre=await page.evaluate(()=>{
+            const next=structuredClone(fixture);next.geometry.decorations[0].points=[{x:35,y:48},{x:69,y:48},{x:69,y:58},{x:35,y:58}];
+            control.update(next,[],false);
+            const scene=tsSeatViewModel.createScene(next,1,{concertTheme:true});
+            return {surrounded:scene.stage.surrounded,screens:scene.meshes.venueFaces.filter(f=>f.kind==='screen').length};
+        });
+        assert.equal(centre.surrounded,true);assert.equal(centre.screens,4);
+        await page.waitForTimeout(350);
         // Exercise a real lost GPU context; the CPU preview must remain interactive.
         await page.evaluate(()=>document.querySelector('.ts-seat-webgl-surface').getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
         await page.waitForFunction(()=>!document.querySelector('.ts-seat-webgl-surface'));

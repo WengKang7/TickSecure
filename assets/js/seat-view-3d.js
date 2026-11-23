@@ -133,8 +133,8 @@
             // Coplanar backdrop decorations share the panel's depth, preventing the
             // wide panel from painting over its own trim when the camera rotates.
             if (face.kind === 'backdrop' && Model.dot(face.normal,scene.stage.front) > .99) depth = panelDepth + .002;
-            if (face.kind === 'screen') depth = panelDepth + .001;
-            if (face.kind === 'trim') depth = panelDepth;
+            if (face.kind === 'screen' && !scene.stage.surrounded) depth = panelDepth + .001;
+            if (face.kind === 'trim' && !scene.stage.surrounded) depth = panelDepth;
             projected.push({ face, points, depth: face.kind === 'floor' || face.kind === 'floorBase' ? Infinity : depth });
         }
         // Draw a soft silhouette under the model; it never participates in picking.

@@ -126,7 +126,7 @@ function create({onContextLost} = {}) {
             kinds.get(face.kind).push(face);
         }
         for (const [kind, faces] of kinds) {
-            const material = kind === 'screen' ? new THREE.MeshBasicMaterial({map:ledTexture, side:THREE.DoubleSide, toneMapped:false}) :
+            const material = kind === 'screen' ? new THREE.MeshBasicMaterial({map:ledTexture, side:source.stage.surrounded?THREE.FrontSide:THREE.DoubleSide, toneMapped:false}) :
                 kind === 'light' ? new THREE.MeshBasicMaterial({color:'#bcfaff', toneMapped:false}) : standard(colours[kind] || '#62778b', kind === 'floor' ? .9 : .5, kind === 'truss' ? .8 : .16);
             const mesh = addMesh(geometryFromFaces(faces), material);
             mesh.receiveShadow = true; mesh.castShadow = !['floor','floorBase','screen','light'].includes(kind);
@@ -154,16 +154,21 @@ function create({onContextLost} = {}) {
             const centre=start.add(end).multiplyScalar(.5);geometry.translate(centre.x,centre.y,centre.z);
             lattice.push(...geometry.attributes.position.array);geometry.dispose();
         }
-        const w=stage.width*.96, z=stage.depth*.28;
+        const w=stage.width*.96, z=stage.surrounded?0:stage.depth*.28;
+        if(!stage.surrounded) {
         for (const x of [-w/2,w/2]) {
             for (const offset of [-.14,.14]) strut([x+offset,.8,z],[x+offset,top+.65,z]);
             for (let y=1; y<top+.3; y+=.45) strut([x-.14,y,z],[x+.14,Math.min(y+.45,top+.65),z]);
         }
         for (const y of [top+.3,top+.65]) strut([-w/2,y,z],[w/2,y,z]);
         for (let x=-w/2; x<w/2-.5; x+=.6) strut([x,top+.3,z],[Math.min(x+.6,w/2),top+.65,z]);
+        }
         const trussGeometry=new THREE.BufferGeometry();trussGeometry.setAttribute('position',new THREE.Float32BufferAttribute(lattice,3));trussGeometry.computeVertexNormals();addMesh(trussGeometry,metal,rig);
         for (let i=0;i<6;i++) {
-            const lamp = new THREE.Group(); lamp.position.set((i/5-.5)*w*.88,top+.15,z); rig.add(lamp);
+            const lamp = new THREE.Group();
+            if(stage.surrounded){const a=i/6*Math.PI*2,r=Math.min(stage.width*.25,stage.depth*.65);lamp.position.set(Math.sin(a)*r,stage.displayBottom-.2,Math.cos(a)*r);}
+            else lamp.position.set((i/5-.5)*w*.88,top+.15,z);
+            rig.add(lamp);
             const bulb=addMesh(new THREE.SphereGeometry(.1,8,6),new THREE.MeshBasicMaterial({color:i%2?'#b1e8ff':'#d9beff',toneMapped:false}),lamp);
             const length=Math.max(5,top*1.5);
             const beam=addMesh(new THREE.ConeGeometry(length*.17,length,24,1,true),new THREE.ShaderMaterial({

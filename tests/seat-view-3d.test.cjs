@@ -13,6 +13,18 @@ function fixture() {
         { id: 'must-not-be-selectable', seatLabel: 'Other-1', position: {x:90,y:35,width:4,height:4,page:1} }
     ] } };
 }
+test('centre stage uses four raised screens without a low backdrop, preserving physical seat IDs',()=>{
+    const data=fixture();data.geometry.pages[1].decorations[0].points=[{x:35,y:46},{x:65,y:46},{x:65,y:50},{x:35,y:50}];
+    const original=structuredClone(data),scene=Model.createScene(data,1,{concertTheme:true});
+    assert.equal(scene.stage.surrounded,true);
+    assert.equal(scene.meshes.venueFaces.some(f=>f.kind==='backdrop'),false);
+    const screens=scene.meshes.venueFaces.filter(f=>f.kind==='screen');assert.equal(screens.length,4);
+    assert.ok(screens.every(f=>f.points.every(p=>p[1]>=4)));
+    assert.ok(screens.every(f=>Model.dot(f.normal,[f.center[0]-scene.stage.x,0,f.center[2]-scene.stage.z])>0));
+    assert.ok(scene.meshes.venueFaces.some(f=>f.kind==='stage'));
+    assert.deepEqual(data,original);assert.deepEqual(scene.seats.filter(s=>s.id).map(s=>s.id),data.seats.map(s=>s.id));
+    const front=Model.createScene(fixture(),1,{concertTheme:true});assert.equal(front.stage.surrounded,false);assert.ok(front.meshes.venueFaces.some(f=>f.kind==='backdrop'));
+});
 
 test('3D category display names do not change physical matching or reservable IDs',()=>{
     const data=fixture();data.seats[0].displaySeatLabel='VIP-1';

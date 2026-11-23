@@ -45,6 +45,11 @@
         const stage = { x: stageX, z: stageZ, width: stageWidth, depth: stageDepth, height: .8, estimated: !stagePoints.length && !validPosition(picked) };
         stage.front = unit([middle[0] - stage.x, 0, middle[1] - stage.z]);
         stage.angle = Math.atan2(stage.front[0], stage.front[2]);
+        // Physical seats on opposite sides require an open stage, not a rear wall.
+        // Include context seats from other categories, including sold seats.
+        const axis=[Math.sin(stage.angle),Math.cos(stage.angle)];
+        const sides=seats.map(s=>(s.x-stage.x)*axis[0]+(s.z-stage.z)*axis[1]);
+        stage.surrounded=sides.some(d=>d>stage.depth/2+.4) && sides.some(d=>d< -stage.depth/2-.4);
         seats.forEach(s => { s.angle = Math.atan2(stage.x - s.x, stage.z - s.z); });
         const extentX = Math.abs(Math.cos(stage.angle)) * stage.width / 2 + Math.abs(Math.sin(stage.angle)) * stage.depth / 2;
         const extentZ = Math.abs(Math.sin(stage.angle)) * stage.width / 2 + Math.abs(Math.cos(stage.angle)) * stage.depth / 2;
@@ -176,6 +181,26 @@
             stage.visualHeight = lift([0,3.95,0])[1];
             stage.screenY = title[1];
         }
+        if(stage.surrounded) {
+            // Remove the backdrop, speakers and tall rear rig; retain the platform and steps.
+            for(let i=faces.length-1;i>=0;i--)if(faces[i].seatIndex<0 && !['floor','floorBase'].includes(faces[i].kind) && faces[i].points.some(p=>p[1]>.9))faces.splice(i,1);
+            screenBars.length=0;
+            const width=clamp(Math.min(stage.width*.55,stage.depth*1.5),3.6,10);
+            const bottom=clamp(stage.width*.22,4,7),height=width*.5;
+            for(let side=0;side<4;side++) {
+                const angle=stage.angle+side*Math.PI/2,c=Math.cos(angle),s=Math.sin(angle);
+                const p=(x,y,z)=>[stage.x+x*c+z*s,y,stage.z-x*s+z*c];
+                // Each screen faces outward, with readable artwork in all four directions.
+                face([p(-width/2,bottom,width/2),p(width/2,bottom,width/2),p(width/2,bottom+height,width/2),p(-width/2,bottom+height,width/2)],'screen');
+                for(const y of [bottom-.08,bottom+height+.08])box(stage.x,stage.z,angle,0,y,width/2,width+.2,.16,.16,'truss');
+                for(const x of [-width/2,width/2]) {
+                    box(stage.x,stage.z,angle,x,bottom+height/2,width/2,.1,height,.12,'truss');
+                    box(stage.x,stage.z,angle,x,bottom+height+.7,width/2,.025,1.2,.025,'truss');
+                }
+            }
+            stage.displayBottom=bottom;stage.visualHeight=bottom+height+1.4;stage.screenY=bottom+height/2;
+            title[0]=stage.x;title[1]=stage.screenY;title[2]=stage.z;
+        }
         return { faces, chairFaces, distantFaces, venueFaces: faces.filter(f => f.seatIndex < 0), labels, shadows, stagePlanks, screenBars, stageLabel: title };
     }
 
@@ -196,7 +221,7 @@
     function seatCamera(scene, id, look = {}) {
         const seat = scene.seats.find(s => s.id === id);
         if (!seat) return null;
-        const eye = [seat.x, 1.75, seat.z], toward = subtract([scene.stage.x, scene.stage.screenY || scene.stage.height + 1.4, scene.stage.z], eye);
+        const eye = [seat.x, 1.75, seat.z], toward = subtract([scene.stage.x, scene.stage.surrounded ? 2.7 : scene.stage.screenY || scene.stage.height + 1.4, scene.stage.z], eye);
         const yaw = Math.atan2(toward[0], toward[2]) + clamp(look.yaw || 0, -1.3, 1.3);
         const pitch = Math.atan2(toward[1], Math.hypot(toward[0], toward[2])) + clamp(look.pitch || 0, -.6, .6);
         return camera(eye, [eye[0] + Math.sin(yaw) * Math.cos(pitch), eye[1] + Math.sin(pitch), eye[2] + Math.cos(yaw) * Math.cos(pitch)], clamp(look.fov || 1.15, .65, 1.5));
