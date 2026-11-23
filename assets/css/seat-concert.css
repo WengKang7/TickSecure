@@ -139,3 +139,14 @@ body .ts-seat-page .ts-picker-seat-option { background:#fff; border-color:#ccc6d
 body .ts-seat-page .ts-picker-seat-option[aria-pressed=true] { background:#7450a0; border-color:#7450a0; color:#fff; }
 body .ts-seat-page .ts-picker-seat-option:disabled { background:#eff0f3; border-color:#dddfe5; color:#7a8190; }
 body .ts-seat-page .ts-seat-explorer:fullscreen .ts-buyer-view-toolbar { background:#fff; }
+
+/* Preserve the site's original black-and-white buttons in the seat workspace. */
+body .ts-seat-page :is(.ts-btn,#picker-reserve,#picker-continue,#picker-view-seat,#picker-refresh,#picker-overview,#picker-back,#picker-auto,#picker-release,#picker-people-motion,#picker-stage-motion,#picker-stage-motion[aria-pressed=false]) {
+  background:#000!important; border-color:#000!important; color:#fff!important; box-shadow:none;
+}
+body .ts-seat-page :is(.ts-btn,#picker-reserve,#picker-continue,#picker-view-seat,#picker-refresh,#picker-overview,#picker-back,#picker-auto,#picker-release,#picker-people-motion,#picker-stage-motion,#picker-stage-motion[aria-pressed=false]):hover:not(:disabled) {
+  background:#111!important; border-color:#111!important; color:#fff!important; filter:none;
+}
+body .ts-seat-page .ts-buyer-view-switch button { background:#fff; color:#111; }
+body .ts-seat-page .ts-buyer-view-switch button[aria-pressed=true] { background:#111; color:#fff; box-shadow:none; }
+body .ts-seat-page .ts-selected-seat-chip { background:#111; border-color:#111; }
