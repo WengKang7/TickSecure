@@ -5,6 +5,7 @@
     let revision = 0;
     let model, hold, busy = false, uid, version = 0, viewport = [0,0,104,106], interval, loading = false;
     let view3D = null, viewMode = '3d', focusedSeatId = null, viewInfo = {}, failed3D = false;
+    const comparison = window.tsSeatComparison?.mount(el('picker-comparison'), {onPreview:id=>showSeatView(id)});
     const error = message => { el('picker-error').hidden = !message; el('picker-error').textContent = message || ''; };
     const sameSelection = () => hold && hold.seats.length === selected.size && hold.seats.every(seat => selected.has(seat.id)) && Date.parse(hold.reservationExpiry) > Date.now();
     // Keep the exact reservation selection fixed until the hold is released or expires.
@@ -119,12 +120,16 @@
         motion.setAttribute('aria-pressed', String(!!viewInfo.showPeople && !!viewInfo.peopleMotion));
         motion.textContent = viewInfo.reducedMotion ? 'Reduced motion' : viewInfo.peopleMotion === false ? 'Play animation' : 'Pause animation';
         motion.title = viewInfo.reducedMotion ? 'Animation is paused to match your reduced-motion preference.' : '';
+        const stageMotion = el('picker-stage-motion');
+        stageMotion.disabled = !active || !!viewInfo.reducedMotion;
+        stageMotion.setAttribute('aria-pressed', String(!viewInfo.reducedMotion && viewInfo.stageMotion !== false));
+        stageMotion.textContent = viewInfo.reducedMotion ? 'Stage effects: reduced motion' : viewInfo.stageMotion === false ? 'Play stage effects' : 'Pause stage effects';
         el('picker-context-legend').hidden = !model?.geometry?.layoutSeats?.length;
         el('picker-3d-fallback').hidden = !failed3D;
         el('picker-overview').hidden = !viewInfo.viewSeatId;
         const seat = mapSeats().get(viewInfo.viewSeatId);
         el('picker-view-status').textContent = seat ? `View from ${seatName(seat)}` : 'Venue overview';
-        el('picker-3d-note').textContent = `${seat ? 'Drag to look around.' : 'Drag to rotate.'} Illustrative view: actual attendees, floor slopes and obstructions are not modelled.${viewInfo.estimatedStage ? ' Stage position is estimated.' : ''}`;
+        el('picker-3d-note').textContent = `${seat ? 'Drag to look around.' : 'Drag to rotate.'} Illustrative concert environment: seats follow the uploaded plan; surrounding tiers are decorative. Actual slopes and obstructions are not modelled.${viewInfo.estimatedStage ? ' Stage position is estimated.' : ''}`;
         const pages = el('picker-plan-page'); pages.replaceChildren();
         (viewInfo.pages || []).forEach(page => { const option = create('option', '', `Plan page ${page}`); option.value = String(page); pages.appendChild(option); });
         pages.value = String(viewInfo.page || 1); pages.hidden = (viewInfo.pages || []).length < 2;
@@ -135,7 +140,7 @@
         if (!seat?.position || failed3D || !window.tsSeatView3D) return;
         focusedSeatId = id; viewMode = '3d'; render(); view3D?.viewFrom(id); renderPreview();
     }
-    function clear3D() { view3D?.dispose(); view3D = null; focusedSeatId = null; viewInfo = {}; el('buyer-seat-3d').hidden = true; syncViewControls(); }
+    function clear3D() { view3D?.dispose(); comparison?.update(null); view3D = null; focusedSeatId = null; viewInfo = {}; el('buyer-seat-3d').hidden = true; syncViewControls(); }
     function renderSummary() {
         protectBrowserBack();
         renderWaitlist();
@@ -219,6 +224,7 @@
             threeBoard.hidden = false;
             if (!view3D) {
                 try { view3D = window.tsSeatView3D.mount(threeBoard, {
+                    concertTheme: true,
                     onSeatSelect: toggle, onFocus: id => { focusedSeatId = id; renderPreview(); },
                     onViewChange: info => { viewInfo = info; syncViewControls(); }
                 }); } catch (_) { view3D = null; }
@@ -246,6 +252,7 @@
             button.addEventListener('click', () => toggle(seat.id)); list.appendChild(button);
         });
         renderSummary();
+        comparison?.update(model);
     }
     async function load(initial = false) {
         if (loading || busy || !uid) return;
@@ -297,6 +304,7 @@
     el('picker-mode-3d').addEventListener('click', () => { viewMode = '3d'; render(); });
     el('picker-people').addEventListener('change', () => view3D?.setPeople(el('picker-people').checked));
     el('picker-people-motion').addEventListener('click', () => view3D?.setPeopleMotion(!viewInfo.peopleMotion));
+    el('picker-stage-motion').addEventListener('click', () => view3D?.setStageMotion(viewInfo.stageMotion === false));
     el('picker-mode-2d').addEventListener('click', () => { viewMode = '2d'; render(); });
     el('picker-view-seat').addEventListener('click', () => showSeatView(focusedSeatId));
     el('picker-overview').addEventListener('click', () => view3D?.overview());

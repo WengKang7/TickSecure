@@ -773,6 +773,7 @@ exports.getSeatMap = onCall({ region, enforceAppCheck: false }, async request =>
     const seats = inventory.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(seat => seat.venueId === event.venueId && seat.sectionId === sectionId)
         .map(seat => visibleSeat(seat, uid, markers.get(seat.seatLabel)));
     return { eventId, venueId: event.venueId, eventName: event.name || '', venueName: venue.name || event.venueName || '', sectionId,
+        bannerUrl: event.bannerUrl || '', posterUrl: event.posterUrl || '',
         categoryName: category.name, unitPrice: category.price, maxPerBuyer: configuredMaxTickets(event), seats,
         geometry: { layoutSeats: layoutContext(physicalSections), pages, imageWidth: g.imageWidth || 104, imageHeight: g.imageHeight || 106, page: g.page || 1, decorations: g.decorations || [] } };
 });

@@ -907,6 +907,7 @@ function backend_get_seat_map(FirebaseAdminRest $firebase, string $uid, array $d
         $seats[]=$visible;
     }
     return ['eventId' => $eventId, 'venueId' => $event['venueId'], 'eventName' => $event['name'] ?? '', 'venueName' => $venue['name'] ?? $event['venueName'] ?? '',
+        'bannerUrl' => (string)($event['bannerUrl'] ?? ''), 'posterUrl' => (string)($event['posterUrl'] ?? ''),
         'sectionId' => $sectionId, 'categoryName' => $category['name'], 'unitPrice' => (float)$category['price'], 'maxPerBuyer' => min(20, backend_max_tickets_per_buyer($event)), 'seats' => $seats,
         'geometry' => ['layoutSeats' => picker_layout_context($venue['sections'] ?? []), 'pages' => (object)$pages, 'imageWidth' => $g['imageWidth'] ?? 104, 'imageHeight' => $g['imageHeight'] ?? 106, 'page' => $g['page'] ?? 1, 'decorations' => $g['decorations'] ?? []]];
 }

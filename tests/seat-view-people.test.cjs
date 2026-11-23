@@ -16,7 +16,7 @@ function context() {
     return {coordinates,clearRect(){},fillRect(){},beginPath(){},closePath(){},fill(){},stroke(){},save(){},restore(){},clip(){},setTransform(){},
         createLinearGradient(...values){assert.ok(values.every(Number.isFinite));return {addColorStop(){}};},
         moveTo(...v){assert.ok(v.every(Number.isFinite));coordinates.push(...v);},lineTo(...v){assert.ok(v.every(Number.isFinite));},
-        quadraticCurveTo(...v){assert.ok(v.every(Number.isFinite));},fillText(){},measureText:text=>({width:text.length*6})};
+        quadraticCurveTo(...v){assert.ok(v.every(Number.isFinite));},transform(...v){assert.ok(v.every(Number.isFinite));},drawImage(){},fillText(){},measureText:text=>({width:text.length*6})};
 }
 
 test('audience is optional, excludes selected/viewing seats, and never changes inventory or contextual IDs',()=>{
@@ -81,7 +81,7 @@ test('people preserve exact picking and clip correctly in overview, sideways and
     for(const yaw of [-1.3,0,1.3]) assert.deepEqual(View.draw(context(),scene,{showPeople:true,viewSeatId:'s7',look:{yaw},peopleTime:2},380,400),[]);
 });
 
-function mounted(reduced=false) {
+function mounted(reduced=false,concert=false,artwork={}) {
     const ctx=context(),frames=new Map(),infos=[],times=[];let next=0,observer;
     class Element {
         constructor(){this.listeners={};this.style={};this.children=[];this.hidden=false;}
@@ -90,14 +90,15 @@ function mounted(reduced=false) {
         getBoundingClientRect(){return {left:0,top:0,width:900,height:600};} fire(k,event={}){this.listeners[k]?.(event);}
     }
     const window=new Element(),document=new Element(),preference=new Element(),container=new Element();
+    const images=[];window.Image=class{constructor(){this.naturalWidth=800;this.naturalHeight=400;images.push(this);}};
     preference.matches=reduced; window.matchMedia=()=>preference;document.createElement=()=>new Element();
     window.tsSeatViewModel=Model;window.tsSeatViewPeople={...People,buildFaces(...args){times.push(args[2]);return People.buildFaces(...args);}};
     window.requestAnimationFrame=fn=>{frames.set(++next,fn);return next;};window.cancelAnimationFrame=id=>frames.delete(id);
-    const scope=vm.createContext({window,document,IntersectionObserver:class {constructor(fn){observer=fn;}observe(){}disconnect(){observer=null;}}});
+    const scope=vm.createContext({window,document,URL,IntersectionObserver:class {constructor(fn){observer=fn;}observe(){}disconnect(){observer=null;}}});
     vm.runInContext(fs.readFileSync('assets/js/seat-view-3d.js','utf8'),scope);
-    const view=window.tsSeatView3D.mount(container,{onViewChange:info=>infos.push(info)});
-    view.update(fixture());
-    return {view,window,document,preference,container,frames,infos,times,
+    const view=window.tsSeatView3D.mount(container,{concertTheme:concert,onViewChange:info=>infos.push(info)});
+    view.update({...fixture(),...artwork});
+    return {view,window,document,preference,container,frames,infos,times,images,
         intersect(value){observer([{isIntersecting:value}]);},
         step(time){for(const [id,fn] of [...frames]){frames.delete(id);fn(time);}}};
 }
@@ -128,4 +129,43 @@ test('reduced motion, hidden tabs, off-screen and 2D views suspend the loop and 
     p.container.hidden=false;p.view.setVisible(true);p.step(10200);assert.equal(p.frames.size,1);
     p.preference.fire('change',{matches:true});p.step(10300);assert.equal(p.frames.size,0);
     assert.equal(p.infos.at(-1).peopleMotion,false);p.view.dispose();
+});
+
+test('concert effects pause independently and stop off-screen, hidden, or with reduced motion',()=>{
+    const p=mounted(false,true);p.step(0);assert.equal(p.frames.size,1);
+    p.view.setStageMotion(false);p.step(100);assert.equal(p.frames.size,0);
+    assert.equal(p.infos.at(-1).stageMotion,false);
+    p.view.setStageMotion(true);p.step(200);assert.equal(p.frames.size,1);
+    p.intersect(false);assert.equal(p.frames.size,0);
+    p.intersect(true);p.step(10000);assert.equal(p.frames.size,1);
+    p.document.hidden=true;p.document.fire('visibilitychange');assert.equal(p.frames.size,0);
+    p.document.hidden=false;p.document.fire('visibilitychange');p.step(11000);
+    p.preference.fire('change',{matches:true});p.step(12000);assert.equal(p.frames.size,0);
+    assert.equal(p.infos.at(-1).stageMotion,false);p.view.dispose();
+});
+
+test('concert camera glide finishes and reduced motion skips it',()=>{
+    const p=mounted(false,true);p.view.setStageMotion(false);p.step(0);
+    p.view.viewFrom('s7');p.view.setPeople(false);p.step(100);assert.equal(p.frames.size,1);
+    p.step(450);assert.equal(p.frames.size,1);
+    p.step(850);p.step(950);assert.equal(p.frames.size,0);
+    assert.equal(p.infos.at(-1).viewSeatId,'s7');
+    p.view.overview();p.step(1000);assert.equal(p.frames.size,1);
+    p.step(1800);p.step(1900);assert.equal(p.frames.size,0);p.view.dispose();
+    const r=mounted(true,true);r.step(0);r.view.viewFrom('s7');r.step(100);
+    assert.equal(r.frames.size,0);assert.equal(r.infos.at(-1).viewSeatId,'s7');r.view.dispose();
+});
+
+test('stage artwork falls back to poster, rejects untrusted URLs, and clears callbacks on account changes and disposal',()=>{
+    const p=mounted(true,true,{bannerUrl:'https://res.cloudinary.com/demo/banner.jpg',posterUrl:'https://res.cloudinary.com/demo/poster.jpg'});
+    assert.equal(p.images.length,1);assert.equal(p.images[0].crossOrigin,'anonymous');
+    p.images[0].onerror();assert.equal(p.images.length,2);assert.ok(p.images[1].src.endsWith('poster.jpg'));
+    p.images[1].onload();p.step(0);
+    p.view.update({...fixture(),bannerUrl:'https://res.cloudinary.com/demo/new.jpg'});
+    const pending=p.images.at(-1),late=pending.onload;
+    p.view.update({...fixture(),bannerUrl:'https://attacker.example/image.jpg'});
+    assert.equal(pending.onload,null);late();p.step(100);
+    assert.equal(p.images.length,3);
+    p.view.update({...fixture(),bannerUrl:'https://res.cloudinary.com/demo/last.jpg'});
+    const last=p.images.at(-1);p.view.dispose();assert.equal(last.onload,null);assert.equal(last.onerror,null);assert.equal(p.frames.size,0);
 });

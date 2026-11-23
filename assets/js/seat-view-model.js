@@ -15,7 +15,7 @@
     const pageOf = p => Number.isInteger(p?.page) && p.page > 0 ? p.page : 1;
     const pages = model => [...new Set((model.seats || []).filter(s => validPosition(s.position)).map(s => pageOf(s.position)))].sort((a, b) => a - b);
 
-    function createScene(model, page = pages(model)[0]) {
+    function createScene(model, page = pages(model)[0], presentation = {}) {
         const geometry = model.geometry || {}, pageGeometry = geometry.pages?.[page] || (page === (geometry.page || 1) ? geometry : {});
         const imageWidth = Number(pageGeometry.imageWidth) || 104, imageHeight = Number(pageGeometry.imageHeight) || 106;
         const offered = (model.seats || []).filter(s => validPosition(s.position) && pageOf(s.position) === page);
@@ -51,11 +51,15 @@
         const bounds = { minX: Math.min(minX - 2, stage.x - extentX - 2), maxX: Math.max(maxX + 2, stage.x + extentX + 2), minZ: Math.min(minZ - 2, stage.z - extentZ - 2), maxZ: Math.max(maxZ + 2, stage.z + extentZ + 2) };
         const center = [(bounds.minX + bounds.maxX) / 2, 0, (bounds.minZ + bounds.maxZ) / 2];
         const radius = Math.hypot(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ) / 2 + 2;
-        return { page, seats, stage, depth, bounds, center, radius, meshes: buildMeshes(seats, stage, depth, bounds) };
+        const meshes = buildMeshes(seats, stage, depth, bounds, presentation.concertTheme === true);
+        const eventTitle = String(model.eventName || 'LIVE').replace(/[\u0000-\u001f]/g, ' ').slice(0,160);
+        const seed = Array.from(eventTitle).reduce((sum,c)=>sum+c.codePointAt(0),0);
+        const branding = { title:eventTitle, accent:['#ab8aff','#6cd9d5','#f3ad6b'][seed%3] };
+        return { page, seats, stage, depth, bounds, center, radius, meshes, branding };
     }
 
     // Presentation geometry only; saved seat centres and inventory IDs stay untouched.
-    function buildMeshes(seats, stage, depth, bounds) {
+    function buildMeshes(seats, stage, depth, bounds, concert = false) {
         const faces = [], labels = [], shadows = [], chairFaces = [], distantFaces = [];
         function transform(x, y, z, cx, cz, angle) {
             const c = Math.cos(angle), s = Math.sin(angle);
@@ -132,7 +136,15 @@
             box(stage.x,stage.z,stage.angle,x,3.7,screenZ+.24,.18,.16,.2,'speaker');
             box(stage.x,stage.z,stage.angle,x,3.67,screenZ+.35,.12,.075,.015,'light');
         }
-        face([stagePoint(-stage.width*.41,1.25,screenZ),stagePoint(stage.width*.41,1.25,screenZ),stagePoint(stage.width*.41,3.48,screenZ),stagePoint(-stage.width*.41,3.48,screenZ)], 'screen');
+        const panels = concert ? [[-.25,.25],[-.43,-.31],[.31,.43]] : [[-.41,.41]];
+        for (const [left,right] of panels) face([stagePoint(stage.width*left,1.25,screenZ),stagePoint(stage.width*right,1.25,screenZ),stagePoint(stage.width*right,3.48,screenZ),stagePoint(stage.width*left,3.48,screenZ)], 'screen');
+        if (concert) {
+            for (const side of [-1,1]) for (let i=0;i<4;i++) {
+                box(stage.x,stage.z,stage.angle,side*stage.width*(.275+i*.005),2.35,screenZ+.04,stage.width*.003,2.55,.03,'light');
+            }
+            // Front LED fascia and three steps stay inside the stage footprint.
+            for (let i=0;i<3;i++) box(stage.x,stage.z,stage.angle,0,.12+i*.15,stage.depth*(.46-i*.045),stage.width*.22,.12,stage.depth*.09,'trim');
+        }
         // Decorative panel strips sit on the existing backdrop, never in the aisles.
         for (const side of [-1,1]) for (let i = 0; i < 3; i++) box(stage.x,stage.z,stage.angle,side * stage.width * (.435 + i * .022),2.35,screenZ+.02,stage.width*.008,2.7,.025,'trim');
         const title = stagePoint(0, 2.4, screenZ + .015);
@@ -151,6 +163,19 @@
             const x = -stage.width/2 + (i+1)*stage.width/(Math.min(24,Math.ceil(stage.width/.7))+1);
             return [stagePoint(x,stage.height+.051,-stage.depth/2),stagePoint(x,stage.height+.051,stage.depth/2)];
         });
+        if (concert) {
+            const stretch = clamp(stage.width / 13, 1.25, 3.2);
+            const lift = point => [point[0], point[1] <= .85 ? point[1] : .85 + (point[1] - .85) * stretch, point[2]];
+            for (const f of faces) if (f.seatIndex < 0 && !['floor','floorBase'].includes(f.kind)) {
+                f.points = f.points.map(lift);
+                f.center = f.points[0].map((_, i) => f.points.reduce((sum,p) => sum+p[i],0)/f.points.length);
+                f.normal = unit(cross(subtract(f.points[1],f.points[0]),subtract(f.points[2],f.points[0])));
+            }
+            for (let i=0;i<screenBars.length;i++) screenBars[i]=screenBars[i].map(lift);
+            title[1]=lift(title)[1];
+            stage.visualHeight = lift([0,3.95,0])[1];
+            stage.screenY = title[1];
+        }
         return { faces, chairFaces, distantFaces, venueFaces: faces.filter(f => f.seatIndex < 0), labels, shadows, stagePlanks, screenBars, stageLabel: title };
     }
 
@@ -159,7 +184,7 @@
         const fov = .75;
         const atDistance = distance => camera([scene.center[0] + Math.sin(yaw) * Math.cos(elevation) * distance, Math.sin(elevation) * distance, scene.center[2] + Math.cos(yaw) * Math.cos(elevation) * distance], scene.center, fov);
         // Fit the projected venue, not its bounding sphere, so wide plans fill the panel.
-        const corners = [scene.bounds.minX, scene.bounds.maxX].flatMap(x => [scene.bounds.minZ, scene.bounds.maxZ].flatMap(z => [0, 3.9].map(y => [x,y,z])));
+        const corners = [scene.bounds.minX, scene.bounds.maxX].flatMap(x => [scene.bounds.minZ, scene.bounds.maxZ].flatMap(z => [0, scene.stage.visualHeight || 3.9].map(y => [x,y,z])));
         let low = scene.radius * .5, high = scene.radius * 16 / Math.min(1, aspect);
         for (let i = 0; i < 20; i++) {
             const distance = (low + high) / 2, candidate = atDistance(distance);
@@ -171,7 +196,7 @@
     function seatCamera(scene, id, look = {}) {
         const seat = scene.seats.find(s => s.id === id);
         if (!seat) return null;
-        const eye = [seat.x, 1.75, seat.z], toward = subtract([scene.stage.x, scene.stage.height + 1.4, scene.stage.z], eye);
+        const eye = [seat.x, 1.75, seat.z], toward = subtract([scene.stage.x, scene.stage.screenY || scene.stage.height + 1.4, scene.stage.z], eye);
         const yaw = Math.atan2(toward[0], toward[2]) + clamp(look.yaw || 0, -1.3, 1.3);
         const pitch = Math.atan2(toward[1], Math.hypot(toward[0], toward[2])) + clamp(look.pitch || 0, -.6, .6);
         return camera(eye, [eye[0] + Math.sin(yaw) * Math.cos(pitch), eye[1] + Math.sin(pitch), eye[2] + Math.cos(yaw) * Math.cos(pitch)], clamp(look.fov || 1.15, .65, 1.5));
@@ -199,5 +224,13 @@
         });
         return result;
     }
-    return { createScene, pages, validPosition, overviewCamera, seatCamera, project, cameraPoint, screenPoint, clipNear, dot, subtract, clamp };
+    function blendCamera(from, to, fraction) {
+        const t=clamp(fraction,0,1);
+        if(t===0)return from;if(t===1)return to;
+        const eye=from.eye.map((v,i)=>v+(to.eye[i]-v)*t);
+        const forward=from.forward.map((v,i)=>v+(to.forward[i]-v)*t);
+        const direction=Math.hypot(...forward)>.001?unit(forward):to.forward;
+        return camera(eye,eye.map((v,i)=>v+direction[i]),from.fov+(to.fov-from.fov)*t);
+    }
+    return { createScene, pages, validPosition, overviewCamera, seatCamera, blendCamera, project, cameraPoint, screenPoint, clipNear, dot, subtract, clamp };
 });

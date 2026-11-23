@@ -1,0 +1,141 @@
+/* Local concert presentation. Existing booking handlers and physical seat IDs remain authoritative. */
+body .ts-seat-page { background:#090a13; color:#f4f1fa; }
+body .ts-seat-page :is(h1,h2,h3,strong) { color:#f4f1fa; }
+body .ts-seat-page :is(.muted,.secondary,.small.muted,#picker-event,#picker-instructions) { color:#aaa7bc; }
+body .ts-seat-page .ts-section-eyebrow { color:#c7a1ff; }
+body .ts-seat-page .ts-steps { color:#a4a4b8; }
+body .ts-seat-page .ts-step.active { color:#d7baff; }
+body .ts-seat-page .ts-step-line { background:#343047; }
+body .ts-seat-page .ts-seat-explorer { background:#0b0c18; border-color:#2c2b3e; border-radius:14px; box-shadow:none; }
+body .ts-seat-page .ts-buyer-view-toolbar { background:#11121d; border-color:#2c2b3e; padding:12px; }
+body .ts-seat-page .ts-buyer-view-switch { background:#1b1b2c; }
+body .ts-seat-page .ts-buyer-view-switch button { color:#b9b5cb; }
+body .ts-seat-page .ts-buyer-view-switch button[aria-pressed="true"] { background:#43305e; color:#eee4ff; }
+body .ts-seat-page :is(.ts-seat-tool-buttons .ts-btn,#picker-overview) { background:#191923; border-color:#353248; color:#e0dcea; }
+body .ts-seat-page .ts-seat-tool-buttons .ts-btn:hover { background:#30253e; border-color:#a779fa; }
+body .ts-seat-page .ts-seat-legend { color:#b2aec3; }
+body .ts-seat-page .ts-seat-legend span::before { background:#3d8973; border-color:#68b19b; }
+body .ts-seat-page .ts-seat-legend .selected::before { background:#3693e2; border-color:#3693e2; }
+body .ts-seat-page .ts-seat-legend .unavailable::before { background:#95a2a9; border-color:#95a2a9; }
+body .ts-seat-page .ts-seat-legend .context::before { background:#c4ccc9; border-color:#c4ccc9; }
+body .ts-seat-page .ts-buyer-view-heading { padding:8px 14px; border-top:1px solid #29283a; background:#11121d; }
+body .ts-seat-page #picker-view-status { color:#e1c494; font:500 12px/1.5 ui-monospace,monospace; letter-spacing:.5px; }
+body .ts-seat-page #buyer-seat-3d { background:#090a17; height:clamp(430px,69vh,780px); }
+body .ts-seat-page .ts-seat-3d-hint { background:#11121cdd; border-color:#353146; color:#c3bed4; }
+body .ts-seat-page .ts-seat-view-preview { background:#201a30; border-color:#463456; }
+body .ts-seat-page #picker-view-seat { background:#a779fa; color:#130b22; border-color:#a779fa; }
+body .ts-seat-page .ts-seat-atmosphere { background:#11121d; border-color:#29283a; }
+body .ts-seat-page .ts-seat-atmosphere summary { color:#c4bdd7; }
+body .ts-seat-page .ts-seat-people-controls { background:transparent; }
+body .ts-seat-page .ts-seat-people-toggle { color:#eee4ff; }
+body .ts-seat-page .ts-seat-people-toggle small { color:#aaa7bc; }
+body .ts-seat-page .ts-seat-navigation-hint { background:#11121d; color:#aaa7bc; }
+body .ts-seat-page .ts-seat-order-panel { background:#11121d; border-color:#2c2b3e; border-radius:14px; }
+body .ts-seat-page :is(.ts-seat-order-head,.ts-seat-order-panel .ts-simple-details) { border-color:#2c2b3e; }
+body .ts-seat-page :is(#picker-category,#picker-category small,.ts-seat-order-fee,.ts-generation-total) { color:#f4f1fa; }
+body .ts-seat-page .ts-picker-category-name { color:#c7a1ff; }
+body .ts-seat-page #picker-total { color:#f4f1fa; }
+body .ts-seat-page .ts-generation-total { background:transparent; border-color:#353146; }
+body .ts-seat-page .ts-seat-order-selection { background:#201a30; border-color:#65458c; }
+body .ts-seat-page .ts-seat-order-selection #picker-count { color:#b4acc5; }
+body .ts-seat-page #picker-refresh { background:#292137; color:#d4bcff; }
+body .ts-seat-page :is(#picker-reserve,#picker-continue) { background:#a779fa; border-color:#a779fa; color:#130b22; }
+body .ts-seat-page .ts-simple-details { background:#11121d; border-color:#353146; color:#d6cfe4; }
+body .ts-seat-page :is(.ts-input,.ts-select) { background:#191a28; border-color:#454057; color:#f4f1fa; }
+body .ts-seat-page :is(#picker-back,#picker-auto,#picker-release,#picker-people-motion) { background:#191923; border-color:#353248; color:#e0dcea; }
+body .ts-seat-page .ts-picker-seat-option { background:#19251f; border-color:#48755d; color:#e0e9e5; }
+body .ts-seat-page .ts-picker-seat-option[aria-pressed=true] { background:#43305e; border-color:#c7a1ff; color:#fff; }
+body .ts-seat-page .ts-picker-seat-option:disabled { background:#343640; color:#b6b6c1; border-color:#484955; }
+body .ts-seat-page #buyer-seat-map { background:#fff; }
+body .ts-seat-page .ts-seat-explorer:fullscreen .ts-buyer-view-toolbar { background:#11121d; }
+/* The shared role stylesheet forces black buttons; scope the concert palette here. */
+body .ts-seat-page :is(.ts-seat-tool-buttons .ts-btn,#picker-overview,#picker-back,#picker-auto,#picker-release,#picker-people-motion) {
+  background:#191923!important; border-color:#454057!important; color:#e0dcea!important;
+}
+body .ts-seat-page :is(#picker-reserve,#picker-continue,#picker-view-seat) {
+  background:#a779fa!important; border-color:#a779fa!important; color:#130b22!important;
+}
+body .ts-seat-page #picker-refresh { background:#292137!important; color:#d4bcff!important; border-color:#514265!important; }
+body .ts-seat-page .ts-buyer-view-switch button { background:transparent; }
+body .ts-seat-page .ts-buyer-view-switch button[aria-pressed=true] { background:#43305e; }
+body .ts-seat-page .ts-simple-details summary { color:#c4bdd7; }
+body .ts-seat-page .ts-generation-total > span { color:#bdb5cd; }
+body .ts-seat-page :is(.ts-seat-availability-action,.ts-seat-order-category > span) { color:#aaa7bc; }
+@media(min-width:901px) {
+  body .ts-seat-page .ts-seat-picker-layout { gap:18px; grid-template-columns:minmax(0,1fr) 310px; }
+  body .ts-seat-page .ts-seat-order-panel { padding:22px; }
+}
+@media(max-width:620px) {
+  body .ts-seat-page #buyer-seat-3d { height:460px; }
+  body .ts-seat-page .ts-buyer-view-heading { flex-wrap:wrap; }
+}
+
+/* Concert workspace refinement, scoped to this page. */
+body .ts-seat-page { background:radial-gradient(ellipse at 15% 0,#25193270,transparent 55%),#090a13; }
+body .ts-seat-page .ts-seat-plan-heading h1.ts-section-title { font-size:clamp(28px,3.4vw,46px); letter-spacing:-.055em; }
+body .ts-seat-page .ts-section-eyebrow { display:inline-block; padding-left:12px; border-left:3px solid #b997ef; letter-spacing:2px; font-size:10px; }
+body .ts-seat-page #picker-instructions { max-width:580px; margin:10px 0 22px; }
+body .ts-seat-page .ts-seat-explorer { border-radius:20px; border-color:#41334e; box-shadow:0 20px 60px #0003,0 0 0 1px #b580ed08; }
+body .ts-seat-page .ts-buyer-view-toolbar { padding:14px; background:linear-gradient(120deg,#1d1829,#12131e); }
+body .ts-seat-page .ts-buyer-view-switch { background:#0b0c16; border:1px solid #3d324c; padding:4px; }
+body .ts-seat-page .ts-buyer-view-switch button[aria-pressed=true] { background:#513471; box-shadow:0 2px 12px #a779fa20; }
+body .ts-seat-page .ts-buyer-view-heading { background:#0e0f1b; padding:10px 16px; min-height:48px; }
+body .ts-seat-page #picker-view-status { display:inline-flex; align-items:center; gap:8px; color:#d8c4f4; }
+body .ts-seat-page #picker-view-status::before { content:''; width:6px; height:6px; border-radius:50%; background:#b7f0c2; box-shadow:0 0 10px #87e7b470; }
+body .ts-seat-page .ts-seat-legend { padding:14px 18px; font-size:11px; }
+body .ts-seat-page .ts-seat-legend span::before { border-radius:50%; width:9px; height:9px; }
+body .ts-seat-page .ts-seat-view-preview { background:linear-gradient(100deg,#2b1e3b,#151622); padding:16px 18px; }
+body .ts-seat-page .ts-seat-order-panel { background:linear-gradient(150deg,#1c1728,#11121d 55%); border-color:#41334e; border-radius:20px; box-shadow:0 16px 45px #0003; }
+body .ts-seat-page .ts-seat-order-head h2 { font-size:25px; }
+body .ts-seat-page .ts-seat-order-head > svg { color:#bc96ed; width:24px; height:24px; }
+body .ts-seat-page .ts-picker-unit-price { font-size:40px; letter-spacing:-2px; }
+body .ts-seat-page .ts-seat-order-selection { border-color:#61487b; background:#b484f00a; padding:18px; border-radius:14px; }
+body .ts-seat-page .ts-selected-seat-chip { background:#513471; border:1px solid #7b589f; border-radius:9px; }
+body .ts-seat-page .ts-selected-seat-chip .ts-seat-pill { background:transparent; }
+body .ts-seat-page :is(#picker-reserve,#picker-continue,#picker-view-seat) { background:linear-gradient(110deg,#b997f6,#9972e5)!important; border-color:#c5a5ff!important; box-shadow:0 4px 18px #a779fa20; }
+body .ts-seat-page :is(#picker-reserve,#picker-continue,#picker-view-seat):hover:not(:disabled) { filter:brightness(1.09); }
+body .ts-seat-page .ts-simple-details { border-radius:14px; }
+body .ts-seat-page .ts-seat-order-panel .ts-simple-details { background:transparent; }
+body .ts-seat-page .ts-label { color:#c8c0d6; }
+body .ts-seat-page :is(input.ts-input,select.ts-input,select.ts-select) { background:#191a28!important; border-color:#454057!important; color:#f4f1fa!important; }
+body .ts-seat-page input.ts-input::placeholder { color:#a49ab6; }
+body .ts-seat-page #picker-stage-motion { background:#292137!important; border-color:#65507e!important; color:#e2ceff!important; font-size:12px; min-height:40px; }
+body .ts-seat-page #picker-stage-motion[aria-pressed=false] { background:#171923!important; border-color:#454057!important; color:#c9c0d9!important; }
+body .ts-seat-page .ts-seat-comparison-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px; }
+body .ts-seat-page .ts-comparison-option { min-width:0; }
+body .ts-seat-page .ts-comparison-canvas { width:100%;height:200px;display:block;border-radius:10px;background:#090a17;margin-top:12px; }
+body .ts-seat-page .ts-comparison-option .ts-btn { background:#292137!important;border-color:#65507e!important;color:#e2ceff!important; }
+@media(max-width:620px){body .ts-seat-page .ts-seat-comparison-grid { grid-template-columns:minmax(0,1fr); }}
+body .ts-seat-page .ts-seat-tool-buttons .ts-btn { border-radius:9px; }
+@media(prefers-reduced-motion:no-preference) { body .ts-seat-page .ts-btn { transition:background .18s,border-color .18s,box-shadow .18s; } }
+
+/* Light page chrome; the main and comparison canvases retain their concert scene. */
+body .ts-seat-page { background:#fff; color:#1d2433; color-scheme:light; }
+body .ts-seat-page :is(h1,h2,h3,strong,#picker-category,#picker-total,.ts-generation-total) { color:#1d2433; }
+body .ts-seat-page :is(.muted,.secondary,.small.muted,#picker-event,#picker-instructions,.ts-seat-legend,.ts-seat-order-fee,.ts-seat-availability-action,.ts-seat-order-category > span,#picker-category small,.ts-generation-total > span) { color:#667085; }
+body .ts-seat-page .ts-section-eyebrow { color:#7445ac; }
+body .ts-seat-page .ts-steps { color:#667085; }
+body .ts-seat-page .ts-step.active { color:#7445ac; }
+body .ts-seat-page .ts-step-line { background:#e0dce7; }
+body .ts-seat-page :is(.ts-seat-explorer,.ts-seat-order-panel,.ts-simple-details) { background:#fff; border-color:#e2e4ea; box-shadow:0 8px 30px #26304a08; }
+body .ts-seat-page .ts-seat-order-panel .ts-simple-details { box-shadow:none; }
+body .ts-seat-page :is(.ts-buyer-view-toolbar,.ts-buyer-view-heading,.ts-seat-atmosphere,.ts-seat-navigation-hint) { background:#fff; border-color:#e7e8ee; }
+body .ts-seat-page .ts-buyer-view-switch { background:#f3f1f6; border-color:#e7e2ee; }
+body .ts-seat-page .ts-buyer-view-switch button { color:#5d536c; }
+body .ts-seat-page .ts-buyer-view-switch button[aria-pressed=true] { background:#7450a0; color:#fff; }
+body .ts-seat-page #picker-view-status { color:#65428a; }
+body .ts-seat-page #picker-view-status::before { background:#25805f; box-shadow:none; }
+body .ts-seat-page .ts-seat-view-preview { background:#f8f5fc; border-color:#e5ddec; }
+body .ts-seat-page :is(.ts-seat-atmosphere summary,.ts-simple-details summary,.ts-seat-people-toggle,.ts-label) { color:#4d465b; }
+body .ts-seat-page :is(.ts-seat-people-toggle small,.ts-seat-order-selection #picker-count,.ts-seat-navigation-hint) { color:#667085; }
+body .ts-seat-page :is(.ts-seat-order-head,.ts-seat-order-panel .ts-simple-details,.ts-generation-total) { border-color:#e2e4ea; }
+body .ts-seat-page .ts-seat-order-selection { background:#faf8fd; border-color:#dfd3ec; }
+body .ts-seat-page .ts-picker-category-name { color:#7445ac; }
+body .ts-seat-page :is(.ts-seat-tool-buttons .ts-btn,#picker-overview,#picker-back,#picker-auto,#picker-release,#picker-people-motion,#picker-stage-motion,#picker-stage-motion[aria-pressed=false],.ts-comparison-option .ts-btn) { background:#fff!important; color:#514363!important; border-color:#ddd5e7!important; }
+body .ts-seat-page #picker-refresh { background:#f5effc!important; color:#71439c!important; border-color:#e2d6ef!important; }
+body .ts-seat-page :is(input.ts-input,select.ts-input,select.ts-select) { background:#fff!important; border-color:#d7dbe3!important; color:#1d2433!important; }
+body .ts-seat-page input.ts-input::placeholder { color:#778295; }
+body .ts-seat-page .ts-picker-seat-option { background:#fff; border-color:#ccc6d5; color:#384153; }
+body .ts-seat-page .ts-picker-seat-option[aria-pressed=true] { background:#7450a0; border-color:#7450a0; color:#fff; }
+body .ts-seat-page .ts-picker-seat-option:disabled { background:#eff0f3; border-color:#dddfe5; color:#7a8190; }
+body .ts-seat-page .ts-seat-explorer:fullscreen .ts-buyer-view-toolbar { background:#fff; }

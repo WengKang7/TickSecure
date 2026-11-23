@@ -2,6 +2,8 @@
 require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
+<link rel="stylesheet" href="<?= ts_asset_url('assets/css/seat-explorer.css', '..') ?>">
+<link rel="stylesheet" href="<?= ts_asset_url('assets/css/seat-concert.css', '..') ?>">
 <main class="ts-section-tight ts-seat-page">
   <div class="ts-container">
     <div class="ts-steps ts-seat-steps" aria-label="Booking progress">
@@ -12,34 +14,38 @@ ob_start();
     <div class="ts-seat-picker-layout">
       <section class="ts-card ts-card-pad ts-seat-plan-panel" aria-labelledby="picker-heading">
         <div class="ts-seat-plan-heading"><div>
-          <div class="ts-section-eyebrow">Your place in the crowd</div>
-          <h1 class="ts-section-title" id="picker-heading">Choose your seats.</h1>
+          <div class="ts-section-eyebrow">Explore your venue</div>
+          <h1 class="ts-section-title" id="picker-heading">Find your view.</h1>
           <p class="muted mt-8" id="picker-event">Loading the event seating plan...</p>
         </div><?=ts_icon('ticket')?></div>
         <p class="small muted mt-8" id="picker-instructions">Choose a seat to preview its view toward the stage, then reserve your selection.</p>
+        <div class="ts-seat-explorer" id="picker-explorer">
         <div class="ts-buyer-view-toolbar mt-20">
           <div class="ts-buyer-view-switch" role="group" aria-label="Seating view">
             <button type="button" id="picker-mode-3d" aria-pressed="true">3D view</button>
             <button type="button" id="picker-mode-2d" aria-pressed="false">2D plan</button>
           </div>
           <div class="ts-seat-tool-buttons" role="group" aria-label="Seat view controls">
-            <button type="button" class="ts-btn ts-btn-secondary" id="picker-view-seat" hidden>View from this seat</button>
             <button type="button" class="ts-btn ts-btn-secondary" id="picker-zoom-in" aria-label="Zoom in">+</button>
             <button type="button" class="ts-btn ts-btn-secondary" id="picker-zoom-out" aria-label="Zoom out">&minus;</button>
             <button type="button" class="ts-btn ts-btn-secondary" id="picker-fit">Reset view</button>
-            <button type="button" class="ts-btn ts-btn-ghost" id="picker-refresh">Refresh availability</button>
+            <button type="button" class="ts-btn ts-btn-secondary" id="picker-expand" aria-expanded="false" aria-controls="picker-explorer" hidden>Expand view</button>
           </div>
         </div>
         <div class="ts-seat-view-preview mt-12" id="picker-seat-preview" hidden>
           <div><strong id="picker-preview-label"></strong><p class="small muted mt-4" id="picker-preview-status" role="status"></p></div>
+          <button type="button" class="ts-btn ts-btn-primary" id="picker-view-seat" hidden>View from this seat</button>
         </div>
-        <p class="small muted ts-seat-navigation-hint">Use + to zoom. Drag to explore the venue.</p>
         <div class="ts-seat-legend mt-16"><span>Available</span><span class="selected">Selected</span><span class="unavailable">Held / sold</span><span class="context" id="picker-context-legend" hidden>Other seats</span></div>
         <div class="ts-buyer-view-heading mt-16" id="picker-3d-heading" hidden>
           <strong id="picker-view-status" aria-live="polite">Venue overview</strong>
           <select class="ts-input" id="picker-plan-page" aria-label="Floor plan page" hidden></select>
           <button class="ts-btn ts-btn-secondary" type="button" id="picker-overview" hidden>Back to overview</button>
         </div>
+        <div class="ts-seat-3d-frame mt-12" id="buyer-seat-3d" hidden></div>
+        <div class="ts-generated-board mt-16" id="buyer-seat-map" aria-label="Choose an available seat" hidden></div>
+        <details class="ts-seat-atmosphere"><summary>Audience &amp; animation</summary>
+        <button type="button" class="ts-btn ts-btn-secondary mt-12" id="picker-stage-motion" aria-pressed="true">Pause stage effects</button>
         <div class="ts-seat-people-controls mt-12" id="picker-people-controls" hidden>
           <label class="ts-seat-people-toggle" for="picker-people">
             <input type="checkbox" role="switch" id="picker-people" aria-describedby="picker-people-note">
@@ -47,11 +53,17 @@ ob_start();
           </label>
           <button class="ts-btn ts-btn-secondary" type="button" id="picker-people-motion" aria-pressed="false" disabled>Pause animation</button>
         </div>
-        <div class="ts-seat-3d-frame mt-12" id="buyer-seat-3d" hidden></div>
-        <div class="ts-generated-board mt-16" id="buyer-seat-map" aria-label="Choose an available seat" hidden></div>
-        <p class="small muted mt-12" id="picker-3d-note" hidden>Drag to rotate. Illustrative view: actual attendees, floor slopes and obstructions are not modelled.</p>
+        </details>
+        <p class="small muted ts-seat-navigation-hint">Drag to rotate &middot; + / &minus; to zoom &middot; Select a seat to preview its view</p>
+        </div>
+        <p class="small muted mt-12" id="picker-3d-note" hidden>Illustrative concert environment. Seats follow the uploaded plan; surrounding tiers are decorative.</p>
         <p class="small muted mt-8" id="picker-3d-fallback" hidden>3D preview is unavailable in this browser. Use the 2D plan or seat list.</p>
         <p class="small muted mt-12" id="picker-position-note" hidden>Exact positions are unavailable for this layout. Choose by seat identifier below.</p>
+        <details class="ts-simple-details ts-seat-comparison mt-16" id="picker-comparison" hidden>
+          <summary>Compare two seat views</summary>
+          <p class="small muted mt-12">Preview only. Comparing seats does not select or reserve them. Prices are per ticket, before fees.</p>
+          <div id="picker-comparison-panels" class="ts-seat-comparison-grid mt-16"></div>
+        </details>
         <details id="picker-list-details" class="ts-simple-details mt-16"><summary>Find seats by row or number</summary><label class="ts-label mt-16" for="picker-search">Find a seat</label>
         <input class="ts-input" id="picker-search" placeholder="Row or seat identifier" maxlength="80">
         <div class="ts-picker-seat-list mt-12" id="picker-seat-list" aria-label="Available seat identifiers"></div></details>
@@ -68,6 +80,7 @@ ob_start();
       </section>
       <aside class="ts-card ts-card-pad ts-seat-order-panel" aria-labelledby="picker-order-heading">
         <div class="ts-seat-order-head"><div><h2 class="ts-card-title" id="picker-order-heading">Your tickets</h2><p class="small muted mt-8">Choose your seats, then reserve.</p></div><?=ts_icon('ticket')?></div>
+        <div class="ts-seat-availability-action"><span>Seat availability</span><button type="button" class="ts-btn ts-btn-ghost" id="picker-refresh">Refresh</button></div>
         <div class="ts-seat-order-category"><span class="small muted">Selected ticket category</span><p id="picker-category" class="mt-8"></p></div>
         <div class="ts-seat-order-selection"><h3>Your selection</h3>
         <p class="small mt-12" id="picker-count" role="status" aria-live="polite">Choose your seats.</p>
@@ -92,6 +105,8 @@ ob_start();
 <script src="<?= ts_asset_url('assets/js/seat-view-model.js', '..') ?>"></script>
 <script src="<?= ts_asset_url('assets/js/seat-view-people.js', '..') ?>"></script>
 <script src="<?= ts_asset_url('assets/js/seat-view-3d.js', '..') ?>"></script>
+<script src="<?= ts_asset_url('assets/js/seat-comparison.js', '..') ?>"></script>
+<script src="<?= ts_asset_url('assets/js/seat-explorer.js', '..') ?>"></script>
 <script type="module" src="<?= ts_asset_url('assets/js/seat-picker.js', '..') ?>"></script>
 <?php
 $content = ob_get_clean();

@@ -26,9 +26,73 @@
         return yes;
     };
 
+    // Decorative perimeter only: never adds seats, hit regions, or inventory IDs.
+    function concertBackdrop(ctx, scene, camera, width, height, firstPerson) {
+        const sky = ctx.createLinearGradient(0, 0, 0, height);
+        sky.addColorStop(0, '#070814'); sky.addColorStop(1, '#222035');
+        ctx.fillStyle = sky; ctx.fillRect(0, 0, width, height);
+        if (firstPerson) for (let i = 0; i < 85; i++) {
+            ctx.fillStyle = i % 3 ? '#bab5dd70' : '#dcd8f5a0';
+            ctx.fillRect((i * 173.17) % width, (i * 89.31) % (height * .38), 1, 1);
+        }
+        const project = points => Model.clipNear(points.map(p => Model.cameraPoint(p, camera)), camera.near).map(p => Model.screenPoint(p, camera, width, height));
+        const cx = scene.center[0], cz = scene.center[2];
+        const rx = (scene.bounds.maxX - scene.bounds.minX) * .76 + 7, rz = (scene.bounds.maxZ - scene.bounds.minZ) * .76 + 7;
+        const scale = Math.min(rx, rz);
+        const panels = [];
+        for (let tier = 0; tier < 4; tier++) for (let i = 0; i < 64; i++) {
+            const a = i / 64 * Math.PI * 2, b = (i + 1) / 64 * Math.PI * 2;
+            const y = scale * (.035 + tier * .065);
+            const points = [[cx + Math.sin(a) * rx, y, cz + Math.cos(a) * rz], [cx + Math.sin(b) * rx, y, cz + Math.cos(b) * rz],
+                [cx + Math.sin(b) * rx, y + scale * .05, cz + Math.cos(b) * rz], [cx + Math.sin(a) * rx, y + scale * .05, cz + Math.cos(a) * rz]];
+            const screen = project(points); if (screen.length < 3) continue;
+            panels.push({ screen, tier, depth: screen.reduce((s, p) => s + p.depth, 0) / screen.length });
+        }
+        panels.sort((a, b) => b.depth - a.depth);
+        for (const panel of panels) { polygon(ctx, panel.screen); ctx.fillStyle = panel.tier % 2 ? '#232032' : '#161622'; ctx.fill(); }
+        // Light points suggest a distant audience without asserting real seat positions.
+        for (let i = 0; i < 700; i++) {
+            const a = i * 2.39996, y = scale * (.05 + (i % 17) * .012);
+            const p = Model.project([cx + Math.sin(a) * (rx - .2), y, cz + Math.cos(a) * (rz - .2)], camera, width, height);
+            if (!p || p.x < 0 || p.x > width || p.y < 0 || p.y > height) continue;
+            ctx.fillStyle = ['#c7a1ff80', '#77cbdc80', '#e2bc7b80'][i % 3];
+            ctx.fillRect(p.x, p.y, firstPerson ? 1.5 : 1, firstPerson ? 1.5 : 1);
+        }
+    }
+
+    function screenArtwork(ctx, points, image) {
+        if(!image || points.length!==4 || !image.naturalWidth || !image.naturalHeight)return;
+        const q=[points[3],points[2],points[1],points[0]],w=image.naturalWidth,h=image.naturalHeight;
+        for(const indices of [[0,1,2],[0,2,3]]) {
+            const [a,b,c]=indices.map(i=>q[i]);ctx.save();polygon(ctx,[a,b,c]);ctx.clip();
+            if(indices[1]===1)ctx.transform((b.x-a.x)/w,(b.y-a.y)/w,(c.x-b.x)/h,(c.y-b.y)/h,a.x,a.y);
+            else ctx.transform((b.x-c.x)/w,(b.y-c.y)/w,(c.x-a.x)/h,(c.y-a.y)/h,a.x,a.y);
+            ctx.drawImage(image,0,0);ctx.restore();
+        }
+        ctx.save();polygon(ctx,points);ctx.fillStyle='#08091965';ctx.fill();ctx.restore();
+    }
+
+    function miniMap(ctx,scene,state,camera,width,height) {
+        const w=width<480?105:150,h=w*.75,x=width-w-12,y=height-h-48;
+        const b=scene.bounds,scale=Math.min((w-22)/(b.maxX-b.minX||1),(h-30)/(b.maxZ-b.minZ||1));
+        const map=point=>({x:x+w/2+(point[0]-scene.center[0])*scale,y:y+h/2+9+(point[2]-scene.center[2])*scale});
+        ctx.save();ctx.fillStyle='#0c0e1bea';ctx.fillRect(x,y,w,h);ctx.font='10px system-ui';ctx.textAlign='left';ctx.fillStyle='#cfc2e4';ctx.fillText('SEAT LOCATION',x+9,y+13);
+        const selected=new Set(state.selected||[]);
+        for(const seat of scene.seats){const p=map([seat.x,0,seat.z]);ctx.fillStyle=selected.has(seat.id)?'#74baff':seat.id&&['AVAILABLE','MINE'].includes(seat.status)?'#598b7c':'#777481';ctx.fillRect(p.x-1,p.y-1,2,2);}
+        const stage=scene.stage,right=[stage.front[2],0,-stage.front[0]];
+        const corners=[[-1,-1],[1,-1],[1,1],[-1,1]].map(([a,b])=>map([stage.x+right[0]*a*stage.width/2+stage.front[0]*b*stage.depth/2,0,stage.z+right[2]*a*stage.width/2+stage.front[2]*b*stage.depth/2]));
+        polygon(ctx,corners);ctx.fillStyle='#bca0ec';ctx.fill();
+        const focus=scene.seats.find(s=>s.id===(state.viewSeatId||state.focusId));
+        if(focus){const p=map([focus.x,0,focus.z]),direction=state.viewSeatId?camera.forward:[stage.x-focus.x,0,stage.z-focus.z],length=Math.hypot(direction[0],direction[2])||1,dx=direction[0]/length,dy=direction[2]/length;
+            polygon(ctx,[{x:p.x+dx*12,y:p.y+dy*12},{x:p.x-dy*4,y:p.y+dx*4},{x:p.x+dy*4,y:p.y-dx*4}]);ctx.fillStyle='#f6d28a';ctx.fill();ctx.fillStyle='#fff';ctx.fillRect(p.x-2,p.y-2,4,4);
+        }
+        ctx.restore();
+        return {id:null,points:[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}]};
+    }
+
     function draw(ctx, scene, state, width, height, audienceIndices = People?.seatIndices(scene, state) || []) {
         const selected = new Set(state.selected || []), firstPerson = !!state.viewSeatId;
-        const camera = firstPerson ? Model.seatCamera(scene, state.viewSeatId, state.look) : Model.overviewCamera(scene, width / height, state.orbit);
+        const camera = state.camera || (firstPerson ? Model.seatCamera(scene, state.viewSeatId, state.look) : Model.overviewCamera(scene, width / height, state.orbit));
         if (!camera) return [];
         ctx.clearRect(0, 0, width, height);
         if (state.whiteBackground) ctx.fillStyle = '#ffffff';
@@ -40,9 +104,10 @@
             ctx.fillStyle = sky;
         }
         ctx.fillRect(0, 0, width, height);
+        if (state.concertTheme) concertBackdrop(ctx, scene, camera, width, height, firstPerson);
         const projected = [], hits = [], focal = height / (2 * Math.tan(camera.fov / 2));
         const projectPolygon = points => Model.clipNear(points.map(p => Model.cameraPoint(p, camera)), camera.near).map(p => Model.screenPoint(p, camera, width, height));
-        const panelDepth = Model.cameraPoint([scene.stage.x + scene.stage.front[0] * (-scene.stage.depth / 2 + .1), 2.35,
+        const panelDepth = Model.cameraPoint([scene.stage.x + scene.stage.front[0] * (-scene.stage.depth / 2 + .1), scene.stage.screenY || 2.35,
             scene.stage.z + scene.stage.front[2] * (-scene.stage.depth / 2 + .1)], camera)[2];
         const seatSizes = scene.seats.map(seat => {
             const p = Model.cameraPoint([seat.x, .8, seat.z], camera);
@@ -86,9 +151,9 @@
             polygon(ctx, points);
             if (face.kind === 'screen') {
                 const ys = points.map(p => p.y), glow = ctx.createLinearGradient(0, Math.min(...ys), 0, Math.max(...ys));
-                glow.addColorStop(0, '#10243b'); glow.addColorStop(.5, '#20555e'); glow.addColorStop(1, '#101e30'); ctx.fillStyle = glow;
+                glow.addColorStop(0, state.concertTheme ? scene.branding.accent : '#10243b'); glow.addColorStop(.5, state.concertTheme ? '#4c3976' : '#20555e'); glow.addColorStop(1, state.concertTheme ? '#17243c' : '#101e30'); ctx.fillStyle = glow;
             } else if (face.kind === 'floor') {
-                const surface = ctx.createLinearGradient(0, 0, width, height); surface.addColorStop(0, firstPerson ? '#f1eee4' : '#f4f6f7'); surface.addColorStop(1, firstPerson ? '#dddcd0' : '#d6dee2'); ctx.fillStyle = surface;
+                const surface = ctx.createLinearGradient(0, 0, width, height); surface.addColorStop(0, state.concertTheme ? '#24283b' : firstPerson ? '#f1eee4' : '#f4f6f7'); surface.addColorStop(1, state.concertTheme ? '#111522' : firstPerson ? '#dddcd0' : '#d6dee2'); ctx.fillStyle = surface;
             } else if (face.kind === 'chair' && face.points.length > 4 && seatSizes[face.seatIndex] >= 20) {
                 const ys = points.map(p => p.y), fabric = ctx.createLinearGradient(0, Math.min(...ys), 0, Math.max(...ys));
                 fabric.addColorStop(0, shade(color, light * 1.24)); fabric.addColorStop(.18, shade(color, light * 1.04)); fabric.addColorStop(1, shade(color, light * .79)); ctx.fillStyle = fabric;
@@ -136,25 +201,48 @@
                 ctx.restore();
             }
             if (face.kind === 'screen') {
-                const p = Model.project(scene.meshes.stageLabel, camera, width, height);
+                const p = Model.project(state.concertTheme ? face.center : scene.meshes.stageLabel, camera, width, height);
                 if (p) {
                     ctx.save(); polygon(ctx, points); ctx.clip();
-                    for (const bar of scene.meshes.screenBars) {
-                        const visible = projectPolygon(bar);
+                    if(state.concertTheme && state.artwork && face.points.every(point=>Model.cameraPoint(point,camera)[2]>=camera.near))screenArtwork(ctx,points,state.artwork);
+                    for (const [index,bar] of scene.meshes.screenBars.entries()) {
+                        const pulse = state.concertTheme ? .65+.35*Math.sin((state.stageTime||0)*1.7+index*.6)**2 : 1;
+                        const centerY=bar.reduce((sum,v)=>sum+v[1],0)/bar.length;
+                        const visible = projectPolygon(bar.map(v=>[v[0],centerY+(v[1]-centerY)*pulse,v[2]]));
                         if (visible.length < 3) continue;
                         polygon(ctx, visible);
                         ctx.fillStyle = '#81e7d69c';
                         ctx.fill();
                     }
                     const screenHeight = Math.max(...points.map(v => v.y)) - Math.min(...points.map(v => v.y));
-                    const size = Math.min(Model.clamp(focal / p.depth * scene.stage.width / 11, 9, 30), screenHeight * .66);
-                    ctx.font = `600 ${size}px system-ui, sans-serif`; ctx.fillStyle = '#f4f2e7'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('STAGE', p.x, p.y);
+                    const screenWidth = Math.max(...points.map(v => v.x))-Math.min(...points.map(v => v.x));
+                    let size = Math.min(Model.clamp(focal / p.depth * scene.stage.width / 11, 9, 30), screenHeight * .4, state.concertTheme ? screenWidth / 5 : Infinity);
+                    const mainScreen = Math.hypot(face.center[0]-scene.meshes.stageLabel[0],face.center[2]-scene.meshes.stageLabel[2])<scene.stage.width*.2;
+                    const title=state.concertTheme ? mainScreen ? scene.branding.title : 'LIVE' : 'STAGE';
+                    ctx.font = `600 ${size}px system-ui, sans-serif`;
+                    if(state.concertTheme){const measured=ctx.measureText(title).width;if(measured>screenWidth*.84)size*=screenWidth*.84/measured;ctx.font=`600 ${size}px system-ui, sans-serif`;}
+                    ctx.fillStyle = '#f4f2e7'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(title, p.x, p.y);
+                    if (state.concertTheme && size > 8) { ctx.font = `500 ${Math.max(5,size*.3)}px system-ui, sans-serif`; ctx.fillText('T I C K S E C U R E',p.x,p.y+size*.8); }
                     if (size > 15) { ctx.fillStyle = '#d5b47c'; ctx.fillRect(p.x-size*.7,p.y+size*.8,size*1.4,1.5); }
                     ctx.restore();
                 }
             }
             // Include the stage and contextual chairs as occluders in picking.
             if (!firstPerson && face.kind !== 'floor' && face.kind !== 'floorBase') hits.push({ id: seat?.id || null, points });
+        }
+        if (state.concertTheme) {
+            const stage = scene.stage, front = stage.front, right = [front[2], 0, -front[0]];
+            for (let i = 0; i < 5; i++) {
+                const side = (i / 4 - .5) * stage.width;
+                const apex = [stage.x + right[0] * side, stage.visualHeight || 4.4, stage.z + right[2] * side];
+                const reach = Math.min(scene.radius * .4, 12), spread = stage.width * .13;
+                const sweep=Math.sin((state.stageTime||0)*.45+i*.9)*stage.width*.12;
+                const end = [apex[0] + front[0] * reach+right[0]*sweep, .1, apex[2] + front[2] * reach+right[2]*sweep];
+                const beam = projectPolygon([apex, [end[0] - right[0] * spread, end[1], end[2] - right[2] * spread],
+                    [end[0] + right[0] * spread, end[1], end[2] + right[2] * spread]]);
+                if (beam.length < 3) continue;
+                ctx.save(); polygon(ctx, beam); ctx.fillStyle = ['#c69aff13', '#7bdded13', '#f5cf7e13'][i % 3]; ctx.fill(); ctx.restore();
+            }
         }
         if (!firstPerson) {
             const activeSeat = seat => selected.has(seat.id) || seat.id === state.focusId || seat.id === state.hoverId;
@@ -195,6 +283,7 @@
                 hits.push({ id: seat.id, points: [{x:box.x,y:box.y},{x:box.x+box.w,y:box.y},{x:box.x+box.w,y:box.y+box.h},{x:box.x,y:box.y+box.h}] });
             }
         }
+        if(state.minimap) { const mask=miniMap(ctx,scene,state,camera,width,height); if(!firstPerson)hits.push(mask); }
         return hits;
     }
     function hitTest(hits, x, y) { for (let i = hits.length - 1; i >= 0; i--) if (inside(x, y, hits[i].points)) return hits[i].id; return null; }
@@ -210,11 +299,27 @@
         const hint = document.createElement('div'); hint.className = 'ts-seat-3d-hint'; hint.setAttribute('aria-hidden', 'true');
         container.replaceChildren(canvas, tooltip, hint);
         let model, scene, page, frame = 0, disposed = false, hits = [], drag = null, width = 0, height = 0;
-        const state = { selected: [], focusId: null, hoverId: null, viewSeatId: null, orbit: {}, look: {}, showPeople: false, peopleMotion: true, peopleTime: 0,
-            whiteBackground: options.whiteBackground === true };
+        const state = { selected: [], focusId: null, hoverId: null, viewSeatId: null, orbit: {}, look: {}, showPeople: false, peopleMotion: true, peopleTime: 0, stageTime:0, stageMotion:true, camera:null,
+            whiteBackground: options.whiteBackground === true, concertTheme: options.concertTheme === true, minimap:options.concertTheme === true, artwork:null };
         const motionPreference = window.matchMedia?.('(prefers-reduced-motion: reduce)');
         let reducedMotion = !!motionPreference?.matches, inViewport = true, dirty = true, lastTime = null, lastPaint = -Infinity;
         let busy = false;
+        let transition = null;
+        let artworkKey='', artworkVersion=0, pendingImage=null;
+        function loadArtwork(next) {
+            const urls=[next?.bannerUrl,next?.posterUrl].filter(value=>{try{const url=new URL(value);return url.protocol==='https:'&&url.hostname==='res.cloudinary.com';}catch(_){return false;}});
+            const key=urls.join('|');if(key===artworkKey)return;artworkKey=key;state.artwork=null;
+            const version=++artworkVersion;
+            if(pendingImage){pendingImage.onload=pendingImage.onerror=null;pendingImage=null;}
+            if(!state.concertTheme || typeof window.Image!=='function')return;
+            function attempt(index){if(disposed||version!==artworkVersion||!urls[index])return;
+                const image=new window.Image();pendingImage=image;image.crossOrigin='anonymous';
+                image.onload=()=>{if(disposed||version!==artworkVersion)return;state.artwork=image;pendingImage=null;schedule();};
+                image.onerror=()=>{if(version===artworkVersion)attempt(index+1);};image.src=urls[index];
+            }attempt(0);
+        }
+        const targetCamera = () => !scene ? null : state.viewSeatId ? Model.seatCamera(scene,state.viewSeatId,state.look) : Model.overviewCamera(scene,width/height||1,state.orbit);
+        const startTransition = from => { transition = state.concertTheme && from && !reducedMotion ? {from,start:null} : null; state.camera=null; };
         const listeners = [];
         function listen(target, name, fn, opts) { target.addEventListener(name, fn, opts); listeners.push(() => target.removeEventListener(name, fn, opts)); }
         function stopMotion() { if (frame) window.cancelAnimationFrame(frame); frame = 0; lastTime = null; }
@@ -222,12 +327,22 @@
             frame = 0;
             if (disposed || !scene || container.hidden || document.hidden || !inViewport) { lastTime = null; return; }
             const audienceIndices = People?.seatIndices(scene, state) || [];
-            const animate = audienceIndices.length > 0 && state.peopleMotion && !reducedMotion;
+            const peopleAnimate = audienceIndices.length > 0 && state.peopleMotion && !reducedMotion;
+            const stageAnimate = state.concertTheme && state.stageMotion && !reducedMotion;
+            const animate = peopleAnimate || stageAnimate || !!transition;
             // Twelve frames per second is enough for breathing and gentle head turns.
-            if (animate && !dirty && timestamp - lastPaint < 1000 / 12) { schedule(false); return; }
+            if (animate && !dirty && timestamp - lastPaint < 1000 / (transition ? 30 : 12)) { schedule(false); return; }
             const rect = canvas.getBoundingClientRect(); width = rect.width; height = rect.height;
             if (width < 1 || height < 1) { lastTime = null; return; }
-            if (animate && lastTime !== null) state.peopleTime += Math.max(0, Math.min(timestamp - lastTime, 200)) / 1000;
+            const elapsed=lastTime===null?0:Math.max(0,Math.min(timestamp-lastTime,200))/1000;
+            if (peopleAnimate) state.peopleTime += elapsed;
+            if (stageAnimate) state.stageTime += elapsed;
+            if(transition){
+                if(transition.start===null)transition.start=timestamp;
+                const progress=Model.clamp((timestamp-transition.start)/700,0,1), eased=progress*progress*(3-2*progress);
+                state.camera=Model.blendCamera(transition.from,targetCamera(),eased);
+                if(progress===1){transition=null;state.camera=null;}
+            }
             lastTime = animate ? timestamp : null; lastPaint = timestamp; dirty = false;
             const ratio = Math.min(window.devicePixelRatio || 1, 2), w = Math.round(width * ratio), h = Math.round(height * ratio);
             if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
@@ -239,18 +354,20 @@
         function info() {
             hint.textContent = state.viewSeatId ? 'Drag to look around \u00b7 Esc for overview' : 'Drag to rotate \u00b7 + / \u2212 to zoom';
             options.onViewChange?.({ viewSeatId: state.viewSeatId, page, pages: model ? Model.pages(model) : [], estimatedStage: scene?.stage.estimated,
-                peopleAvailable: !!People, showPeople: state.showPeople, peopleMotion: state.peopleMotion && !reducedMotion, reducedMotion });
+                peopleAvailable: !!People, showPeople: state.showPeople, peopleMotion: state.peopleMotion && !reducedMotion, stageMotion:state.stageMotion && !reducedMotion, reducedMotion });
         }
         function focus(id) { state.focusId = id; options.onFocus?.(id); schedule(); }
-        function overview() { state.viewSeatId = null; state.hoverId = null; state.look = {}; tooltip.hidden = true; info(); schedule(); }
+        function overview() { const from=state.camera||targetCamera(); state.viewSeatId = null; state.hoverId = null; state.look = {}; startTransition(from); tooltip.hidden = true; info(); schedule(); }
         function viewFrom(id) {
             const seat = model?.seats.find(s => s.id === id && Model.validPosition(s.position));
             if (!seat) return false;
             const seatPage = seat.position.page || 1;
-            if (page !== seatPage) { page = seatPage; scene = Model.createScene(model, page); state.orbit = {}; }
-            state.viewSeatId = id; state.showPeople = !!People; state.hoverId = null; state.look = {}; state.focusId = id; tooltip.hidden = true; options.onFocus?.(id); info(); schedule(); return true;
+            const from=state.camera||targetCamera();
+            if (page !== seatPage) { page = seatPage; scene = Model.createScene(model, page, options); state.orbit = {}; }
+            state.viewSeatId = id; state.showPeople = !!People; state.hoverId = null; state.look = {}; state.focusId = id; startTransition(from); tooltip.hidden = true; options.onFocus?.(id); info(); schedule(); return true;
         }
         function zoom(factor) {
+            transition=null;state.camera=null;
             if (state.viewSeatId) state.look.fov = Model.clamp((state.look.fov || 1.15) * factor, .65, 1.5);
             else state.orbit.zoom = Model.clamp((state.orbit.zoom || 1) * factor, .18, 2.5);
             schedule();
@@ -258,7 +375,10 @@
         const locate = event => { const rect = canvas.getBoundingClientRect(); return { x: event.clientX - rect.left, y: event.clientY - rect.top }; };
         listen(canvas, 'pointerdown', event => {
             if (event.button !== 0 || drag) return;
-            drag = { pointerId: event.pointerId, start: locate(event), last: locate(event), moved: false };
+            const interrupted = !!transition;
+            transition=null;state.camera=null;
+            drag = { pointerId: event.pointerId, start: locate(event), last: locate(event), moved: false, interrupted };
+            if(interrupted)schedule();
             canvas.setPointerCapture(event.pointerId); canvas.focus({ preventScroll: true }); tooltip.hidden = true;
             if (state.hoverId) { state.hoverId = null; schedule(); }
         });
@@ -283,9 +403,9 @@
         });
         function end(event, cancel = false) {
             if (!drag || drag.pointerId !== event.pointerId) return;
-            const moved = drag.moved; drag = null;
+            const moved = drag.moved || drag.interrupted; drag = null;
             if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-            if (!cancel && !moved && !state.viewSeatId) { const p = locate(event), id = hitTest(hits, p.x, p.y); if (id) { focus(id); if (!busy) options.onSeatSelect?.(id); } }
+            if (!cancel && !moved && !state.viewSeatId && !transition) { const p = locate(event), id = hitTest(hits, p.x, p.y); if (id) { focus(id); if (!busy) options.onSeatSelect?.(id); } }
         }
         listen(canvas, 'pointerup', event => end(event));
         listen(canvas, 'pointercancel', event => end(event, true));
@@ -295,6 +415,7 @@
         listen(canvas, 'keydown', event => {
             if (!scene) return;
             if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) {
+                transition=null;state.camera=null;
                 event.preventDefault();
                 if (state.viewSeatId) {
                     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') state.look.yaw = Model.clamp((state.look.yaw || 0) + (event.key === 'ArrowLeft' ? .12 : -.12), -1.3, 1.3);
@@ -305,7 +426,7 @@
                 const current = seats.findIndex(s => s.id === state.focusId), step = ['ArrowLeft','ArrowUp'].includes(event.key) ? -1 : 1;
                 const next = current < 0 ? step > 0 ? 0 : seats.length - 1 : (current + step + seats.length) % seats.length;
                 focus(seats[next]?.id);
-            } else if ((event.key === 'Enter' || event.key === ' ') && state.focusId && !state.viewSeatId) { event.preventDefault(); if (!busy) options.onSeatSelect?.(state.focusId); }
+            } else if ((event.key === 'Enter' || event.key === ' ') && state.focusId && !state.viewSeatId) { event.preventDefault(); if (!busy && !transition) options.onSeatSelect?.(state.focusId); }
             else if (event.key.toLowerCase() === 'v' && state.focusId) { event.preventDefault(); viewFrom(state.focusId); }
             else if (event.key === 'Escape' || event.key === 'Home') { event.preventDefault(); state.orbit = {}; overview(); }
             else if (event.key === '+' || event.key === '-') { event.preventDefault(); zoom(event.key === '+' ? .8 : 1.25); }
@@ -319,27 +440,30 @@
         visibility?.observe(container);
         if (document.addEventListener) listen(document, 'visibilitychange', () => { if (document.hidden) stopMotion(); else schedule(); });
         if (motionPreference?.addEventListener) listen(motionPreference, 'change', event => {
-            reducedMotion = event.matches; stopMotion(); info(); schedule();
+            reducedMotion = event.matches; transition=null;state.camera=null; stopMotion(); info(); schedule();
         });
         return {
+            setStageMotion(enabled) { state.stageMotion=!!enabled; stopMotion(); info(); schedule(); },
             setPeople(enabled) { state.showPeople = !!People && !!enabled; stopMotion(); info(); schedule(); },
             setPeopleMotion(enabled) { state.peopleMotion = !!enabled; stopMotion(); info(); schedule(); },
             setVisible(visible) { if (!visible) stopMotion(); else schedule(); },
             update(next, selected = [], disabled = false) {
                 busy = disabled; state.selected = selected;
                 if (next !== model) {
+                    transition=null;state.camera=null;
                     model = next;
+                    loadArtwork(model);
                     if (!Model.pages(model).includes(page)) page = Model.pages(model)[0];
-                    scene = Model.createScene(model, page);
+                    scene = Model.createScene(model, page, options);
                     if (state.viewSeatId && !scene?.seats.some(s => s.id === state.viewSeatId)) state.viewSeatId = null;
                     info();
                 } else if (scene) { const status = new Map(model.seats.map(s => [s.id, s.status])); scene.seats.forEach(s => { if (s.id) s.status = status.get(s.id) || 'BLOCKED'; }); }
                 schedule();
             },
-            setPage(value) { if (!Model.pages(model).includes(Number(value))) return; page = Number(value); scene = Model.createScene(model, page); state.orbit = {}; state.focusId = null; options.onFocus?.(null); overview(); },
+            setPage(value) { if (!Model.pages(model).includes(Number(value))) return; page = Number(value); scene = Model.createScene(model, page, options); state.orbit = {}; state.focusId = null; options.onFocus?.(null); overview(); },
             focus, viewFrom, overview, zoom, resize: schedule,
             reset() { state.orbit = {}; state.focusId = null; options.onFocus?.(null); overview(); },
-            dispose() { disposed = true; stopMotion(); resize?.disconnect(); visibility?.disconnect(); listeners.forEach(remove => remove()); container.replaceChildren(); }
+            dispose() { disposed = true; artworkVersion++;if(pendingImage)pendingImage.onload=pendingImage.onerror=null;state.artwork=null; stopMotion(); resize?.disconnect(); visibility?.disconnect(); listeners.forEach(remove => remove()); container.replaceChildren(); }
         };
     }
     return { mount, draw, hitTest };

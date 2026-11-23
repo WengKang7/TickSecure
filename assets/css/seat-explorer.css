@@ -1,0 +1,71 @@
+/* Seat explorer presentation. Booking controls keep their existing IDs and handlers. */
+body .ts-seat-page { background:#f7f8fa; padding-top:24px; }
+body .ts-seat-page > .ts-container { max-width:1600px; }
+body .ts-seat-page .ts-seat-steps { margin:0 auto 24px; max-width:600px; background:transparent; }
+body .ts-seat-page .ts-seat-picker-layout { grid-template-columns:minmax(0,1fr) 328px; gap:24px; }
+body .ts-seat-page .ts-seat-plan-panel { padding:0; border:0; background:transparent; box-shadow:none; }
+body .ts-seat-page .ts-seat-plan-heading { align-items:flex-start; }
+body .ts-seat-page .ts-seat-plan-heading > svg { display:none; }
+body .ts-seat-page .ts-seat-plan-heading h1.ts-section-title { font-size:clamp(28px,3vw,40px); margin:8px 0; }
+body .ts-seat-page #picker-event { margin-top:6px; }
+body .ts-seat-page #picker-instructions { margin-bottom:18px; }
+body .ts-seat-page .ts-seat-explorer { display:flex; flex-direction:column; background:#fff; border:1px solid #dfe3e9; border-radius:18px; overflow:hidden; box-shadow:0 8px 30px #17243b06; }
+body .ts-seat-page .ts-seat-explorer [hidden] { display:none!important; }
+body .ts-seat-page .ts-buyer-view-toolbar { order:0; margin:0; padding:12px 16px; border:0; border-bottom:1px solid #edf0f4; gap:12px; }
+body .ts-seat-page .ts-buyer-view-switch { border:0; background:#f0f1f5; padding:4px; border-radius:10px; }
+body .ts-seat-page .ts-buyer-view-switch button { min-height:36px; padding:7px 15px; border-radius:7px; font-size:12px; }
+body .ts-seat-page .ts-buyer-view-switch button[aria-pressed="true"] { background:#181c28; color:#fff; box-shadow:0 2px 4px #0001; }
+body .ts-seat-page .ts-seat-tool-buttons { display:flex; width:auto; margin-left:auto; flex:0 1 auto; gap:6px; }
+body .ts-seat-page .ts-seat-tool-buttons .ts-btn { min-height:38px; border:1px solid #e2e5ec; background:#fff; color:#303747; padding:7px 11px; font-size:12px; border-radius:8px; }
+body .ts-seat-page .ts-seat-tool-buttons .ts-btn:hover { background:#f3f0ff; border-color:#bba5ef; }
+body .ts-seat-page .ts-seat-legend { order:1; padding:12px 18px; margin:0; font-size:11px; gap:18px; }
+body .ts-seat-page .ts-seat-legend .selected::before { background:#2479b8; border-color:#2479b8; }
+body .ts-seat-page .ts-buyer-view-heading { order:2; margin:0; padding:0 18px 10px; gap:12px; flex-wrap:wrap; }
+body .ts-seat-page #picker-view-status { font-size:12px; font-weight:600; color:#475569; }
+body .ts-seat-page #buyer-seat-3d { order:3; margin:0; border:0; border-radius:0; height:clamp(400px,65vh,740px); box-shadow:none; background:#f2f5f7; }
+body .ts-seat-page #buyer-seat-map { order:3; margin:0; border:0; border-radius:0; padding:18px; }
+body .ts-seat-page .ts-seat-view-preview { order:4; display:flex; align-items:center; justify-content:space-between; gap:16px; margin:0; padding:14px 18px; min-height:72px; border:0; border-top:1px solid #e5e9ef; border-radius:0; background:#f8f6ff; }
+body .ts-seat-page #picker-preview-label { font-size:14px; }
+body .ts-seat-page #picker-view-seat { flex-shrink:0; min-height:40px; width:auto; padding:10px 16px; font-size:12px; background:#6d28d9; color:#fff; border-color:#6d28d9; }
+body .ts-seat-page .ts-seat-atmosphere { order:5; padding:12px 18px; border-top:1px solid #edf0f4; font-size:12px; }
+body .ts-seat-page .ts-seat-atmosphere summary { cursor:pointer; color:#475569; width:fit-content; }
+body .ts-seat-page .ts-seat-atmosphere:has(#picker-people-controls[hidden]) { display:none; }
+body .ts-seat-page .ts-seat-people-controls { border:0; padding:8px 0 0; margin-top:8px; }
+body .ts-seat-page .ts-seat-navigation-hint { order:6; margin:0; padding:0 18px 14px; color:#64748b; font-size:11px; }
+body .ts-seat-page .ts-seat-order-panel { padding:22px; border:1px solid #dfe3e9; border-radius:18px; box-shadow:0 8px 30px #17243b06; top:94px; }
+body .ts-seat-page .ts-seat-order-head { padding-bottom:16px; }
+body .ts-seat-page .ts-seat-order-head h2 { font-size:23px; }
+body .ts-seat-page .ts-seat-order-head > svg { color:#7c3aed; }
+body .ts-seat-page .ts-seat-availability-action { display:flex; justify-content:space-between; align-items:center; gap:12px; font-size:11px; color:#64748b; padding-top:12px; }
+body .ts-seat-page #picker-refresh { min-height:36px; padding:6px 10px; font-size:11px; background:#f5f3ff; color:#6d28d9; }
+body .ts-seat-page .ts-seat-order-category { padding:16px 0 20px; }
+body .ts-seat-page .ts-seat-order-selection { background:#fafbfc; border-color:#e6e9ee; }
+body .ts-seat-page .ts-seat-order-fee { margin-top:18px; }
+body .ts-seat-page .ts-seat-order-panel .ts-btn { border-radius:10px; }
+body .ts-seat-page :is(#picker-reserve,#picker-continue) { background:#6d28d9; border-color:#6d28d9; color:#fff; }
+body .ts-seat-page :is(#picker-reserve,#picker-continue):disabled { opacity:.45; }
+body .ts-seat-page .ts-simple-details { background:#fff; }
+body .ts-seat-page .ts-seat-explorer:fullscreen { width:100%; height:100%; overflow:auto; border:0; border-radius:0; }
+body .ts-seat-page .ts-seat-explorer:fullscreen #buyer-seat-3d { flex:1 0 250px; min-height:250px; height:auto; }
+body .ts-seat-page .ts-seat-explorer:fullscreen #buyer-seat-map { flex:1; overflow:auto; }
+body .ts-seat-page .ts-seat-explorer:fullscreen .ts-buyer-view-toolbar { position:sticky; top:0; z-index:5; background:#fff; }
+@media(max-width:1050px) {
+  body .ts-seat-page .ts-seat-picker-layout { grid-template-columns:minmax(0,1fr) 300px; gap:18px; }
+  body .ts-seat-page .ts-seat-order-panel { padding:18px; }
+}
+@media(max-width:900px) {
+  body .ts-seat-page .ts-seat-picker-layout { grid-template-columns:minmax(0,1fr); }
+  body .ts-seat-page .ts-seat-order-panel { position:static; }
+}
+@media(max-width:620px) {
+  body .ts-seat-page { padding-top:18px; }
+  body .ts-seat-page .ts-buyer-view-toolbar { padding:10px; }
+  body .ts-seat-page .ts-seat-tool-buttons { flex:1 1 100%; justify-content:flex-end; }
+  body .ts-seat-page .ts-buyer-view-switch { width:100%; display:flex; }
+  body .ts-seat-page .ts-buyer-view-switch button { flex:1; }
+  body .ts-seat-page #buyer-seat-3d { height:420px; }
+  body .ts-seat-page .ts-seat-legend { padding:12px; gap:12px; }
+  body .ts-seat-page .ts-seat-view-preview { padding:12px; flex-wrap:wrap; gap:10px; }
+  body .ts-seat-page #picker-view-seat { width:100%; }
+  body .ts-seat-page .ts-seat-navigation-hint { line-height:1.6; }
+}

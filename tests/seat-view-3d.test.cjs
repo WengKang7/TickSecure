@@ -28,6 +28,54 @@ function fakeContext() {
         fillText(text) { calls.push(text); }, measureText: text => ({ width: text.length * 6 }), setTransform() {} };
 }
 
+test('mini-map masks clicks over its overlay and adds no reservable seat IDs',()=>{
+    const scene=Model.createScene(fixture(),1,{concertTheme:true});
+    const state={concertTheme:true,minimap:true,focusId:'id0',selected:['id0'],orbit:{},look:{}};
+    const hits=View.draw(fakeContext(),scene,state,900,600),mask=hits.at(-1);
+    assert.equal(mask.id,null);assert.equal(View.hitTest(hits,820,490),null);
+    assert.ok(hits.every(h=>h.id===null||scene.seats.some(s=>s.id===h.id)));
+    assert.deepEqual(View.draw(fakeContext(),scene,{...state,viewSeatId:'id0'},900,600),[]);
+});
+
+test('concert scenery preserves real seat geometry and exact hit regions in overview and seat view', () => {
+    const data = fixture(), original = structuredClone(data), scene = Model.createScene(data);
+    for (const viewSeatId of [null, 'id0']) {
+        const state = { selected:['id1'], viewSeatId, orbit:{}, look:{} };
+        const normal = View.draw(fakeContext(), scene, state, 900, 600);
+        const concert = View.draw(fakeContext(), scene, {...state, concertTheme:true}, 900, 600);
+        assert.deepEqual(concert, normal);
+        assert.ok(concert.every(hit => hit.id === null || data.seats.some(seat => seat.id === hit.id)));
+    }
+    assert.deepEqual(data, original);
+});
+
+test('concert stage uses three taller LED panels without moving physical chairs or the stage footprint', () => {
+    const data = fixture(), before = structuredClone(data);
+    const standard = Model.createScene(data), concert = Model.createScene(data, 1, {concertTheme:true});
+    assert.deepEqual(concert.seats, standard.seats);
+    assert.equal(concert.stage.x,standard.stage.x); assert.equal(concert.stage.z,standard.stage.z);
+    assert.equal(concert.stage.width,standard.stage.width); assert.equal(concert.stage.depth,standard.stage.depth);
+    assert.equal(concert.meshes.venueFaces.filter(f=>f.kind==='screen').length,3);
+    assert.ok(concert.stage.visualHeight>3.95);
+    for (const seat of concert.seats.filter(s=>s.id)) assert.ok(Model.seatCamera(concert,seat.id).eye.every(Number.isFinite));
+    View.draw(fakeContext(),concert,{concertTheme:true,selected:[],orbit:{},look:{}},900,600);
+    View.draw(fakeContext(),concert,{concertTheme:true,viewSeatId:'id0',selected:[],orbit:{},look:{}},900,600);
+    assert.deepEqual(data,before);
+});
+
+test('event branding is deterministic, renders the event title, and LED motion leaves picking unchanged',()=>{
+    const data=fixture();data.eventName='MandoWave Festival 2026';
+    const scene=Model.createScene(data,1,{concertTheme:true}),ctx=fakeContext();
+    assert.deepEqual(scene.branding,Model.createScene(data).branding);
+    const state={concertTheme:true,selected:[],orbit:{},look:{}};
+    const a=View.draw(ctx,scene,{...state,stageTime:0},900,600);
+    const b=View.draw(fakeContext(),scene,{...state,stageTime:5},900,600);
+    assert.ok(ctx.calls.includes(data.eventName));assert.deepEqual(a,b);
+    const from=Model.overviewCamera(scene,1.5),to=Model.seatCamera(scene,'id0');
+    assert.equal(Model.blendCamera(from,to,0),from);assert.equal(Model.blendCamera(from,to,1),to);
+    for(const t of [.1,.5,.9]){const camera=Model.blendCamera(from,to,t);assert.ok([...camera.eye,...camera.forward,...camera.up,...camera.right,camera.fov].every(Number.isFinite));}
+});
+
 test('3D preserves the physical plan, deduplicates context and gives only event chairs selectable IDs', () => {
     const data = fixture(), before = structuredClone(data), scene = Model.createScene(data);
     assert.deepEqual(data, before);
