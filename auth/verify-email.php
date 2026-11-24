@@ -4,13 +4,14 @@ ob_start();
 ?>
 
 <div class="text-center">
-    <div class="ts-success-icon" style="background:var(--brand-100);color:var(--brand-900)">
-        <?=ts_icon('mail', 'ts-icon-xl')?>
+    <div id="verification-icon" class="ts-success-icon" style="background:var(--brand-100);color:var(--brand-900)">
+        <span id="verification-mail"><?=ts_icon('mail', 'ts-icon-xl')?></span>
+        <span id="verification-tick" hidden><?=ts_icon('check', 'ts-icon-xl')?></span>
     </div>
-    <h1 class="ts-auth-title">Verify your email</h1>
-    <p class="ts-auth-sub">We sent a verification link to <strong id="verification-email">your email address</strong>.
-        Open it, then return here to continue.</p>
-    <div id="verification-message" class="small muted mb-16" aria-live="polite"></div>
+    <h1 class="ts-auth-title" id="verification-heading">Verify your email</h1>
+    <p class="ts-auth-sub" id="verification-description">We sent a verification link to <strong id="verification-email">your email address</strong>.
+        Open the link. This page will update automatically.</p>
+    <div id="verification-progress" class="small muted mb-16" aria-live="polite"></div>
     <button class="ts-btn ts-btn-primary w-full" id="verification-complete" type="button">I verified my email</button>
     <button class="ts-btn ts-btn-secondary w-full mt-8" id="verification-resend" type="button" disabled>Resend in 60s</button>
     <a class="ts-btn ts-btn-tertiary w-full mt-8" id="verification-return" href="login.php">Return to Sign In</a>
@@ -19,7 +20,7 @@ ob_start();
 <script type="module">
     document.addEventListener('DOMContentLoaded', () => {
         const emailLabel = document.getElementById('verification-email');
-        const message = document.getElementById('verification-message');
+        const message = document.getElementById('verification-progress');
         const completeButton = document.getElementById('verification-complete');
         const resendButton = document.getElementById('verification-resend');
         const returnButton = document.getElementById('verification-return');
@@ -51,7 +52,9 @@ ob_start();
             else startCooldown();
             updateResendButton();
         };
-        window.setInterval(updateResendButton, 1000);
+        const cooldownTimer = window.setInterval(updateResendButton, 1000);
+        let finished = false, checking = false, leaving = false, stopped = false;
+        let checkTimer = null, redirectTimer = null;
         window.addEventListener('storage', event => {
             if (event.key !== cooldownKey || !event.newValue) return;
             const saved = Number(event.newValue);
@@ -68,34 +71,82 @@ ob_start();
         updateEmailLabel();
         window.addEventListener('ts-auth-ready', event => updateEmailLabel(event.detail));
 
-        const syncVerifiedEmail = async () => {
+        const checkVerification = async (manual = false) => {
+            if (finished || checking || leaving || stopped || (!manual && document.hidden)) return;
             const user = currentUser();
-            if (!user) throw new Error('Your sign-in session has ended. Please sign in again.');
-            await user.reload();
-            updateEmailLabel(user);
-            const verified = await window.tsAuth.syncEmailVerification();
-            if (!verified) return {
-                verified: false,
-                profile: null
-            };
-            const profile = await window.tsDb.getUserProfile(user.uid);
-            if (!profile) throw new Error(
-                'Your user profile could not be found. Please contact support.');
-            return {
-                verified: true,
-                profile
-            };
+            if (!user || !window.tsAuth) return;
+            const expectedUid = user.uid;
+            const sameSession = () => !stopped && !leaving && currentUser()?.uid === expectedUid;
+            checking = true;
+            completeButton.disabled = true;
+            if (manual) message.textContent = 'Checking verification status...';
+            try {
+                // Poll Auth only. Do not repeatedly read Firestore while waiting.
+                await user.reload();
+                if (!sameSession()) return;
+                if (!user.emailVerified) {
+                    if (manual) message.textContent = 'Your email is not verified yet. Open the latest verification link in your email.';
+                    return;
+                }
+                const verified = await window.tsAuth.syncEmailVerification();
+                if (!verified || !sameSession()) return;
+                // Keep the existing requirement to sign in again after verification.
+                await window.tsAuth.logout();
+                if (stopped || leaving) return;
+                finished = true;
+                window.clearInterval(checkTimer);
+                window.clearInterval(cooldownTimer);
+                document.getElementById('verification-mail').hidden = true;
+                document.getElementById('verification-tick').hidden = false;
+                const icon = document.getElementById('verification-icon');
+                icon.style.background = 'var(--success-bg, #ecfdf3)';
+                icon.style.color = 'var(--success, #067647)';
+                document.getElementById('verification-heading').textContent = 'Email verified';
+                document.getElementById('verification-description').textContent = 'Your email has been verified successfully.';
+                message.textContent = 'Redirecting to sign in...';
+                completeButton.hidden = true;
+                resendButton.hidden = true;
+                returnButton.textContent = 'Continue to Sign In';
+                redirectTimer = window.setTimeout(() => {
+                    if (!stopped && !leaving) window.location.replace('login.php?verified=1');
+                }, 1500);
+            } catch (error) {
+                if (sameSession()) message.textContent = error?.message === 'internal'
+                    ? 'Unable to update verification status. Please try again.'
+                    : manual ? error?.message || 'Unable to check verification. Please try again.'
+                    : 'Unable to check automatically. Reconnect or use “I verified my email”.';
+            } finally {
+                checking = false;
+                if (!finished && !leaving) completeButton.disabled = false;
+            }
         };
+        const checkWhenVisible = () => { if (!document.hidden) void checkVerification(); };
+        checkTimer = window.setInterval(checkWhenVisible, 5000);
+        window.addEventListener('focus', checkWhenVisible);
+        window.addEventListener('online', checkWhenVisible);
+        window.addEventListener('ts-auth-ready', checkWhenVisible);
+        document.addEventListener('visibilitychange', checkWhenVisible);
+        window.addEventListener('pagehide', () => {
+            stopped = true;
+            window.clearInterval(checkTimer);
+            window.clearInterval(cooldownTimer);
+            window.clearTimeout(redirectTimer);
+        });
+        window.addEventListener('pageshow', event => {
+            if (event.persisted) window.location.reload();
+        });
+        void checkVerification();
 
         resendButton?.addEventListener('click', async () => {
-            if (sending || !cooldownKey || Date.now() < resendAt) return;
+            if (finished || leaving || sending || !cooldownKey || Date.now() < resendAt) return;
             sending = true;
             startCooldown();
             message.textContent = 'Sending verification email...';
             try {
                 await window.tsAuth.resendVerificationEmail();
-                message.textContent = 'Verification email sent. Check your inbox and spam folder.';
+                if (!finished && !leaving) message.textContent = 'Verification email sent. Check your inbox and spam folder.';
             } catch (error) {
+                if (finished || leaving) return;
                 message.textContent = error?.code === 'auth/too-many-requests'
                     ? 'Too many requests. Please wait and try again later. You can also check your inbox and spam folder for an earlier verification email.'
                     : error?.message || 'Unable to resend the verification email.';
@@ -105,85 +156,13 @@ ob_start();
             }
         });
 
-        completeButton?.addEventListener(
-    'click',
-    async () => {
-
-        completeButton.disabled = true;
-
-        message.textContent =
-            'Checking verification status...';
-
-
-        try {
-
-            const {
-                verified,
-                profile
-            } = await syncVerifiedEmail();
-
-
-            // ==========================================
-            // NOT VERIFIED
-            // ==========================================
-
-            if (!verified) {
-
-                message.textContent =
-                    'Your email is not verified yet. ' +
-                    'Open the latest verification link ' +
-                    'in your email, then try again.';
-
-                return;
-            }
-
-
-            // ==========================================
-            // VERIFIED SUCCESSFULLY
-            // ==========================================
-
-            message.textContent =
-                'Email verified successfully. ' +
-                'Redirecting you to sign in...';
-
-
-            // Important:
-            // Verification should NOT automatically
-            // authenticate the user into TickSecure.
-            await window.tsAuth.logout();
-
-
-            // Return to login.
-            // verified=1 displays a success message.
-            window.location.replace(
-                'login.php?verified=1'
-            );
-
-
-        } catch (error) {
-
-            const detail =
-                error?.message
-                || 'Unable to sync verification status.';
-
-
-            message.textContent =
-                detail === 'internal'
-                    ? 'Your email is verified, but TickSecure could not update your account record. Please try again.'
-                    : detail;
-
-
-        } finally {
-
-            completeButton.disabled = false;
-
-        }
-
-    }
-);
+        completeButton?.addEventListener('click', () => checkVerification(true));
 
         returnButton?.addEventListener('click', async (event) => {
             event.preventDefault();
+            leaving = true;
+            window.clearInterval(checkTimer);
+            window.clearTimeout(redirectTimer);
             returnButton.setAttribute('aria-disabled', 'true');
             returnButton.style.pointerEvents = 'none';
             message.textContent = 'Returning to sign in...';
@@ -202,7 +181,7 @@ ob_start();
                 } catch (_) {
                     /* no-op */ }
             }
-            window.location.replace('login.php');
+            window.location.replace(finished ? 'login.php?verified=1' : 'login.php');
         });
     });
 </script>

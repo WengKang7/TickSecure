@@ -95,3 +95,31 @@ test('isolated pairs of legend boxes do not become seats in a larger seating pla
     assert.equal(result.seats.length, 30);
     assert.ok(result.seats.every(seat => seat.y < 300));
 });
+
+function smallDotPlan() {
+    const im=image(),points=[];
+    for(let row=0;row<10;row++)for(let col=0;col<20;col++)points.push({x:80+col*6.1,y:70+row*6.8+Math.sin(col/20*Math.PI)*3});
+    for(let row=0;row<3;row++)for(let col=0;col<10;col++)points.push({x:320+col*9,y:70+row*10});
+    const color=[0,87,165],radius=3.05;
+    for(const point of points)for(let y=Math.floor(point.y-radius-1);y<=point.y+radius+1;y++)for(let x=Math.floor(point.x-radius-1);x<=point.x+radius+1;x++){
+        let coverage=0;for(let sy=0;sy<4;sy++)for(let sx=0;sx<4;sx++)if((x+(sx+.5)/4-point.x)**2+(y+(sy+.5)/4-point.y)**2<=radius**2)coverage++;
+        const offset=(y*im.width+x)*4;
+        for(let c=0;c<3;c++)im.data[offset+c]=Math.min(im.data[offset+c],Math.round(255-(255-color[c])*coverage/16));
+    }
+    rectangle(im,70,20,170,15,[25,25,25]); // Neutral stage/labels must not become coloured seats.
+    return {im,points};
+}
+
+test('small antialiased touching coloured dots retain one detection per physical seat, including curved rows',()=>{
+    const {im,points}=smallDotPlan();const before=im.data.slice(),result=detector.detect(cv,im);
+    assert.equal(result.seats.length,points.length);
+    for(const point of points)assert.equal(result.seats.filter(s=>Math.hypot(s.x-point.x+.5,s.y-point.y+.5)<1.1).length,1);
+    assert.ok(result.seats.every(s=>s.shape==='circle'&&s.y>60));
+    assert.deepEqual(im.data,before);
+});
+
+test('a large coloured graphic cannot be expanded into an invented small-dot grid',()=>{
+    const {im}=smallDotPlan();rectangle(im,430,240,100,100,[0,87,165]);
+    const result=detector.detect(cv,im);
+    assert.ok(result.seats.every(s=>s.x<425||s.y<235));
+});

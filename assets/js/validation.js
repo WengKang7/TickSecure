@@ -38,7 +38,7 @@ export function validatePassword(password) {
     if (typeof password !== 'string' || password.length < 8 || password.length > 4096
         || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)
         || !Array.from(password).some(character => passwordSymbols.includes(character))) {
-        return { valid: false, error: 'Password must contain 8 to 4096 characters, including uppercase, lowercase, a number, and a special character.' };
+        return { valid: false, error: 'Password must contain at least 8 characters, including uppercase, lowercase, a number, and a special character.' };
     }
     return { valid: true, error: null };
 }

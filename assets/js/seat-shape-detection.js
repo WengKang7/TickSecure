@@ -35,6 +35,43 @@
                 dots.push({ x: round(x), y: round(y), w, h, angle: 0, shape: 'circle', color });
                 dotArea += area;
             }
+            // Small antialiased dots can share edge pixels across whole rows.
+            // Use repeated intact circles to establish a size, then separate
+            // their stronger colour cores. Never fill missing grid positions.
+            if (dots.length >= 24 && dotArea < colouredArea * .98) {
+                const sizes = dots.map(dot => Math.sqrt(dot.w * dot.h)).sort((a,b)=>a-b);
+                const typical = sizes[Math.floor(sizes.length/2)];
+                if (typical <= 9 && sizes.filter(size=>size>=typical*.75&&size<=typical*1.3).length >= dots.length*.9) {
+                    const histogram = new Uint32Array(256);
+                    for(let i=0;i<mask.length;i++)if(mask[i]){const j=i*4;histogram[Math.max(image.data[j],image.data[j+1],image.data[j+2])-Math.min(image.data[j],image.data[j+1],image.data[j+2])]++;}
+                    let cumulative=0, strong=80;
+                    for(let value=80;value<256;value++){cumulative+=histogram[value];if(cumulative>=colouredArea*.9){strong=value;break;}}
+                    const core = keep(new cv.Mat(image.height,image.width,cv.CV_8UC1));
+                    const threshold=Math.max(80,Math.floor(strong*.92));
+                    for(let i=0;i<mask.length;i++){const j=i*4;core.data[i]=Math.max(image.data[j],image.data[j+1],image.data[j+2])-Math.min(image.data[j],image.data[j+1],image.data[j+2])>=threshold?255:0;}
+                    const kernel=keep(cv.Mat.ones(3,3,cv.CV_8U));cv.erode(core,core,kernel);
+                    const labels=keep(new cv.Mat()),stats=keep(new cv.Mat()),centers=keep(new cv.Mat());
+                    const count=cv.connectedComponentsWithStats(core,labels,stats,centers,8,cv.CV_32S),recovered=[];
+                    for(let i=1;i<count;i++){
+                        const [,,w,h,area]=stats.data32S.subarray(i*5,i*5+5);
+                        if(area<2||Math.max(w,h)>typical*.9||Math.max(w,h)>2*Math.min(w,h))continue;
+                        const x=centers.data64F[i*2],y=centers.data64F[i*2+1],offset=(Math.round(y)*image.width+Math.round(x))*4;
+                        const color='#'+Array.from(image.data.subarray(offset,offset+3),c=>c.toString(16).padStart(2,'0')).join('');
+                        recovered.push({x:round(x),y:round(y),w:round(typical),h:round(typical),angle:0,shape:'circle',color});
+                    }
+                    // Reject logos, large coloured blocks and mixed artwork:
+                    // nearly all coloured pixels must be explained by real cores.
+                    const covered=new Uint8Array(mask.length),radius=typical*.75;
+                    for(const dot of recovered)for(let y=Math.max(0,Math.floor(dot.y-radius));y<=Math.min(image.height-1,dot.y+radius);y++)for(let x=Math.max(0,Math.floor(dot.x-radius));x<=Math.min(image.width-1,dot.x+radius);x++){
+                        if((x-dot.x)**2+(y-dot.y)**2<=radius**2)covered[y*image.width+x]=1;
+                    }
+                    let explained=0;for(let i=0;i<mask.length;i++)if(mask[i]&&covered[i])explained++;
+                    const supported=recovered.length<=3000?recovered.filter(a=>recovered.some(b=>a!==b&&Math.hypot(a.x-b.x,a.y-b.y)<=typical*3)).length:0;
+                    if(recovered.length<=3000&&recovered.length>=dots.length&&explained>=colouredArea*.98&&supported>=recovered.length*.95){
+                        dots.splice(0,dots.length,...recovered);dotArea=colouredArea;
+                    }
+                }
+            }
             if (dots.length >= 24 && dotArea >= colouredArea * .98) {
                 const sizes = dots.map(dot => Math.sqrt(dot.w * dot.h)).sort((a, b) => a - b);
                 const typical = sizes[Math.floor(sizes.length / 2)];

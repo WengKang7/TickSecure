@@ -5,10 +5,22 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { execFileSync } = require('node:child_process');
 const root = path.join(__dirname, '..');
+test('seat offer counts down against the fixed deadline and expires without confirmation',async()=>{
+    const p=fixture(),deadline=p.now()+30000;
+    const result=p.open('seatOfferAvailable','VIP-72',[],{deadline});
+    assert.match(p.elements.fields.children[0].textContent,/30s remaining/);
+    p.advance(29500);assert.match(p.elements.fields.children[0].textContent,/1s remaining/);
+    p.advance(500);assert.equal(await result,null);assert.equal(p.elements.dialog.open,false);assert.equal(p.timers.size,0);
+});
+test('claim clears the countdown; submission after deadline cannot claim even before timer fires',async()=>{
+    const p=fixture();let result=p.open('seatOfferOpen','VIP-72',[],{deadline:p.now()+30000});
+    p.submit();assert.deepEqual(JSON.parse(JSON.stringify(await result)),{});assert.equal(p.timers.size,0);
+    result=p.open('seatOfferOpen','VIP-72',[],{deadline:p.now()-1});assert.equal(await result,null);
+});
 function fixture() {
     let document;
     class Element {
-        constructor() { this.listeners = {}; this.children = []; this.attributes = {}; this.value = ''; this.isConnected = true; this.disabled = false; }
+        constructor() { this.style={}; this.listeners = {}; this.children = []; this.attributes = {}; this.value = ''; this.isConnected = true; this.disabled = false; }
         addEventListener(type, listener) { this.listeners[type] = listener; }
         append(...children) { this.children.push(...children); }
         appendChild(child) { this.children.push(child); }
@@ -27,9 +39,12 @@ function fixture() {
         addEventListener(type, listener) { events[type] = listener; },
         confirm() { throw Error('Native confirmation must not be used'); }, prompt() { throw Error('Native prompt must not be used'); } };
     document = { activeElement: trigger, getElementById: id => id.startsWith('admin-confirm-') ? (adminElements[id] ||= new Element()) : elements[id.replace('ts-decision-', '')], createElement: () => new Element() };
-    const context = vm.createContext({ window, document });
+    let now=Date.now();const timers=new Map();let serial=0;
+    window.setInterval=callback=>{timers.set(++serial,callback);return serial;};window.clearInterval=id=>timers.delete(id);
+    class Clock extends Date { static now(){return now;} }
+    const context = vm.createContext({ window, document, Date:Clock });
     vm.runInContext(fs.readFileSync(path.join(root, 'assets/js/decision-dialog.js'), 'utf8'), context);
-    return { window, elements, trigger, events, document, context,
+    return { window, elements, trigger, events, document, context,now:()=>now,advance:milliseconds=>{now+=milliseconds;[...timers.values()].forEach(callback=>callback());},timers,
         open: (...args) => window.tsDecision(...args),
         submit: () => elements.form.listeners.submit({ preventDefault() {} }),
         fields: () => elements.fields.children.map(wrapper => ({ input: wrapper.children[1], error: wrapper.children[2] })) };

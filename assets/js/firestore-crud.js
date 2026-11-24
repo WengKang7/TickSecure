@@ -905,8 +905,8 @@ export const SeatService = {
      * Allocates the next available seats. In production this delegates seat
      * selection to a callable Function; local Firestore writes are dev-only.
      */
-    async seatWaitlist(eventId, seatDocId, leave = false) {
-        return invokeTrustedBackend({ eventId, seatDocId }, { name: leave ? 'leaveSeatWaitlist' : 'joinSeatWaitlist', region: DEFAULT_FUNCTION_REGION });
+    async seatWaitlist(eventId, seatDocId, leave = false, offerExpiry = null) {
+        return invokeTrustedBackend({ eventId, seatDocId, ...(offerExpiry ? {offerExpiry} : {}) }, { name: leave ? 'leaveSeatWaitlist' : 'joinSeatWaitlist', region: DEFAULT_FUNCTION_REGION });
     },
 
     async getSeatMap(eventId, sectionId) {

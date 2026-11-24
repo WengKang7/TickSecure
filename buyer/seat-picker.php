@@ -57,19 +57,12 @@ ob_start();
         <p class="small muted ts-seat-navigation-hint">Drag to rotate &middot; + / &minus; to zoom &middot; Select a seat to preview its view</p>
         </div>
         <p class="small muted mt-12" id="picker-3d-note" hidden>Illustrative concert environment. Seats follow the uploaded plan; surrounding tiers are decorative.</p>
-        <p class="small muted mt-8" id="picker-3d-fallback" hidden>3D preview is unavailable in this browser. Use the 2D plan or seat list.</p>
-        <p class="small muted mt-12" id="picker-position-note" hidden>Exact positions are unavailable for this layout. Choose by seat identifier below.</p>
-        <details class="ts-simple-details ts-seat-comparison mt-16" id="picker-comparison" hidden>
-          <summary>Compare two seat views</summary>
-          <p class="small muted mt-12">Preview only. Comparing seats does not select or reserve them. Prices are per ticket, before fees.</p>
-          <div id="picker-comparison-panels" class="ts-seat-comparison-grid mt-16"></div>
-        </details>
-        <details id="picker-list-details" class="ts-simple-details mt-16"><summary>Find seats by row or number</summary><label class="ts-label mt-16" for="picker-search">Find a seat</label>
-        <input class="ts-input" id="picker-search" placeholder="Row or seat identifier" maxlength="80">
-        <div class="ts-picker-seat-list mt-12" id="picker-seat-list" aria-label="Available seat identifiers"></div></details>
-        <details class="ts-simple-details mt-16" id="picker-waitlist-details">
+        <p class="small muted mt-8" id="picker-3d-fallback" hidden>3D preview is unavailable in this browser. Use the 2D plan.</p>
+        <p class="small muted mt-12" id="picker-position-note" hidden>Exact positions are unavailable for some seats in this layout.</p>
+        <div class="ts-seat-quick-tools mt-20" aria-label="Waiting list and seat comparison">
+        <details class="ts-simple-details ts-seat-waitlist-card" id="picker-waitlist-details" open>
           <summary>Waiting list for a held seat</summary>
-          <p class="small muted mt-12">One seat per buyer per event. Offers last 5 minutes. No purchase is made automatically.</p>
+          <p class="small muted mt-12">Want a seat someone is holding? Join its queue. You have 30 seconds to claim an offer when it becomes available.</p>
           <p class="small mt-12" id="picker-waitlist-position" aria-live="polite"></p>
           <label class="ts-label mt-12" for="picker-waitlist-seat">Held seat</label>
           <select class="ts-select w-full" id="picker-waitlist-seat"></select>
@@ -77,6 +70,17 @@ ob_start();
           <button class="ts-btn ts-btn-primary w-full mt-12" type="button" id="picker-waitlist-claim" hidden>Claim offered seat</button>
           <button class="ts-btn ts-btn-ghost w-full mt-12" type="button" id="picker-waitlist-leave" hidden>Leave waiting list / decline offer</button>
         </details>
+        <details class="ts-simple-details ts-seat-comparison" id="picker-comparison" hidden>
+          <summary>Compare two seat views<small>Open to preview Seat A and Seat B side by side.</small></summary>
+          <p class="small muted mt-12">Choose Seat A and Seat B to compare their views, then explore either seat in the main viewer. Comparing does not reserve seats. Prices are per ticket, before fees.</p>
+          <div id="picker-comparison-panels" class="ts-seat-comparison-grid mt-16"></div>
+        </details>
+        </div>
+        <!-- Seat identifier search hidden at the user's request. Retained here for reference.
+        <details id="picker-list-details" class="ts-simple-details mt-16"><summary>Find seats by row or number</summary><label class="ts-label mt-16" for="picker-search">Find a seat</label>
+        <input class="ts-input" id="picker-search" placeholder="Row or seat identifier" maxlength="80">
+        <div class="ts-picker-seat-list mt-12" id="picker-seat-list" aria-label="Available seat identifiers"></div></details>
+        -->
       </section>
       <aside class="ts-card ts-card-pad ts-seat-order-panel" aria-labelledby="picker-order-heading">
         <div class="ts-seat-order-head"><div><h2 class="ts-card-title" id="picker-order-heading">Your tickets</h2><p class="small muted mt-8">Choose your seats, then reserve.</p></div><?=ts_icon('ticket')?></div>

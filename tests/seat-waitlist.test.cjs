@@ -11,6 +11,20 @@ function seed(){return {
 function run(records,action,uid='B',request=data){return JSON.parse(execFileSync('C:/xampp/php/php.exe',['tests/resale-backend-fixture.php'],{input:JSON.stringify([{action,uid,data:request,records}]),encoding:'utf8'}))[0];}
 function queue(){let r=seed();r=run(r,'joinSeatWaitlist','B').records;r=run(r,'joinSeatWaitlist','C').records;return r;}
 const release=r=>{r['EventSeats/'+seatId].reservationExpiry='2000-01-01T00:00:00Z';return r;};
+test('a stale popup cannot cancel a claimed payment hold or a newer offer',()=>{
+ let r=run(release(queue()),'advanceSeatWaitlist').records;const expiry=r['SeatWaitlists/'+seatId].offerExpiry;
+ r=run(r,'holdSelectedSeats','B',{eventId:'event',sectionId:'A',seatDocIds:[seatId]}).records;
+ const result=run(r,'leaveSeatWaitlist','B',{...data,offerExpiry:expiry});
+ assert.equal(result.result.left,false);assert.equal(result.records['EventSeats/'+seatId].reservedBy,'B');
+ assert.ok(Date.parse(result.records['EventSeats/'+seatId].reservationExpiry)>Date.now()+590000);
+});
+test('an expired offer cannot be claimed; next eligible queued buyer receives priority',()=>{
+ let r=run(release(queue()),'advanceSeatWaitlist').records;
+ r['EventSeats/'+seatId].reservationExpiry='2000-01-01T00:00:00Z';
+ r['SeatWaitlists/'+seatId].offerExpiry='2000-01-01T00:00:00Z';
+ const response=run(r,'holdSelectedSeats','B',{eventId:'event',sectionId:'A',seatDocIds:[seatId]});
+ assert.ok(response.error);assert.equal(response.records['EventSeats/'+seatId].reservedBy,'C');
+});
 test('B joins before C, duplicate join is idempotent and A cannot queue their own hold',()=>{
  const r=queue();assert.deepEqual(r['SeatWaitlists/'+seatId].entries.map(e=>e.uid),['B','C']);
  assert.equal(run(r,'joinSeatWaitlist','B').records['SeatWaitlists/'+seatId].entries.length,2);
@@ -20,7 +34,7 @@ test('B joins before C, duplicate join is idempotent and A cannot queue their ow
 test('release gives B an exclusive offer; C cannot bypass it; expiry promotes C',()=>{
  let r=release(queue());let response=run(r,'advanceSeatWaitlist');assert.equal(response.error,undefined);r=response.records;
  assert.equal(r['EventSeats/'+seatId].reservedBy,'B');assert.equal(r['SeatWaitlists/'+seatId].offerUid,'B');
- assert.ok(Date.parse(r['EventSeats/'+seatId].reservationExpiry)>Date.now()+290000);
+ const remaining=Date.parse(r['EventSeats/'+seatId].reservationExpiry)-Date.now();assert.ok(remaining>28000&&remaining<=30000);
  assert.equal(run(r,'holdSelectedSeats','C',{eventId:'event',sectionId:'A',seatDocIds:[seatId]}).error,'already-exists');
  r=release(r);r=run(r,'advanceSeatWaitlist').records;assert.equal(r['EventSeats/'+seatId].reservedBy,'C');
  assert.deepEqual(r['SeatWaitlists/'+seatId].entries,[]);

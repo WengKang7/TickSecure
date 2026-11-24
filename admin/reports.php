@@ -2,6 +2,21 @@
 require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
+<style>
+.ts-recorded-sales{width:100%;min-width:1100px;table-layout:fixed;border-collapse:collapse}
+.ts-recorded-sales th,.ts-recorded-sales td{white-space:normal!important;overflow-wrap:anywhere;vertical-align:middle;padding:16px!important;line-height:1.55}
+.ts-recorded-sales th:nth-child(1){width:15%}
+.ts-recorded-sales th:nth-child(2){width:13%}
+.ts-recorded-sales th:nth-child(3){width:20%}
+.ts-recorded-sales th:nth-child(4){width:10%}
+.ts-recorded-sales th:nth-child(5){width:17%}
+.ts-recorded-sales th:nth-child(6){width:5%}
+.ts-recorded-sales th:nth-child(7){width:11%}
+.ts-recorded-sales th:nth-child(8){width:9%}
+.ts-recorded-sales :is(th,td):nth-child(6){text-align:center}
+.ts-recorded-sales :is(th,td):nth-child(7){text-align:right;white-space:nowrap!important;font-variant-numeric:tabular-nums}
+.ts-recorded-sales .cell-sub{white-space:normal;overflow-wrap:anywhere;margin-top:6px}
+</style>
 
 <?= ts_page_head(
     'Sales Report',
@@ -162,7 +177,7 @@ ob_start();
         </div>
     </div>
     <div class="ts-table-wrap">
-        <table class="ts-table">
+        <table class="ts-table ts-recorded-sales">
             <thead>
                 <tr>
                     <th>Source</th>

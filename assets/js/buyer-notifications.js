@@ -31,11 +31,22 @@
             try {
                 const label = window.tsTicketDisplay?.seatLabel({seatLabel:offer.seatLabel, categoryName:offer.categoryName}) || offer.seatLabel;
                 const open = await window.tsDecision('seatOfferOpen', `${offer.eventName} · ${label}`,
-                    [['Seat', label], ['Claim before', new Date(expiry).toLocaleTimeString()]]);
+                    [['Seat', label], ['Claim before', new Date(expiry).toLocaleTimeString()]],{deadline:expiry});
+                if(!current(v,uid))return;
+                if(!open || expiry<=Date.now()) {
+                    await window.tsSeats.seatWaitlist(offer.eventId,offer.seatId,true,offer.reservationExpiry);
+                    return;
+                }
                 if (open && current(v, uid) && expiry > Date.now()) {
+                    const hold=await window.tsSeats.holdSelectedSeats(offer.eventId,offer.sectionId,[offer.seatId]);
+                    if(!current(v,uid))return;
                     const base = new URL('.', bell?.href || window.location.href);
-                    const link = new URL('seat-picker.php', base);
-                    link.search = new URLSearchParams({eventId:offer.eventId, sectionId:offer.sectionId, qty:'1', waitlist:'1'}).toString();
+                    const link = new URL('checkout.php', base);
+                    link.search = new URLSearchParams({eventId:offer.eventId, sectionId:offer.sectionId, qty:'1',seatIds:hold.seats.map(s=>s.id).join(','),seatLabels:hold.seats.map(s=>s.seatLabel).join(','),reservationExpiry:hold.reservationExpiry}).toString();
+                    if(hold.reservationId)link.searchParams.set('reservationId',hold.reservationId);
+                    if(!/^0x[a-fA-F0-9]{40}$/.test(window.tsCurrentUser?.walletAddress||'')) {
+                        const wallet=new URL('wallet.php',base);wallet.searchParams.set('redirect',link.href);window.location.href=wallet.href;return;
+                    }
                     window.location.href = link.href;
                 }
             } finally { offerDialogOpen = false; }

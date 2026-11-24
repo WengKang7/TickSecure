@@ -3,6 +3,14 @@
 .ts-seat-webgl-active .ts-seat-webgl-surface { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:0; }
 .ts-seat-webgl-active .ts-seat-3d-canvas { position:relative; z-index:1; background:transparent; }
 .ts-seat-webgl-active :is(.ts-seat-3d-tooltip,.ts-seat-3d-hint) { z-index:2; }
+body .ts-seat-page .ts-seat-quick-tools { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; align-items:start; margin-bottom:20px; }
+body .ts-seat-page .ts-seat-quick-tools > details { margin:0; padding:18px; border:1px solid #dce2eb; border-radius:14px; background:#fff; min-width:0; }
+body .ts-seat-page .ts-seat-quick-tools summary { cursor:pointer; font-weight:650; font-size:15px; color:#17243b; }
+body .ts-seat-page .ts-seat-quick-tools summary small { display:block; font-size:12px; font-weight:400; margin:7px 0 0 18px; color:#64748b; }
+body .ts-seat-page .ts-seat-quick-tools .ts-seat-waitlist-card { border-top:3px solid #d99b37; }
+body .ts-seat-page .ts-seat-quick-tools .ts-seat-comparison { border-top:3px solid #70978e; }
+body .ts-seat-page .ts-seat-quick-tools .ts-seat-comparison[open] { grid-column:1 / -1; }
+@media(max-width:620px) { body .ts-seat-page .ts-seat-quick-tools { grid-template-columns:minmax(0,1fr); } }
 body .ts-seat-page { background:#090a13; color:#f4f1fa; }
 body .ts-seat-page :is(h1,h2,h3,strong) { color:#f4f1fa; }
 body .ts-seat-page :is(.muted,.secondary,.small.muted,#picker-event,#picker-instructions) { color:#aaa7bc; }

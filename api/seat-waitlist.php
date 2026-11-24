@@ -11,7 +11,7 @@ function waitlist_notice(FirebaseFirestoreTransaction $tx, string $uid, string $
         'emailExpiresAt'=>$emailExpiry]);
 }
 
-/** Advance on demand. A five-minute offer starts when issued, not while nobody is online. */
+/** Advance on demand. A 30-second offer starts when issued. */
 function waitlist_advance(FirebaseAdminRest $firebase, string $eventId, string $seatId): array
 {
     return $firebase->transaction(static function(FirebaseFirestoreTransaction $tx) use($eventId,$seatId): array {
@@ -44,13 +44,13 @@ function waitlist_advance(FirebaseAdminRest $firebase, string $eventId, string $
             $tx->delete('SeatWaitlistMembers',waitlist_member_id($eventId,$who));
             waitlist_notice($tx,$who,$closed?'The waiting list for '.$seat['seatLabel'].' has closed.':'Your waiting-list offer expired or you are no longer eligible for '.$seat['seatLabel'].'.',$seatId,$eventId,$seat['sectionId']);
         }
-        $expiry=$next!==''?gmdate('Y-m-d\TH:i:s\Z',time()+300):'';
+        $expiry=$next!==''?gmdate('Y-m-d\TH:i:s\Z',time()+30):'';
         $queue=array_merge($queue,['entries'=>$entries,'offerUid'=>$next,'offerExpiry'=>$expiry,'updatedAt'=>backend_now()]);
         $fields=['hasWaitlist'=>!$closed && ($next!=='' || count($entries)>0),'updatedAt'=>backend_now()];
         if (!$closed) $fields+=['status'=>$next!==''?'RESERVED':'AVAILABLE','reservedBy'=>$next,'reservedAt'=>$next!==''?backend_now():'',
             'reservationExpiry'=>$expiry,'reservationEventId'=>$next!==''?$eventId:''];
         $tx->update('SeatWaitlists',$seatId,$queue); $tx->update('EventSeats',$seatId,$fields);
-        if($next!=='') waitlist_notice($tx,$next,'Seat '.$seat['seatLabel'].' is offered to you for 5 minutes. Open the seat picker to claim it.',$seatId,$eventId,$seat['sectionId'],(int)strtotime($expiry));
+        if($next!=='') waitlist_notice($tx,$next,'Seat '.$seat['seatLabel'].' is offered to you for 30 seconds. Claim it now before it passes to the next buyer.',$seatId,$eventId,$seat['sectionId'],(int)strtotime($expiry));
         return ['seat'=>array_merge($seat,$fields),'queue'=>$queue];
     });
 }
@@ -65,13 +65,16 @@ function backend_seat_waitlist(FirebaseAdminRest $firebase,string $uid,array $da
 {
     $eventId=backend_require_id($data['eventId']??null,'Event ID');
     $seatId=backend_require_id($data['seatDocId']??null,'Seat ID');
-    $result=$firebase->transaction(static function(FirebaseFirestoreTransaction $tx) use($uid,$eventId,$seatId,$leave):array {
+    $result=$firebase->transaction(static function(FirebaseFirestoreTransaction $tx) use($uid,$eventId,$seatId,$leave,$data):array {
         $actor=backend_get_actor($tx,$uid);backend_assert_active_buyer($actor);
         $event=$tx->get('Events',$eventId);$seat=$tx->get('EventSeats',$seatId);
         $queue=$tx->get('SeatWaitlists',$seatId);$membership=$tx->get('SeatWaitlistMembers',waitlist_member_id($eventId,$uid));
         if(!$seat || ($seat['eventId']??'')!==$eventId) backend_fail(404,'Seat not found.','not-found');
         $entries=$queue['entries']??[];
         if($leave){
+            // A dismissed dialog must never release a newer offer or a claimed payment hold.
+            if(isset($data['offerExpiry']) && (($queue['offerUid']??'')!==$uid || ($queue['offerExpiry']??'')!==$data['offerExpiry']))
+                return ['left'=>false,'seatId'=>$seatId];
             $entries=array_values(array_filter($entries,static fn($entry)=>$entry['uid']!==$uid));
             $fields=['entries'=>$entries,'updatedAt'=>backend_now()];
             $offered=($queue['offerUid']??'')===$uid;

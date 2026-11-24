@@ -24,6 +24,7 @@ function app(options = {}) {
         sessionStorage: options.storage || new Map(),
         addEventListener: (key, callback) => { events[key] = callback; },
         tsDecision: (...args) => options.decision ? options.decision(...args) : Promise.resolve(options.cancel ? null : {}),
+        tsSeats:{seatWaitlist:async(...args)=>writes.push({leave:args}),holdSelectedSeats:async(event,section,ids)=>({seats:ids.map(id=>({id,seatLabel:'VIP-72'})),reservationExpiry:new Date(Date.now()+600000).toISOString()})},
         tsNotifications: {
             getSeatOffers: async () => options.offers || [],
             getForUser: async () => { listCalls++; if (options.pending) return options.pending(); if (fail) throw Error('Denied'); return structuredClone(records); },
@@ -148,8 +149,8 @@ test('offer popup opens from public pages, uses correct buyer link and is dedupl
     const offers=[liveOffer()],storage=new Map();storage.getItem=storage.get.bind(storage);storage.setItem=storage.set.bind(storage);
     let calls=0;const options={headerOnly:true,url:'http://localhost/ticksecure-ui/public/events.php',offers,storage,decision:async(action,subject)=>{calls++;assert.equal(action,'seatOfferOpen');assert.match(subject,/VIP-72/);return {};}};
     const p=app(options);await p.auth({uid:'buyer-1',role:'buyer'});
-    assert.equal(calls,1);assert.equal(new URL(p.window.location.href).pathname,'/ticksecure-ui/buyer/seat-picker.php');
-    assert.equal(new URL(p.window.location.href).searchParams.get('eventId'),'event&safe');
+    assert.equal(calls,1);const destination=new URL(new URL(p.window.location.href).searchParams.get('redirect')||p.window.location.href);assert.equal(destination.pathname,'/ticksecure-ui/buyer/checkout.php');
+    assert.equal(destination.searchParams.get('eventId'),'event&safe');
     await p.timers[0]();assert.equal(calls,1);
     const nextPage=app({...options,url:'http://localhost/ticksecure-ui/buyer/tickets.php'});await nextPage.auth({uid:'buyer-1',role:'buyer'});assert.equal(calls,1);
 });

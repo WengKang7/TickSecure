@@ -9,6 +9,12 @@ $listSubtitle = $isOrganizerList
 ob_start();
 ?>
 
+<style>
+    .ts-table td.ts-account-actions-cell { vertical-align: middle; white-space: nowrap; }
+    .ts-account-row-actions { display: inline-flex; align-items: center; gap: 10px; }
+    .ts-account-row-actions > .ts-btn { min-width: 72px; margin: 0; justify-content: center; }
+</style>
+
 <?=ts_page_head($listTitle, $listSubtitle, '<button id="users-print" class="ts-btn ts-btn-secondary" type="button" disabled>Print</button> <button id="users-export" class="ts-btn ts-btn-secondary" type="button" disabled>'.ts_icon('download').' Export CSV</button>')?>
 <div class="ts-card">
     <div class="ts-card-pad"><a class="ts-btn ts-btn-primary" href="account-edit.php">Create account</a></div>
@@ -133,10 +139,10 @@ function renderUsers() {
             <td><span class="ts-chip ts-chip-${statusTone}">${esc(user.status || 'Unknown')}</span></td>
             <td><span class="ts-chip ts-chip-${verified ? 'success' : 'neutral'}">${verified ? 'Verified' : 'Unverified'}</span></td>
             <td>${esc(formatDate(user.createdAt))}</td>
-            <td class="flex gap-4">
+            <td class="ts-account-actions-cell"><div class="ts-account-row-actions">
                 <a class="ts-btn ts-btn-secondary ts-btn-sm" href="user-detail.php?id=${encodeURIComponent(user.id)}">View</a>
                 ${action}
-            </td>
+            </div></td>
         </tr>`;
     }).join('');
 }

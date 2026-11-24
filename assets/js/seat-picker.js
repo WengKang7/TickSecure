@@ -5,7 +5,7 @@
     let revision = 0;
     let model, hold, busy = false, uid, version = 0, viewport = [0,0,104,106], interval, loading = false;
     let view3D = null, viewMode = '3d', focusedSeatId = null, viewInfo = {}, failed3D = false;
-    const comparison = window.tsSeatComparison?.mount(el('picker-comparison'), {onPreview:id=>showSeatView(id)});
+    const comparison = window.tsSeatComparison?.mount(el('picker-comparison'), {onPreview:id=>{showSeatView(id);el('picker-explorer')?.scrollIntoView?.({behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});}});
     const error = message => { el('picker-error').hidden = !message; el('picker-error').textContent = message || ''; };
     const sameSelection = () => hold && hold.seats.length === selected.size && hold.seats.every(seat => selected.has(seat.id)) && Date.parse(hold.reservationExpiry) > Date.now();
     // Keep the exact reservation selection fixed until the hold is released or expires.
@@ -53,8 +53,12 @@
         const alertVersion = version, alertUid = uid;
         try {
             const claim = await window.tsDecision('seatOfferAvailable', `${model.eventName} · ${seatName(offer)}`,
-                [['Seat', seatName(offer)], ['Claim before', new Date(offer.reservationExpiry).toLocaleTimeString()]]);
-            if (!claim || version !== alertVersion || window.tsCurrentUser?.uid !== alertUid || selectionLocked()) return;
+                [['Seat', seatName(offer)], ['Claim before', new Date(offer.reservationExpiry).toLocaleTimeString()]],{deadline:Date.parse(offer.reservationExpiry)});
+            if(version !== alertVersion || window.tsCurrentUser?.uid !== alertUid || selectionLocked())return;
+            if(!claim){
+                await window.tsSeats.seatWaitlist(eventId,offer.id,true,offer.reservationExpiry);
+                await load();return;
+            }
             const current = mapSeats().get(offer.id);
             if (!current?.waitlistOffer || current.reservationExpiry !== offer.reservationExpiry
                 || !(Date.parse(current.reservationExpiry) > Date.now())) {
@@ -62,7 +66,8 @@
             }
             selected.clear(); selected.add(offer.id); focusedSeatId = offer.id;
             await reserve();
-        } finally { offerAlertOpen = false; }
+        } catch(problem) { error(problem.message || 'Unable to update this offer. Refresh availability.'); }
+        finally { offerAlertOpen = false; }
     }
     function renderWaitlist() {
         const root=el('picker-waitlist-details');if(!root)return;
@@ -244,8 +249,8 @@
             window.tsVenueRenderer.renderBoard('buyer-seat-map', sections, { cleanLayout: true, seatOnly: true, selectedSeatIds: [...selected], viewport, editTool: 'pan',
                 onViewportChange: value => { viewport = value; }, onSeatSelect: (_, label, event, id) => toggle(id) });
         }
-        const filter = el('picker-search').value.trim().toLowerCase(), list = el('picker-seat-list'); list.replaceChildren();
-        model.seats.filter(seat => !filter || seatName(seat).toLowerCase().includes(filter) || seat.seatLabel.toLowerCase().includes(filter) || seat.row.toLowerCase().includes(filter)).forEach(seat => {
+        const filter = el('picker-search')?.value.trim().toLowerCase() || '', list = el('picker-seat-list'); list?.replaceChildren();
+        if(list)model.seats.filter(seat => !filter || seatName(seat).toLowerCase().includes(filter) || seat.seatLabel.toLowerCase().includes(filter) || seat.row.toLowerCase().includes(filter)).forEach(seat => {
             const button = create('button', 'ts-picker-seat-option', seatName(seat)); button.type = 'button';
             button.disabled = !['AVAILABLE', 'MINE'].includes(seat.status) || selectionLocked();
             button.setAttribute('aria-pressed', String(selected.has(seat.id))); button.setAttribute('aria-label', `${seatName(seat)}, ${seat.status.toLowerCase()}`);
@@ -309,7 +314,7 @@
     el('picker-view-seat').addEventListener('click', () => showSeatView(focusedSeatId));
     el('picker-overview').addEventListener('click', () => view3D?.overview());
     el('picker-plan-page').addEventListener('change', () => view3D?.setPage(Number(el('picker-plan-page').value)));
-    el('picker-search').addEventListener('input', render); el('picker-refresh').addEventListener('click', () => load());
+    el('picker-search')?.addEventListener('input', render); el('picker-refresh').addEventListener('click', () => load());
     el('picker-reserve').addEventListener('click', reserve); el('picker-release').addEventListener('click', release);
     el('picker-waitlist-join')?.addEventListener('click',()=>waitlistAction());
     el('picker-waitlist-leave')?.addEventListener('click',()=>waitlistAction(true));
@@ -323,9 +328,9 @@
     el('picker-continue').addEventListener('click', event => { if (busy || !sameSelection()) event.preventDefault(); });
     async function ready() {
         const current = window.tsCurrentUser?.uid;
-        if (!current) { version++; uid = null; busy = loading = false; model = hold = null; selected.clear(); clearInterval(interval); clear3D(); el('buyer-seat-map').replaceChildren(); el('picker-seat-list').replaceChildren(); renderSummary(); return; }
+        if (!current) { version++; uid = null; busy = loading = false; model = hold = null; selected.clear(); clearInterval(interval); clear3D(); el('buyer-seat-map').replaceChildren(); el('picker-seat-list')?.replaceChildren(); renderSummary(); return; }
         if (uid === current) return;
-        uid = current; version++; revision++; loading = busy = false; model = hold = null; selected.clear(); clear3D(); el('buyer-seat-map').replaceChildren(); el('picker-seat-list').replaceChildren(); renderSummary(); clearInterval(interval);
+        uid = current; version++; revision++; loading = busy = false; model = hold = null; selected.clear(); clear3D(); el('buyer-seat-map').replaceChildren(); el('picker-seat-list')?.replaceChildren(); renderSummary(); clearInterval(interval);
         const startVersion = version;
         if (!/^[A-Za-z0-9_-]{1,160}$/.test(eventId) || !/^[A-Za-z0-9_-]{1,160}$/.test(sectionId) || !Number.isInteger(quantity) || quantity < 1 || quantity > 20) { error('Choose a valid category and quantity before selecting seats.'); return; }
         await load(true);

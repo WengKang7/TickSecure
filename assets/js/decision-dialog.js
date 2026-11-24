@@ -21,7 +21,7 @@
         transferTicket: { title: 'Transfer ticket ownership?', message: 'This ticket will move to the recipient’s account. You will lose access to it. Check the full wallet address carefully.', label: 'Transfer ticket', tone: 'danger' },
         checkout: { title: 'Confirm your ticket purchase?', message: 'This records a simulated payment and issues your reserved tickets. Review your order before continuing.', label: 'Confirm purchase', tone: 'success' },
         seatOfferAvailable: { title: 'Your queued seat is available!', message: 'This seat is now offered to you for a limited time. Claim it before the deadline to reserve it and continue to payment.', label: 'Claim seat', cancelLabel: 'Later', tone: 'warning' },
-        seatOfferOpen: { title: 'Your queued seat is available!', message: 'Act now: your seat offer expires soon. Open the seat picker to claim it before the deadline.', label: 'Open offered seat', cancelLabel: 'Later', tone: 'warning' },
+        seatOfferOpen: { title: 'Your queued seat is available!', message: 'Claim this seat before the countdown ends to start your payment hold. Otherwise it passes to the next buyer.', label: 'Claim seat', cancelLabel: 'Cancel offer', tone: 'warning' },
         releaseReservation: { title: 'Release your reserved seats?', message: 'These seats will become available to other buyers. You will need to reserve seats again to continue checkout.', label: 'Release seats', tone: 'danger' },
         confirmEntry: { title: 'Admit this ticket holder?', message: 'The ticket will be validated and marked as used if eligible. A used ticket cannot be admitted again.', label: 'Verify and admit', tone: 'success' },
         rescanBlueprint: { title: 'Detect seats again?', message: 'A new scan will replace the draft’s current detected seats and sections. Review the new result before activating the venue.', label: 'Scan again', tone: 'danger' }
@@ -36,6 +36,7 @@
     function finish(result) {
         if (!pending) return;
         const decision = pending;
+        if(decision.timer)window.clearInterval(decision.timer);
         pending = null;
         dialog.close();
         el('fields').replaceChildren();
@@ -86,6 +87,19 @@
             pending = { resolve, fields, trigger: document.activeElement === document.body ? lastTrigger : document.activeElement, uid: identity(), role: window.tsCurrentUser?.role ?? null, status: window.tsCurrentUser?.status ?? null, config: { requireAdmin: config.requireAdmin } };
             try { dialog.showModal(); el('cancel').focus(); }
             catch (_) { finish(null); }
+            if(pending && Number.isFinite(config.deadline)) {
+                const countdown=document.createElement('p');
+                countdown.style.cssText='color:#b91c1c;font-weight:700;font-size:18px;margin:12px 0';
+                countdown.setAttribute('role','timer');
+                el('fields').appendChild(countdown);
+                const tick=()=>{
+                    const seconds=Math.max(0,Math.ceil((config.deadline-Date.now())/1000));
+                    countdown.textContent=`! ${seconds}s remaining — claim or cancel before the seat is released.`;
+                    if(!seconds)finish(null);
+                };
+                pending.deadline=config.deadline;
+                pending.timer=window.setInterval(tick,250);tick();
+            }
         });
     };
     window.tsDecision = (action, subject, details = [], options = {}) => {
@@ -93,11 +107,13 @@
         if (!config) return Promise.resolve(null);
         const maximum = Math.min(Number(options.maximum) > 0 ? Number(options.maximum) : 1000000, 1000000);
         const fields = action === 'repriceListing' ? [{ name: 'price', label: 'New resale price (RM)', type: 'price', value: options.price, maximum }] : [];
-        return window.tsConfirmDecision({ ...config, subject, details, fields });
+        const offer=action==='seatOfferAvailable'||action==='seatOfferOpen';
+        return window.tsConfirmDecision({ ...config, ...(offer?{cancelLabel:'Cancel offer',deadline:Number(options.deadline)}:{}), subject, details, fields });
     };
     el('form').addEventListener('submit', event => {
         event.preventDefault();
         if (!pending) return;
+        if(pending.deadline && Date.now()>=pending.deadline){finish(null);return;}
         if (!sameSession(pending) || !allowed(pending.config)) { finish(null); return; }
         const result = {};
         for (const { input, error, field } of pending.fields) {

@@ -352,11 +352,11 @@ test('queued seat popup names the offer, shows once, and claims the exact offere
     assert.deepEqual(p.writes[0].ids,['seat2']);assert.equal(p.elements.get('picker-continue').attributes['aria-disabled'],'false');
 });
 
-test('dismissing offer popup keeps the claim button; a new offer can alert again',async()=>{
+test('dismissing offer popup declines the offer; a new offer can alert again',async()=>{
     let calls=0;const p=page({search:'?eventId=event1&sectionId=Main&qty=1',offerDecision:()=>{calls++;return null;}});await p.ready();
     const offer=p.data.seats[2];Object.assign(offer,{status:'MINE',waitlistOffer:true,reservationExpiry:new Date(Date.now()+300000).toISOString()});
     await p.click('picker-refresh');await p.ready();await p.click('picker-refresh');
-    assert.equal(calls,1);assert.equal(p.writes.length,0);assert.equal(p.elements.get('picker-waitlist-claim').hidden,false);
+    assert.equal(calls,1);assert.equal(p.writes.length,1);assert.equal(p.writes[0].leave,true);
     offer.reservationExpiry=new Date(Date.now()+400000).toISOString();await p.click('picker-refresh');assert.equal(calls,2);
 });
 
