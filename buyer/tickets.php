@@ -12,7 +12,6 @@ ob_start();
                 <p class="ts-section-copy">View active, transferred, used and resale-listed NFT tickets owned by your
                     connected wallet.</p>
             </div>
-            <div class="tickets-heading-actions"><a class="ts-btn ts-btn-secondary" href="collections.php"><?=ts_icon('layers')?> NFT collection</a><a class="ts-btn ts-btn-secondary" href="wallet.php"><?=ts_icon('wallet')?> Manage wallet</a><a class="ts-btn ts-btn-primary" href="blockchain.php">My blockchain <?=ts_icon('arrow-right')?></a></div>
         </header>
         <div class="tickets-workspace">
             <aside class="tickets-sidebar" aria-label="Ticket navigation">

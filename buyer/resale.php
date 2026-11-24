@@ -3,6 +3,25 @@ require_once __DIR__ . '/../shared/ui.php';
 ob_start();
 ?>
 <style>
+.ts-seller-page .ts-section-title-row{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;margin-bottom:28px}
+.ts-seller-page .ts-section-title-row>div:first-child{flex:1 1 420px;min-width:0}
+.ts-seller-page h1.ts-section-title{font-size:clamp(30px,3.4vw,48px);line-height:1.15;margin:10px 0 12px}
+.ts-seller-page .ts-section-copy{font-size:14px;line-height:1.7;margin:0;max-width:680px}
+.ts-seller-page .ts-seller-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ts-seller-page .ts-seller-actions .ts-btn{margin:0;min-height:46px;white-space:nowrap}
+.ts-seller-page #resale-tabs{display:flex;gap:6px;flex-wrap:wrap;overflow:visible;height:auto;max-height:none;margin-bottom:20px;padding:0 0 12px;border-bottom:1px solid #e5e7eb}
+.ts-seller-page #resale-tabs .ts-tab{margin:0;min-height:44px;padding:10px 18px;white-space:nowrap}
+.ts-seller-page .ts-card{overflow:hidden;border:1px solid #e5e7eb;border-radius:12px}
+.ts-seller-page .ts-table-wrap{overflow-x:auto}
+.ts-seller-page .ts-resale-list-table th{font-size:11px;letter-spacing:.05em;color:#64748b;font-weight:600}
+.ts-seller-page .ts-resale-list-table td{font-size:13px}
+.ts-seller-page .ts-resale-list-table td[colspan]{height:150px;text-align:center}
+@media(max-width:620px){
+ .ts-seller-page .ts-seller-actions{width:100%}
+ .ts-seller-page .ts-seller-actions .ts-btn{flex:1 1 150px}
+ .ts-seller-page #resale-tabs{gap:4px}
+ .ts-seller-page #resale-tabs .ts-tab{flex:1 1 auto;padding:10px 12px}
+}
 .ts-resale-list-table{width:100%;min-width:1100px;table-layout:fixed;border-collapse:collapse}
 .ts-resale-list-table th,.ts-resale-list-table td{border:1px solid #e5e5e5;padding:18px 16px!important;vertical-align:middle;white-space:normal!important;overflow-wrap:anywhere}
 .ts-resale-list-table th{text-align:left;background:#fafafa}
@@ -19,7 +38,7 @@ ob_start();
 </style>
 
 
-<main class="ts-section-tight">
+<main class="ts-section-tight ts-seller-page">
     <div class="ts-container">
         <div class="ts-section-title-row">
             <div>
@@ -27,10 +46,13 @@ ob_start();
                 <h1 class="ts-section-title">My Resale Listings</h1>
                 <p class="ts-section-copy">Manage eligible NFT tickets listed on TickSecure's controlled secondary
                     market.</p>
-            </div><a class="ts-btn ts-btn-primary" href="resale-new.php">Create Listing</a>
+            </div>
+            <div class="ts-seller-actions">
+                <a class="ts-btn ts-btn-secondary" href="resale-purchases.php">My resale purchases</a>
+                <a class="ts-btn ts-btn-primary" href="resale-new.php">Create Listing</a>
+            </div>
         </div>
         <div class="ts-tabs mb-24" id="resale-tabs">
-            <a class="ts-btn ts-btn-secondary" href="resale-purchases.php">My resale purchases</a>
             <button class="ts-tab active" data-filter="active">Active</button>
             <button class="ts-tab" data-filter="sold">Sold</button>
             <button class="ts-tab" data-filter="cancelled">Cancelled</button>
