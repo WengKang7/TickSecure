@@ -12,6 +12,35 @@ function temporaryFile(callback) {
     const file=path.join(os.tmpdir(),'ticksecure-geocoding-test-'+randomUUID()+'.json');
     try {return callback(file);} finally {if(fs.existsSync(file))fs.unlinkSync(file);}
 }
+test('Geoapify search uses the server key, caches without credentials and normalizes results',()=>temporaryFile(file=>{
+    const result=run(`putenv('GEOAPIFY_API_KEY=test-private-key');$calls=[];
+        $transport=function($url)use(&$calls){$calls[]=$url;return ['results'=>[['lat'=>5.33,'lon'=>100.28,'name'=>'SPICE Arena','formatted'=>'SPICE Arena, Penang'],['lat'=>999,'lon'=>0,'formatted'=>'Invalid']]];};
+        $q=venue_geocode_query(['action'=>'search','q'=>'SPICE Arena Penang']);$config=venue_map_config();
+        $a=venue_geocode_lookup($q,$config,${literal(file)},$transport);
+        $b=venue_geocode_lookup($q,$config,${literal(file)},$transport);
+        echo json_encode(['a'=>$a,'same'=>$a===$b,'calls'=>$calls,'cache'=>file_get_contents(${literal(file)})]);`);
+    assert.equal(result.same,true);assert.equal(result.calls.length,1);
+    const url=new URL(result.calls[0]);assert.equal(url.hostname,'api.geoapify.com');assert.equal(url.searchParams.get('apiKey'),'test-private-key');
+    assert.equal(url.searchParams.get('text'),'SPICE Arena Penang');assert.equal(url.searchParams.get('format'),'json');
+    assert.deepEqual(result.a.results,[{name:'SPICE Arena',address:'SPICE Arena, Penang',latitude:5.33,longitude:100.28}]);
+    assert.ok(!result.cache.includes('test-private-key'));assert.ok(!result.cache.includes('apiKey'));
+}));
+test('Geoapify map lookup handles reverse results, empty responses and malformed provider data',()=>temporaryFile(file=>{
+    const result=run(`putenv('GEOAPIFY_API_KEY=test-private-key');$seen='';
+        $a=venue_geocode_lookup(venue_geocode_query(['action'=>'reverse','lat'=>5.33,'lon'=>100.28]),venue_map_config(),${literal(file)},function($url)use(&$seen){$seen=$url;return ['results'=>[['lat'=>5.33,'lon'=>100.28,'address_line1'=>'Arena','formatted'=>'Arena, Penang']]];});
+        $empty=venue_geoapify_normalize(['results'=>[]],'reverse');
+        try{venue_geoapify_normalize(['error'=>'invalid key'],'search');$code='wrong';}catch(FirebaseBackendException $e){$code=$e->errorCode;}
+        echo json_encode(['a'=>$a,'empty'=>$empty,'url'=>$seen,'code'=>$code]);`);
+    assert.deepEqual(result.a.results,[{name:'Arena',address:'Arena, Penang',latitude:5.33,longitude:100.28}]);
+    assert.deepEqual(result.empty.results,[]);assert.equal(result.code,'map_unavailable');
+    const url=new URL(result.url);assert.equal(url.pathname,'/v1/geocode/reverse');assert.equal(url.searchParams.get('lat'),'5.330000');
+}));
+test('upstream diagnostics categorize rejection without recording body, cookies or search text',()=>{
+    const result=run(`echo json_encode(venue_geocode_response_diagnostics('Access blocked by gateway. Usage policy. private-query secret-token', ['server'=>'nginx','content-type'=>'text/html; charset=utf-8','set-cookie'=>'secret-token','location'=>'https://example.com/?q=private-query']));`);
+    assert.deepEqual(result.responseSignals,['access_blocked','usage_policy','proxy']);
+    assert.deepEqual(result.responseHeaders,{server:'nginx','content-type':'text/html; charset=utf-8'});
+    assert.ok(!JSON.stringify(result).includes('secret-token'));assert.ok(!JSON.stringify(result).includes('private-query'));
+});
 test('only active canonical administrator profiles can use venue geocoding',()=>{
     const result=run(`$results=[]; foreach ([[['sub'=>'a'],['role'=>'admin','status'=>'active']],
         [['sub'=>'b'],['role'=>'buyer','status'=>'active']], [['sub'=>'c'],['role'=>'organizer','status'=>'active']],

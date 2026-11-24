@@ -27,7 +27,7 @@ ob_start();
             <span id="venue-location-coordinates">No location selected</span>
             <button id="venue-location-clear" class="ts-btn ts-btn-ghost" type="button" hidden>Clear pin</button>
         </div>
-        <p class="small">Review the suggested name and address before continuing. For unnamed places, the nearest address may be suggested; you can enter the venue name yourself. Search only for public venues. Location data: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>.</p>
+        <p class="small">Review the suggested name and address before continuing. For unnamed places, the nearest address may be suggested; you can enter the venue name yourself. Search only for public venues. Location search by <a href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify</a>. Location data: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>.</p>
     </section>
     <div class="ts-form-grid mt-20" id="venue-form">
         <div class="ts-field span-2"><label class="ts-label" for="venue-name">Venue Name</label><input id="venue-name" class="ts-input" name="venueName"

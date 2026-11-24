@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/firebase-admin.php';
 
-/** Provider settings can be changed without changing the picker code. No API key is needed. */
+/** Tile settings are independent of the geocoding provider. */
 function venue_map_config(): array
 {
     $config = ['geocodingBaseUrl' => 'https://nominatim.openstreetmap.org',
@@ -21,6 +21,44 @@ function venue_map_config(): array
         }
     }
     return $config;
+}
+
+/** Adapt Geoapify to the existing bounded result contract. The key stays server-side. */
+function venue_geoapify_query(array $query): array
+{
+    $params = ['format'=>'json','lang'=>'en','limit'=>$query['path']==='search'?'5':'1'];
+    if ($query['path']==='search') $params['text']=$query['params']['q'];
+    else $params += ['lat'=>$query['params']['lat'],'lon'=>$query['params']['lon']];
+    return ['path'=>$query['path'],'params'=>$params];
+}
+
+function venue_geoapify_normalize(array $raw, string $path): array
+{
+    if (!isset($raw['results']) || !is_array($raw['results']))
+        throw new FirebaseBackendException(503,'The location provider returned an unexpected response. Try again later.','map_unavailable');
+    $places=[];
+    foreach (array_slice($raw['results'],0,5) as $place) {
+        if (!is_array($place)) continue;
+        $places[]=['lat'=>$place['lat']??null,'lon'=>$place['lon']??null,
+            'display_name'=>$place['formatted']??'',
+            'name'=>$place['name']??$place['address_line1']??''];
+    }
+    return venue_geocode_normalize($path==='reverse'?($places[0]??[]):$places,$path);
+}
+
+function venue_geocode_lookup(array $query, array $config, string $stateFile, ?callable $transport=null): array
+{
+    $key=trim((string)getenv('GEOAPIFY_API_KEY'));
+    if ($key==='')return venue_geocode_cached($query,$config['geocodingBaseUrl'],$stateFile,$transport??'venue_geocode_http');
+    $adapted=venue_geoapify_query($query);
+    return venue_geocode_cached($adapted,'https://api.geoapify.com/v1/geocode',$stateFile,
+        static function(string $url)use($key,$transport):array {
+            $raw=($transport??'venue_geocode_http')($url.'&apiKey='.rawurlencode($key));
+            // Return the legacy provider shape so caching/normalization stay shared.
+            $result=venue_geoapify_normalize($raw,str_contains($url,'/reverse?')?'reverse':'search');
+            $places=array_map(static fn($p)=>['lat'=>$p['latitude'],'lon'=>$p['longitude'],'display_name'=>$p['address'],'name'=>$p['name']],$result['results']);
+            return str_contains($url,'/reverse?')?($places[0]??[]):$places;
+        });
 }
 
 function venue_geocode_require_admin(array $claims, ?array $profile): void
@@ -84,15 +122,41 @@ function venue_geocode_normalize(array $raw, string $path): array
     return ['results' => $results];
 }
 
+/** Fixed categories only: upstream pages can echo query strings or network credentials. */
+function venue_geocode_response_diagnostics(string $body, array $headers): array
+{
+    $sample = strtolower(substr($body, 0, 16384));
+    $signals = [];
+    foreach (['access_blocked' => '/access (?:blocked|denied)|request (?:blocked|denied)|forbidden/',
+        'rate_limit' => '/rate limit|too many requests/', 'usage_policy' => '/usage policy|acceptable use/',
+        'proxy' => '/proxy|gateway/', 'challenge' => '/captcha|verify you are human|challenge/',
+        'render' => '/render\.com/', 'cloudflare' => '/cloudflare/', 'fastly' => '/fastly/'] as $name => $pattern)
+        if (preg_match($pattern, $sample)) $signals[] = $name;
+    $safe = [];
+    foreach (['server', 'content-type', 'retry-after'] as $name)
+        if (isset($headers[$name]) && preg_match('/^[a-zA-Z0-9 .\/;=_+:-]{1,100}$/D', $headers[$name])) $safe[$name] = $headers[$name];
+    return ['responseBytes' => strlen($body), 'responseHeaders' => $safe, 'responseSignals' => $signals];
+}
+
 function venue_geocode_http(string $url): array
 {
     if (!function_exists('curl_init')) throw new FirebaseBackendException(503, 'Enable PHP cURL to use venue search.', 'map_unavailable');
     $handle = curl_init($url);
     $body = '';
+    $responseHeaders = [];
     curl_setopt_array($handle, [CURLOPT_RETURNTRANSFER => false, CURLOPT_FOLLOWLOCATION => false,
         CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 12,
         CURLOPT_USERAGENT => 'TickSecure-VenuePicker/1.0 (administrator-selected public event venues)',
         CURLOPT_HTTPHEADER => ['Accept: application/json'],
+        CURLOPT_HEADERFUNCTION => static function ($handle, string $line) use (&$responseHeaders): int {
+            if (preg_match('/^HTTP\//i', $line)) $responseHeaders = [];
+            elseif (str_contains($line, ':')) {
+                [$name, $value] = explode(':', $line, 2);
+                $name = strtolower(trim($name));
+                if (in_array($name, ['server', 'content-type', 'retry-after'], true)) $responseHeaders[$name] = trim($value);
+            }
+            return strlen($line);
+        },
         CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$body): int {
             if (strlen($body) + strlen($chunk) > 262144) return 0;
             $body .= $chunk; return strlen($chunk);
@@ -105,8 +169,9 @@ function venue_geocode_http(string $url): array
         // Log only transport diagnostics, never tokens, search text or response bodies.
         error_log('Venue geocoding upstream failed: ' . json_encode([
             'host' => parse_url($url, PHP_URL_HOST), 'httpStatus' => $status, 'curlCode' => $curlCode
-        ], JSON_UNESCAPED_SLASHES));
+        ] + venue_geocode_response_diagnostics($body, $responseHeaders), JSON_UNESCAPED_SLASHES));
         $message = match (true) {
+            $status === 401 => 'The location provider rejected its API key. Ask the administrator to check the Geoapify key in Render.',
             $status === 403 => 'The location provider blocked the server request. Ask the administrator to check the venue search provider.',
             $status === 429 => 'The location provider is limiting requests. Wait a moment before searching again.',
             $curlCode === 28 => 'The location provider timed out. Try again later or choose the location on the map.',

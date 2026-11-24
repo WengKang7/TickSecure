@@ -25,7 +25,7 @@ try {
     $claims = $firebase->verifyIdToken(trim($match[1]));
     venue_geocode_require_admin($claims, $firebase->getDocument('Users', (string)$claims['sub']));
     $config = venue_map_config();
-    $response = venue_geocode_cached($query, $config['geocodingBaseUrl'], venue_geocode_state_file(), 'venue_geocode_http');
+    $response = venue_geocode_lookup($query, $config, venue_geocode_state_file());
     echo json_encode($response, JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_SLASHES);
 } catch (FirebaseBackendException $error) {
     http_response_code($error->httpStatus);
