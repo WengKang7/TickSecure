@@ -18,9 +18,9 @@ ob_start();
                 <nav class="ts-tabs" id="ticket-tabs" aria-label="Ticket status">
                     <button type="button" class="ts-tab active" data-filter="valid"><?=ts_icon('ticket')?> Active</button>
                     <button type="button" class="ts-tab" data-filter="listed"><?=ts_icon('layers')?> Listed for Resale</button>
-                    <a class="ts-tab" href="ticket-transfers.php"><?=ts_icon('arrow-right')?> Sent &amp; received</a>
                     <button type="button" class="ts-tab" data-filter="used"><?=ts_icon('scanner')?> Used</button>
                     <button type="button" class="ts-tab" data-filter="cancelled"><?=ts_icon('clock')?> Cancelled / Expired</button>
+                    <a class="ts-tab" href="ticket-transfers.php"><?=ts_icon('arrow-right')?> Sent &amp; received</a>
                 </nav>
             </aside>
             <section class="tickets-collection" aria-label="Your tickets">
