@@ -87,7 +87,7 @@
         } catch (error) {
             if (request === version && activeAdmin()) setStatus(error.name === 'AbortError'
                 ? 'The location lookup timed out. Try again or enter the venue details manually.'
-                : `${error.message} You can enter the details manually.`);
+                : `${error.message}${/manually/i.test(error.message)?'':' You can enter the details manually.'}`);
         } finally { if (request === version) setBusy(false); }
     }
     async function lookupPoint(point) {

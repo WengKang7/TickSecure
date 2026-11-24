@@ -99,9 +99,22 @@ function venue_geocode_http(string $url): array
         }]);
     $ok = curl_exec($handle);
     $status = (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+    $curlCode = curl_errno($handle);
     curl_close($handle);
     if ($ok === false || $status !== 200) {
-        throw new FirebaseBackendException(503, 'The free location service is unavailable. Try again later or enter the venue details manually.', 'map_unavailable');
+        // Log only transport diagnostics, never tokens, search text or response bodies.
+        error_log('Venue geocoding upstream failed: ' . json_encode([
+            'host' => parse_url($url, PHP_URL_HOST), 'httpStatus' => $status, 'curlCode' => $curlCode
+        ], JSON_UNESCAPED_SLASHES));
+        $message = match (true) {
+            $status === 403 => 'The location provider blocked the server request. Ask the administrator to check the venue search provider.',
+            $status === 429 => 'The location provider is limiting requests. Wait a moment before searching again.',
+            $curlCode === 28 => 'The location provider timed out. Try again later or choose the location on the map.',
+            $curlCode === 6 => 'The server could not resolve the location provider. Ask the administrator to check the server connection.',
+            in_array($curlCode, [35, 60], true) => 'The server could not establish a secure connection to the location provider. Ask the administrator to check the server configuration.',
+            default => 'The location provider could not complete the search. Try again later or choose the location on the map.'
+        };
+        throw new FirebaseBackendException(503, $message, 'map_unavailable');
     }
     $decoded = json_decode($body, true);
     if (!is_array($decoded)) throw new FirebaseBackendException(503, 'The location service returned an unreadable result.', 'map_unavailable');
