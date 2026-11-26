@@ -76,7 +76,7 @@ export async function invokeTrustedBackend(request, config) {
             'getBuyerBlockchainOperations', 'getOrganizerBlockchainOperations', 'getDemoFundingSettings', 'getDemoFundingChallenge', 'claimDemoFunding', 'retryDemoFunding'].includes(config.name);
     const hostedCheckout = window.location.hostname === 'ticksecure.onrender.com'
         && window.tsFirebase?.emulator?.enabled !== true
-        && ['getSeatWaitlistOffers', 'createNotification', 'getEventAvailability', 'getSeatMap', 'joinSeatWaitlist', 'leaveSeatWaitlist', 'holdSelectedSeats', 'reserveSeats', 'releaseSeatReservation', 'checkout',
+        && ['checkPasswordResetEmail', 'getSeatWaitlistOffers', 'createNotification', 'getEventAvailability', 'getSeatMap', 'joinSeatWaitlist', 'leaveSeatWaitlist', 'holdSelectedSeats', 'reserveSeats', 'releaseSeatReservation', 'checkout',
             'submitEventForReview', 'checkEventContent', 'moderateEvent', 'transferTicket', 'getTicketTransfers',
             'createResaleListing', 'updateResalePrice', 'cancelResaleListing', 'suspendResaleListing', 'purchaseResale',
             'getBlockchainSettings', 'configureBlockchain', 'prepareBlockchainOperation', 'verifyBlockchainOperation',

@@ -79,8 +79,12 @@ function loadForm(options = {}) {
         setTimeout: callback => { const id = ++timerId; timers.set(id, callback); return id; },
         clearTimeout: id => timers.delete(id),
         document: {
+            readyState: options.readyState || 'loading',
             getElementById: id => id === 'reset-btn' ? button : form,
-            addEventListener: (_, callback) => callback()
+            addEventListener: (_, callback) => {
+                // A module resumed after DOMContentLoaded cannot receive it again.
+                if ((options.readyState || 'loading') === 'loading') callback();
+            }
         },
         invokeTrustedBackend: async (data, config) => { requests.push({ data, config }); return eligibility(); },
         sendPasswordResetEmail: async (_, address) => {
@@ -130,6 +134,16 @@ test('eligible email is normalized and checked before the reset request', async 
     assert.equal(form.success.style.display, 'none', 'an old success must disappear on an unknown-email attempt');
     assert.equal(form.sends.length, 1);
     assert.equal(form.feedback[1].type, 'field');
+});
+
+test('the reset button works when Firebase initialization finishes after DOMContentLoaded', async () => {
+    for (const readyState of ['interactive', 'complete']) {
+        const form = loadForm({ readyState, registered: true });
+        await form.click();
+        assert.deepEqual(form.sends, [user.email]);
+        assert.equal(form.feedback[0].type, 'success');
+        assert.equal(form.button.disabled, false);
+    }
 });
 
 test('backend errors and timeouts never fall back to sending a reset email', async () => {
@@ -190,9 +204,43 @@ test('PHP client allows public recovery/counts without a token and retains token
     assert.equal(signedIn.requests[0].headers.Authorization, 'Bearer verified-token');
 });
 
+test('Render recovery uses the signed-out PHP lookup while other hosts and emulators keep Functions', async () => {
+    const client = loadPhpClient(null, 'firebase');
+    client.context.window.location.hostname = 'ticksecure.onrender.com';
+    await client.invoke({ email: user.email }, { name: 'checkPasswordResetEmail' });
+    assert.equal(client.requests.length, 1);
+    assert.equal(client.requests[0].headers.Authorization, undefined);
+    assert.equal(JSON.parse(client.requests[0].body).action, 'checkPasswordResetEmail');
+    client.context.window.tsFirebase.emulator = { enabled: true };
+    await client.invoke({ email: user.email }, { name: 'checkPasswordResetEmail' });
+    client.context.window.tsFirebase.emulator.enabled = false;
+    client.context.window.location.hostname = 'tickets.example.com';
+    await client.invoke({ email: user.email }, { name: 'checkPasswordResetEmail' });
+    assert.equal(client.requests.length, 1);
+    assert.equal(client.callableRequests.length, 2);
+});
+
+test('hosted recovery permits only its public lookup and does not enable anonymous mutations', () => {
+    const source = fs.readFileSync(path.join(root, 'api/backend.php'), 'utf8');
+    const loopback = source.match(/function backend_is_loopback_request\(\): bool\s*\{[\s\S]*?\n\}/)[0];
+    const recovery = source.match(/function backend_password_reset_is_enabled\(\): bool\s*\{[\s\S]*?\n\}/)[0];
+    const enabled = source.match(/function backend_is_enabled\(\): bool\s*\{[\s\S]*?\n\}/)[0];
+    const script = loopback + '\n' + recovery + '\n' + enabled + `
+        $_SERVER['REMOTE_ADDR']='198.51.100.8';
+        putenv('TICKSECURE_PHP_BACKEND=0');
+        putenv('TICKSECURE_PHP_PASSWORD_RESET=1');
+        putenv('TICKSECURE_HOSTED_PASSWORD_RESET=0');
+        $off=backend_password_reset_is_enabled();
+        putenv('TICKSECURE_HOSTED_PASSWORD_RESET=1');
+        echo json_encode([$off,backend_password_reset_is_enabled(),backend_is_enabled()]);`;
+    assert.deepEqual(JSON.parse(execFileSync(php, ['-r', script], { encoding: 'utf8' })), [false, true, false]);
+    assert.match(fs.readFileSync(path.join(root, 'Dockerfile'), 'utf8'), /TICKSECURE_HOSTED_PASSWORD_RESET=1/);
+});
+
 
 test('PHP endpoint keeps mutations authenticated and reports missing recovery configuration without success', async t => {
-    for (const recoveryOnly of [false, true]) {
+    for (const mode of ['all', 'local-recovery', 'hosted-recovery']) {
+    const recoveryOnly = mode !== 'all';
     const net = require('node:net');
     const { spawn } = require('node:child_process');
     const probe = net.createServer();
@@ -200,7 +248,11 @@ test('PHP endpoint keeps mutations authenticated and reports missing recovery co
     const port = probe.address().port;
     await new Promise(resolve => probe.close(resolve));
     const server = spawn(php, ['-S', '127.0.0.1:' + port, '-t', root], {
-        windowsHide: true, env: { ...process.env, TICKSECURE_PHP_BACKEND: recoveryOnly ? '0' : '1', TICKSECURE_PHP_PASSWORD_RESET: '1' }, stdio: ['ignore', 'ignore', 'pipe']
+        windowsHide: true, env: { ...process.env,
+            TICKSECURE_PHP_BACKEND: recoveryOnly ? '0' : '1',
+            TICKSECURE_PHP_PASSWORD_RESET: mode === 'hosted-recovery' ? '0' : '1',
+            TICKSECURE_HOSTED_PASSWORD_RESET: mode === 'hosted-recovery' ? '1' : '0'
+        }, stdio: ['ignore', 'ignore', 'pipe']
     });
     t.after(() => server.kill());
     await new Promise((resolve, reject) => {

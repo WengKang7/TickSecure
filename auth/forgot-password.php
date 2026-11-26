@@ -28,7 +28,7 @@ function withResetTimeout(operation) {
     ]).finally(() => clearTimeout(timeout));
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function initializePasswordReset() {
     const btn = document.getElementById('reset-btn');
     const form = document.getElementById('forgot-form');
     if (!btn || !form) return;
@@ -83,7 +83,14 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.textContent = 'Send Reset Instructions';
         }
     });
-});
+}
+
+// Firebase initialization may finish after DOMContentLoaded has already fired.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializePasswordReset, { once: true });
+} else {
+    initializePasswordReset();
+}
 </script>
 
 <?php
