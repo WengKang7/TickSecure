@@ -13,6 +13,7 @@ ob_start();
     </div>
     <button class="ts-btn ts-btn-primary w-full" id="reset-btn" type="button">Send Reset Instructions</button>
 </div>
+<div class="ts-auth-footer text-center"><a href="login.php">Back to Login</a></div>
 
 <script type="module">
 import { sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';

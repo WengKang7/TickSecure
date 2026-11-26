@@ -2,6 +2,7 @@ const el = id => document.getElementById(id);
 const display = window.tsTicketDisplay;
 let loadVersion = 0;
 let downloadSvg = '', downloadId = '';
+let downloadDetails = null;
 let artworkReady = false;
 function flipTicket(flipped) {
     el('ticket-flip-card').setAttribute('data-flipped', String(flipped));
@@ -17,16 +18,24 @@ el('ticket-flip-button').addEventListener('click', () => {
     flipTicket(el('ticket-flip-button').getAttribute('aria-pressed') !== 'true');
 });
 el('ticket-art-image').addEventListener('error', () => { el('ticket-art-image').hidden = true; });
-el('download-qr').addEventListener('click', () => {
-    if (!downloadSvg || el('download-qr').disabled) return;
-    const url = URL.createObjectURL(new Blob([downloadSvg], { type: 'image/svg+xml' }));
+el('download-qr').addEventListener('click', async () => {
+    if (!downloadSvg || !downloadDetails || el('download-qr').disabled) return;
+    const version=loadVersion,uid=window.tsCurrentUser?.uid;
+    el('download-qr').disabled=true;
+    try {
+    const blob=await window.tsTicketDownload.png(downloadDetails);
+    if(version!==loadVersion||window.tsCurrentUser?.uid!==uid||!downloadDetails)return;
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `ticksecure-ticket-${downloadId}.svg`;
+    link.download = `ticksecure-ticket-${downloadId}.png`;
     document.body.appendChild(link);
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch(error) {
+        if(version===loadVersion){el('ticket-error').textContent=error.message||'Unable to download your ticket. Please try again.';el('ticket-error').hidden=false;}
+    } finally {if(version===loadVersion&&downloadDetails)el('download-qr').disabled=false;}
 });
 window.addEventListener('ts-auth-ready', async () => {
     const version = ++loadVersion;
@@ -39,6 +48,7 @@ window.addEventListener('ts-auth-ready', async () => {
     artworkReady = false; flipTicket(false); el('ticket-flip-button').disabled = true;
     el('ticket-art-image').removeAttribute('src');
     downloadSvg = '';
+    downloadDetails = null;
     if (!window.tsCurrentUser?.uid) return;
     const uid = window.tsCurrentUser.uid;
     try {
@@ -141,6 +151,7 @@ window.addEventListener('ts-auth-ready', async () => {
                 if (!/^[A-Za-z0-9_-]{1,160}$/.test(ticket.eventId || '') || !seat || seat.includes(':')) throw Error('Ticket entry data is incomplete. Please contact support.');
                 downloadSvg = window.tsTicketQr.svg(identity.qr);
                 downloadId = id;
+                downloadDetails={payload:identity.qr,ticketId:id,eventName:ticket.eventName||event?.name||'Event ticket',date:display.eventDate(ticket,event),venue:event?.venueName||ticket.venueName||'Venue details unavailable',category:ticket.categoryName||'Event pass',seat:display.seatLabel(ticket)};
                 el('qr-container').innerHTML = downloadSvg;
                 el('entry-heading').textContent = 'Ready for entry';
                 el('download-qr').disabled = false;

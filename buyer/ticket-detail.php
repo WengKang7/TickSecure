@@ -71,6 +71,7 @@ ob_start();
 <script src="<?=ts_asset_url('assets/js/vendor/qrcode-generator-1.4.4.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/ticket-display.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/ticket-qr.js', '..')?>"></script>
+<script src="<?=ts_asset_url('assets/js/ticket-download.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/face-client.js', '..')?>"></script>
 <script src="<?=ts_asset_url('assets/js/collectible-art.js', '..')?>"></script>
 <script type="module" src="<?=ts_asset_url('assets/js/ticket-detail.js', '..')?>"></script>
